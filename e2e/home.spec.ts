@@ -984,6 +984,52 @@ test('빈 마을의 수첩은 모두 힌트 칸이다', async ({ page }) => {
   await page.screenshot({ path: 'test-results/screens/book-empty.png' })
 })
 
+test('놓아 둔 꾸밈 소품 12종이 광장과 구역 빈 땅에 그려지고, 다시 열어도 자리가 그대로다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-07-19', 100) // 10월 26일까지 100일: 소품 12종이 모두 열렸다
+  const decor = [
+    { id: 'tent', at: 'plaza', col: 2, row: 0 },
+    { id: 'roseArch', at: 'plaza', col: 4, row: 0 },
+    { id: 'pot', at: 'plaza', col: 0, row: 1 },
+    { id: 'lamp', at: 'plaza', col: 1, row: 1 },
+    { id: 'bench', at: 'plaza', col: 2, row: 1 },
+    { id: 'mailbox', at: 'plaza', col: 4, row: 1 },
+    { id: 'birdhouse', at: 'plaza', col: 5, row: 1 },
+    { id: 'sunflower', at: 'plaza', col: 6, row: 1 },
+    { id: 'pond', at: 'plaza', col: 2, row: 4 },
+    { id: 'flowerbed', at: 'plaza', col: 4, row: 4 },
+    { id: 'bulbs', at: 'plaza', col: 6, row: 4 },
+    { id: 'fence', at: 'plaza', col: 5, row: 5 },
+    { id: 'pot', at: '2026-10', col: 1, row: 5 }, // 10월 구역 달력 밖 칸(같은 소품 두 번째)
+    { id: 'bench', at: '2026-10', col: 6, row: 1 }, // 10월 10일: 집이 선 칸이라 그리지 않는다
+  ]
+  const save = { version: 1, entries, decor }
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify(save)])
+  await page.reload()
+  await expect(page.locator('.decor')).toHaveCount(13)
+  for (const [i, d] of decor.slice(0, 13).entries()) await expect(page.getByTestId(`decor-${i}`)).toHaveAttribute('data-decor', d.id)
+  await expect(page.getByTestId('decor-13')).toHaveCount(0)
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/decor-block.png' })
+  await zoomToPlaza(page, 6)
+  // 광장이 화면 가운데에 오도록 오른쪽으로 끌어 둔다
+  await page.mouse.move(150, 300)
+  await page.mouse.down()
+  await page.mouse.move(250, 300, { steps: 5 })
+  await page.mouse.move(330, 250, { steps: 5 })
+  await page.mouse.up()
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/decor-plaza.png' })
+
+  // 그리지 않은 소품도 저장에서 지우지 않는다. 다시 열어도 그대로다
+  await page.reload()
+  await expect(page.locator('.decor')).toHaveCount(13)
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.decor).toEqual(decor)
+})
+
 test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알려 준다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')

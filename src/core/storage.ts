@@ -1,7 +1,8 @@
 import { isDate } from './date'
 import { isMoodId } from './mood'
 import { isVillageName } from './name'
-import type { Entry, Erased, SaveData } from './types'
+import { isPlacedDecor } from './placing'
+import type { Entry, Erased, PlacedDecor, SaveData } from './types'
 
 /**
  * grow_together 와 같은 사이트(github.io)라 localStorage 를 함께 쓴다.
@@ -58,6 +59,15 @@ export function parseSave(text: string): SaveData | null {
   }
   // 이름이 이상하면 그 칸만 버린다(글은 지킨다)
   if (isVillageName(x.villageName)) save.villageName = x.villageName
+  // 놓은 소품이 이상하면 그 줄만 버린다. 종류·자리만 읽고, 이미 소품이 있는 칸은 뺀다
+  if (Array.isArray(x.decor)) {
+    const decor: PlacedDecor[] = []
+    for (const d of x.decor as unknown[]) {
+      if (!isPlacedDecor(d) || decor.some((o) => o.at === d.at && o.col === d.col && o.row === d.row)) continue
+      decor.push({ id: d.id, at: d.at, col: d.col, row: d.row })
+    }
+    if (decor.length) save.decor = decor
+  }
   return save
 }
 

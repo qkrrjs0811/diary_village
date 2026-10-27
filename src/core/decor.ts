@@ -44,6 +44,10 @@ export const DECORS: Decor[] = [
   { id: 'tent', name: '작은 텐트', icon: '⛺', days: 90 },
 ]
 
+export function isDecorId(x: unknown): x is DecorId {
+  return DECORS.some((d) => d.id === x)
+}
+
 export function unlockedDecors(entries: Dated[]): Decor[] {
   const n = writtenDays(entries)
   return DECORS.filter((d) => d.days <= n)

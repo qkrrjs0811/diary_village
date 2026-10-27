@@ -1,3 +1,5 @@
+import type { DecorId } from './decor'
+
 export type MoodId = 'great' | 'calm' | 'meh' | 'blue' | 'tired'
 
 /** 하루 한 줄. 저장 원본이다. 마을은 이 기록에서 계산한다 */
@@ -30,4 +32,19 @@ export interface SaveData {
   erased?: Erased[]
   /** 사용자가 지은 마을 이름. 없으면 기본 이름. 이 칸이 없는 이전 저장도 그대로 읽는다 */
   villageName?: string
+  /** 사용자가 직접 놓은 꾸밈 소품 자리. 없으면 놓은 적이 없다. 이 칸이 없는 이전 저장도 그대로 읽는다 */
+  decor?: PlacedDecor[]
+}
+
+/**
+ * 직접 놓은 꾸밈 소품 하나. 자리는 마을 칸 좌표가 아니라 "그달 구역(또는 광장) 안 칸"으로 둔다.
+ * 앞선 달이 백업으로 더해져 구역 자리가 바뀌어도 소품은 그 칸에 남는다
+ */
+export interface PlacedDecor {
+  id: DecorId
+  /** 'plaza' 또는 구역의 달(YYYY-MM) */
+  at: string
+  /** 구역(광장) 안 칸. 왼쪽 위가 0,0 */
+  col: number
+  row: number
 }

@@ -40,5 +40,8 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   // 마을 이름도 폰에 있는 이름을 지키고, 폰에 이름이 없을 때만 백업 이름을 쓴다
   const villageName = current.villageName ?? backup.villageName
   if (villageName) save.villageName = villageName
+  // 놓은 소품도 폰에 놓은 것을 지키고, 폰에 하나도 없을 때만 백업의 자리를 쓴다(섞으면 칸이 겹친다)
+  const decor = current.decor?.length ? current.decor : backup.decor
+  if (decor?.length) save.decor = decor
   return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length }
 }

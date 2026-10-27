@@ -1,7 +1,9 @@
 // 마을 그림: 기록에서 계산한 마을(src/core/village)을 아이소메트릭 SVG로 그린다.
 // 그림은 모두 코드로 그린 도형이다. 둥글고 따뜻한 파스텔, 얇은 갈색 테두리.
 import { BLOCK_H, BLOCK_W, ROAD, hash, houseLook, type Block, type Lot, type Village } from '../core/village'
-import type { Entry } from '../core/types'
+import type { Entry, PlacedDecor } from '../core/types'
+import type { DecorId } from '../core/decor'
+import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import type { Walk } from '../core/resident'
@@ -655,6 +657,150 @@ function drawNextSign(g: Element, l: Landmark, lines: [string, string]) {
   t2.textContent = lines[1]
 }
 
+const line = (a: Pt, b: Pt) => ({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+const center = (p: Pt) => ({ cx: p.x, cy: p.y })
+const shadow = (g: Element, c: Pt, rx: number, ry: number) => el('ellipse', { cx: c.x, cy: c.y + 1, rx, ry, fill: 'rgba(90,70,54,0.14)' }, g)
+
+/** 꾸밈 소품 그림. 칸보다 작게 그려 옆 칸 집을 가리지 않는다 */
+const DECOR_ART: Record<DecorId, (g: Element, P: Place, c: Pt) => void> = {
+  pot(g, _P, c) {
+    shadow(g, c, 8, 3)
+    for (const [dx, dy, r, f] of [[-4, -14, 5, '#8fcf8a'], [4, -15, 5, '#7cc47f'], [0, -19, 5.5, '#a3d99b']] as const) el('circle', { cx: c.x + dx, cy: c.y + dy, r, fill: f, stroke: LINE, 'stroke-width': 0.7 }, g)
+    el('path', { d: `M${c.x - 6.5} ${c.y - 10} h13 l-2 9.5 a4.5 1.8 0 0 1 -9 0 z`, fill: '#e59a72', stroke: LINE }, g)
+    el('rect', { x: c.x - 7.5, y: c.y - 11.5, width: 15, height: 3.2, rx: 1.6, fill: '#f0b08e', stroke: LINE, 'stroke-width': 0.7 }, g)
+  },
+  bench(g, P) {
+    shadow(g, P(0.5, 0.5), 15, 5)
+    const legs = [P(0.2, 0.42), P(0.8, 0.42), P(0.2, 0.62), P(0.8, 0.62)]
+    for (const p of legs) el('rect', { x: p.x - 1, y: p.y - 7, width: 2, height: 7, rx: 1, fill: '#8a6a4e' }, g)
+    poly(g, [P(0.15, 0.4, 9), P(0.85, 0.4, 9), P(0.85, 0.36, 18), P(0.15, 0.36, 18)], '#dcae82')
+    el('line', { ...line(P(0.15, 0.38, 13.5), P(0.85, 0.38, 13.5)), stroke: '#c59466', 'stroke-width': 1 }, g)
+    poly(g, [P(0.15, 0.4, 8), P(0.85, 0.4, 8), P(0.85, 0.64, 8), P(0.15, 0.64, 8)], '#e8bf92')
+  },
+  flowerbed(g, P) {
+    el('ellipse', { ...center(P(0.5, 0.5)), rx: 17, ry: 8, fill: '#b98b67', stroke: LINE }, g)
+    el('ellipse', { ...center(P(0.5, 0.5, 1.2)), rx: 14.5, ry: 6.4, fill: '#a8d98f' }, g)
+    const colors = ['#ff8fa3', '#fff1a8', '#c4a3d8', '#ffb3c7', '#ffffff', '#ffc15e']
+    ;[[0.3, 0.35], [0.5, 0.3], [0.68, 0.4], [0.35, 0.58], [0.55, 0.52], [0.7, 0.65], [0.45, 0.72]].forEach(([u, v], k) => {
+      const p = P(u, v, 2)
+      el('circle', { cx: p.x, cy: p.y - 2, r: 2.6, fill: colors[k % colors.length], stroke: LINE, 'stroke-width': 0.5 }, g)
+      el('circle', { cx: p.x, cy: p.y - 2, r: 0.9, fill: '#ffd56e' }, g)
+    })
+  },
+  lamp(g, _P, c) {
+    shadow(g, c, 6, 2.5)
+    el('rect', { x: c.x - 3.5, y: c.y - 3, width: 7, height: 3, rx: 1.5, fill: '#6f7f7a' }, g)
+    el('rect', { x: c.x - 1.2, y: c.y - 30, width: 2.4, height: 28, rx: 1.2, fill: '#6f7f7a' }, g)
+    el('rect', { x: c.x - 5, y: c.y - 39, width: 10, height: 10, rx: 3, fill: '#fff1b8', stroke: '#6f7f7a', 'stroke-width': 1.2, class: 'win' }, g)
+    el('path', { d: `M${c.x - 7} ${c.y - 39} q7 -7 14 0 z`, fill: '#7bb88f', stroke: LINE }, g)
+    el('circle', { cx: c.x, cy: c.y - 46.5, r: 1.6, fill: '#7bb88f' }, g)
+  },
+  mailbox(g, _P, c) {
+    shadow(g, c, 6, 2.5)
+    el('rect', { x: c.x - 1.5, y: c.y - 14, width: 3, height: 14, rx: 1, fill: '#a7805e' }, g)
+    el('path', { d: `M${c.x - 7} ${c.y - 13} v-8 a7 6 0 0 1 14 0 v8 z`, fill: '#f08a7e', stroke: LINE }, g)
+    el('rect', { x: c.x - 4, y: c.y - 19, width: 8, height: 1.6, rx: 0.8, fill: '#9c4a42' }, g)
+    el('path', { d: `M${c.x + 7} ${c.y - 22} v-7 h5 l-1.5 2 l1.5 2 h-5`, fill: '#ffd56e', stroke: LINE, 'stroke-width': 0.6 }, g)
+  },
+  fence(g, P) {
+    // 칸 앞쪽 두 변을 따라 둥근 말뚝 울타리
+    const run = (a: Pt, b: Pt) => {
+      for (let k = 0; k <= 5; k++) {
+        const x = a.x + ((b.x - a.x) * k) / 5
+        const y = a.y + ((b.y - a.y) * k) / 5
+        el('rect', { x: x - 1.6, y: y - 12, width: 3.2, height: 12, rx: 1.6, fill: '#dcae82', stroke: LINE, 'stroke-width': 0.6 }, g)
+      }
+      for (const h of [4, 8.5]) el('line', { x1: a.x, y1: a.y - h, x2: b.x, y2: b.y - h, stroke: '#c59466', 'stroke-width': 1.6, 'stroke-linecap': 'round' }, g)
+    }
+    run(P(0.12, 0.88), P(0.88, 0.88))
+    run(P(0.88, 0.88), P(0.88, 0.12))
+  },
+  pond(g, P) {
+    const c = P(0.5, 0.5)
+    el('ellipse', { cx: c.x, cy: c.y, rx: 19, ry: 9, fill: '#d9cfc2', stroke: LINE }, g)
+    el('ellipse', { cx: c.x, cy: c.y, rx: 16, ry: 7.2, fill: '#a8dcf0' }, g)
+    el('path', { d: `M${c.x - 8} ${c.y - 2} q4 -2 8 0`, fill: 'none', stroke: '#e3f5fc', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, g)
+    el('ellipse', { cx: c.x + 6, cy: c.y + 2, rx: 3.2, ry: 1.6, fill: '#ffaa6b' }, g)
+    el('path', { d: `M${c.x + 9} ${c.y + 2} l2.5 -1.6 v3.2 z`, fill: '#ffaa6b' }, g)
+    el('ellipse', { cx: c.x - 9, cy: c.y + 2.5, rx: 4, ry: 2, fill: '#8fcf8a', stroke: LINE, 'stroke-width': 0.5 }, g)
+    el('circle', { cx: c.x - 8, cy: c.y + 1.5, r: 1.2, fill: '#ffd6e2' }, g)
+  },
+  birdhouse(g, _P, c) {
+    shadow(g, c, 5, 2)
+    el('rect', { x: c.x - 1.3, y: c.y - 26, width: 2.6, height: 26, rx: 1.2, fill: '#a7805e' }, g)
+    el('rect', { x: c.x - 6, y: c.y - 36, width: 12, height: 11, rx: 2, fill: '#fff4e2', stroke: LINE }, g)
+    el('path', { d: `M${c.x - 8.5} ${c.y - 35} l8.5 -8 l8.5 8 z`, fill: '#8fb8e8', stroke: LINE, 'stroke-linejoin': 'round' }, g)
+    el('circle', { cx: c.x, cy: c.y - 31, r: 2.2, fill: '#7a604a' }, g)
+    el('circle', { cx: c.x + 7, cy: c.y - 45, r: 3, fill: '#ffd56e', stroke: LINE, 'stroke-width': 0.6 }, g)
+    el('path', { d: `M${c.x + 9.8} ${c.y - 45.5} l2 0.6 l-2 0.8 z`, fill: '#f2a65a' }, g)
+    el('circle', { cx: c.x + 8, cy: c.y - 45.8, r: 0.6, fill: '#5a4636' }, g)
+  },
+  sunflower(g, P) {
+    for (const [u, v, h] of [[0.35, 0.45, 22], [0.62, 0.42, 28], [0.5, 0.65, 17]] as const) {
+      const p = P(u, v)
+      el('line', { x1: p.x, y1: p.y, x2: p.x, y2: p.y - h, stroke: '#6bb879', 'stroke-width': 1.6 }, g)
+      el('ellipse', { cx: p.x + 2.5, cy: p.y - h / 2, rx: 2.6, ry: 1.3, fill: '#8fcf8a' }, g)
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2
+        el('ellipse', { cx: p.x + Math.cos(a) * 3.6, cy: p.y - h + Math.sin(a) * 3.6, rx: 2.3, ry: 1.3, fill: '#ffd24d', transform: `rotate(${(a * 180) / Math.PI} ${p.x + Math.cos(a) * 3.6} ${p.y - h + Math.sin(a) * 3.6})` }, g)
+      }
+      el('circle', { cx: p.x, cy: p.y - h, r: 2.6, fill: '#a7805e' }, g)
+    }
+  },
+  roseArch(g, P) {
+    const a = P(0.5, 0.18)
+    const b = P(0.5, 0.82)
+    shadow(g, P(0.5, 0.5), 14, 5)
+    const top = Math.min(a.y, b.y) - 30
+    el('path', { d: `M${a.x} ${a.y} V${a.y - 22} Q${(a.x + b.x) / 2} ${top - 6} ${b.x} ${b.y - 22} V${b.y}`, fill: 'none', stroke: '#fffaf0', 'stroke-width': 3.2, 'stroke-linecap': 'round' }, g)
+    el('path', { d: `M${a.x} ${a.y} V${a.y - 22} Q${(a.x + b.x) / 2} ${top - 6} ${b.x} ${b.y - 22} V${b.y}`, fill: 'none', stroke: LINE, 'stroke-width': 0.6 }, g)
+    const roses = ['#ff8fa3', '#ffb3c7', '#ff7a93']
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10
+      const x = a.x + (b.x - a.x) * t
+      const y = k <= 2 ? a.y - 8 - k * 6 : k >= 8 ? b.y - 8 - (10 - k) * 6 : top + Math.abs(t - 0.5) * 10
+      el('circle', { cx: x + (k % 2 ? 2 : -2), cy: y, r: 2.4, fill: '#8fcf8a' }, g)
+      if (k % 2 === 0) el('circle', { cx: x, cy: y - 1, r: 2.2, fill: roses[k % 3], stroke: LINE, 'stroke-width': 0.4 }, g)
+    }
+  },
+  bulbs(g, P) {
+    const a = P(0.2, 0.5)
+    const b = P(0.8, 0.5)
+    for (const p of [a, b]) {
+      shadow(g, p, 4, 1.6)
+      el('rect', { x: p.x - 1.2, y: p.y - 26, width: 2.4, height: 26, rx: 1.2, fill: '#a7805e' }, g)
+    }
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 16 }
+    el('path', { d: `M${a.x} ${a.y - 25} Q${mid.x} ${mid.y} ${b.x} ${b.y - 25}`, fill: 'none', stroke: '#7a604a', 'stroke-width': 0.7 }, g)
+    const colors = ['#ffd56e', '#ff9fb2', '#9fd3ec', '#b8e0a0', '#e5d4f5']
+    for (let k = 1; k <= 7; k++) {
+      const t = k / 8
+      const x = (1 - t) ** 2 * a.x + 2 * t * (1 - t) * mid.x + t ** 2 * b.x
+      const y = (1 - t) ** 2 * (a.y - 25) + 2 * t * (1 - t) * mid.y + t ** 2 * (b.y - 25)
+      el('circle', { cx: x, cy: y + 2.4, r: 2, fill: colors[k % colors.length], stroke: LINE, 'stroke-width': 0.4, class: 'twinkle' }, g)
+    }
+  },
+  tent(g, P) {
+    // 용마루가 칸을 가로지르는 세모 텐트. 앞 경사면과 오른쪽 끝(문)이 보인다
+    shadow(g, P(0.5, 0.5), 18, 7)
+    const H = 24
+    poly(g, [P(0.18, 0.82), P(0.82, 0.82), P(0.82, 0.5, H), P(0.18, 0.5, H)], '#ffe2b8', { 'stroke-linejoin': 'round' })
+    for (const u of [0.39, 0.61]) el('line', { ...line(P(u, 0.82), P(u, 0.5, H)), stroke: '#f5c99a', 'stroke-width': 1.4 }, g)
+    poly(g, [P(0.82, 0.18), P(0.82, 0.82), P(0.82, 0.5, H)], '#f2c9a0', { 'stroke-linejoin': 'round' })
+    poly(g, [P(0.82, 0.36), P(0.82, 0.64), P(0.82, 0.5, H * 0.62)], '#f08a7e', { 'stroke-linejoin': 'round' })
+    const top = P(0.82, 0.5, H)
+    el('line', { x1: top.x, y1: top.y, x2: top.x, y2: top.y - 8, stroke: '#a7805e', 'stroke-width': 1.2 }, g)
+    el('path', { d: `M${top.x} ${top.y - 8} l6 1.8 l-6 1.8 z`, fill: '#7bb88f' }, g)
+  },
+}
+
+/** 사용자가 놓은 꾸밈 소품 하나 */
+function drawDecor(g: Element, d: PlacedDecor & DecorSpot & { index: number }) {
+  const P: Place = (u, v, h = 0) => iso(d.gx + u, d.gy + v, h)
+  const node = el('g', { class: 'decor', 'data-testid': `decor-${d.index}`, 'data-decor': d.id }, g)
+  DECOR_ART[d.id](node, P, P(0.5, 0.5))
+}
+
 /** 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다 */
 function drawResident(g: Element, walk: Walk) {
   const { resident: r, from, to } = walk
@@ -742,6 +888,8 @@ export interface DrawOptions {
   sign?: { landmark: Landmark; lines: [string, string] } | null
   /** 주민이 걷는 길(누적 날 수로 계산) */
   walks?: Walk[]
+  /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
+  decors?: (PlacedDecor & DecorSpot & { index: number })[]
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -772,6 +920,12 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     items.push({ depth: s.gx + s.gy, draw: () => drawNextSign(things, landmark, lines) })
   }
   for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
+  // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
+  const decorAt = new Set<string>()
+  for (const d of opt.decors ?? []) {
+    decorAt.add(`${d.gx},${d.gy}`)
+    items.push({ depth: d.gx + d.gy, draw: () => drawDecor(things, d) })
+  }
   for (const [col, row] of [[0, 0], [6, 0], [0, 5]]) {
     const gx = PLAZA.gx + col
     const gy = PLAZA.gy + row
@@ -790,7 +944,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
         const depth = gx + gy
         if (!lot) {
           // 그달의 날이 아닌 칸은 나무숲
-          if (seed % 5 < 3) items.push({ depth, draw: () => drawTree(things, gx, gy, season, seed) })
+          if (seed % 5 < 3 && !decorAt.has(`${gx},${gy}`)) items.push({ depth, draw: () => drawTree(things, gx, gy, season, seed) })
           continue
         }
         if (lot.entry) {

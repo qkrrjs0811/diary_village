@@ -66,3 +66,20 @@ describe('지운 날과 백업', () => {
     expect(plan.added).toBe(1)
   })
 })
+
+describe('놓은 소품과 백업', () => {
+  it('놓은 소품도 백업에 담겨 다시 읽힌다', () => {
+    const s: SaveData = { version: 1, entries: [e('2026-10-02', '한 줄')], decor: [{ id: 'pot', at: '2026-10', col: 1, row: 0 }] }
+    expect(parseSave(backupText(s))).toEqual(s)
+  })
+
+  it('폰에 놓은 소품이 있으면 그대로 두고, 없을 때만 백업의 소품을 쓴다', () => {
+    const mine: SaveData = { version: 1, entries: [e('2026-10-02', '폰')], decor: [{ id: 'pot', at: '2026-10', col: 1, row: 0 }] }
+    const backup: SaveData = { version: 1, entries: [e('2026-10-03', '백업')], decor: [{ id: 'bench', at: 'plaza', col: 2, row: 0 }] }
+    const a = planImport(mine, backupText(backup))
+    const b = planImport(save(), backupText(backup))
+    if (!a.ok || !b.ok) throw new Error()
+    expect(a.save.decor).toEqual(mine.decor)
+    expect(b.save.decor).toEqual(backup.decor)
+  })
+})

@@ -86,3 +86,35 @@ describe('지운 날 읽기', () => {
     expect(parseSave(JSON.stringify(odd))).toEqual({ version: 1, entries: [entry], erased: [{ date: '2026-10-20', erasedAt: 2 }] })
   })
 })
+
+describe('놓은 소품 읽기', () => {
+  const entry = { date: '2026-10-27', text: '안녕', mood: 'calm' as const, writtenAt: 5 }
+
+  it('놓은 소품(종류·구역·칸)을 함께 저장하고 다시 읽는다', () => {
+    const save = { version: 1 as const, entries: [entry], decor: [{ id: 'pot' as const, at: '2026-10', col: 2, row: 1 }, { id: 'bench' as const, at: 'plaza', col: 5, row: 5 }] }
+    expect(parseSave(JSON.stringify(save))).toEqual(save)
+  })
+
+  it('소품 칸이 없는 이전 저장도 그대로 읽는다', () => {
+    expect(parseSave(JSON.stringify({ version: 1, entries: [entry] }))).toEqual({ version: 1, entries: [entry] })
+  })
+
+  it('소품 칸이 이상하면 그 칸(또는 틀린 줄)만 버리고 글은 지킨다', () => {
+    expect(parseSave(JSON.stringify({ version: 1, entries: [entry], decor: 'x' }))).toEqual({ version: 1, entries: [entry] })
+    const odd = {
+      version: 1,
+      entries: [entry],
+      decor: [
+        { id: 'rocket', at: '2026-10', col: 1, row: 1 },
+        { id: 'pot', at: 'moon', col: 1, row: 1 },
+        { id: 'pot', at: '2026-10', col: 9, row: 1 },
+        { id: 'pot', at: '2026-10', col: 1.5, row: 1 },
+        null,
+        { id: 'pond', at: '2026-10', col: 1, row: 1, extra: '버림' },
+        { id: 'pot', at: '2026-10', col: 1, row: 1 },
+      ],
+    }
+    // 종류·구역·칸이 틀린 줄과 이미 소품이 있는 칸은 빼고, 종류·구역·칸만 읽는다
+    expect(parseSave(JSON.stringify(odd))).toEqual({ version: 1, entries: [entry], decor: [{ id: 'pond', at: '2026-10', col: 1, row: 1 }] })
+  })
+})

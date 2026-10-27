@@ -12,6 +12,7 @@ import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
 import { decorNote, reachedDecors } from './core/decor'
+import { decorsOnMap } from './core/placing'
 import { createBook } from './ui/book'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
@@ -242,6 +243,7 @@ function render(newDate?: string) {
     landmarks: earnedLandmarks(days),
     sign: nextSign(days),
     walks: residentWalks(village, residentsOf(days)),
+    decors: decorsOnMap(village, today, save),
   })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
