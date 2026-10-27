@@ -449,3 +449,43 @@ test('설정 창에서 백업을 내려받고, 다른 폰에서 가져오면 마
   expect(saved.entries.map((e: { date: string }) => e.date)).toEqual(['2026-10-03', '2026-10-10', '2026-10-20', '2026-10-27'])
   expect(saved.entries[3].text).toBe('새 폰의 첫 줄')
 })
+
+test('한 번 연 뒤에는 인터넷 없이도 열리고, 쓴 한 줄이 남는다', async ({ page, context }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 서비스워커가 앱 파일을 모두 담고 이 화면을 맡을 때까지 기다린다
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready
+    if (!navigator.serviceWorker.controller) {
+      await new Promise((r) => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true }))
+    }
+  })
+  const cached = await page.evaluate(async () => {
+    const urls: string[] = []
+    for (const name of await caches.keys()) {
+      for (const req of await (await caches.open(name)).keys()) urls.push(new URL(req.url).pathname)
+    }
+    return urls
+  })
+  expect(cached).toContain('/diary_village/index.html')
+  expect(cached).toContain('/diary_village/manifest.webmanifest')
+  expect(cached.some((u) => /\/assets\/index-.*\.js$/.test(u))).toBe(true)
+  expect(cached.some((u) => /\/assets\/index-.*\.css$/.test(u))).toBe(true)
+
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByTestId('today-date')).toHaveText('10월 27일 화요일')
+  await expect(page.getByTestId('today-spot')).toBeVisible()
+  await page.getByTestId('write-input').fill('지하철에서 인터넷이 끊겼다')
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  await page.clock.runFor(4000)
+  await page.screenshot({ path: 'test-results/screens/offline.png' })
+
+  // 인터넷 없이 다시 열어도 그대로다
+  await page.reload()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 1채')
+  await context.setOffline(false)
+})
