@@ -34,10 +34,11 @@ export function parseSave(text: string): SaveData | null {
   if (typeof raw !== 'object' || raw === null) return null
   const x = raw as Record<string, unknown>
   if (x.version !== 1 || !Array.isArray(x.entries) || !x.entries.every(isEntry)) return null
-  // 고친 시각이 이상하면 그 칸만 버린다(글은 지킨다)
+  // 고친 시각·소중한 날 표시가 이상하면 그 칸만 버린다(글은 지킨다)
   const entries = x.entries.map((e: Entry): Entry => {
     const entry: Entry = { date: e.date, text: e.text, mood: e.mood, writtenAt: e.writtenAt }
     if (typeof e.editedAt === 'number' && Number.isFinite(e.editedAt)) entry.editedAt = e.editedAt
+    if (e.treasured === true) entry.treasured = true
     return entry
   })
   if (new Set(entries.map((e) => e.date)).size !== entries.length) return null
