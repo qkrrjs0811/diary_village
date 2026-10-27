@@ -13,7 +13,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
+import { RESIDENTS, residentTalk, residentWalks, residentsOf } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -281,8 +281,10 @@ const camera = createCamera(svg, (target, at) => {
     taps.set(resident.id, tap + 1)
     sound.cue('resident', resident.id)
     const today = dayKey(Date.now())
-    const line = residentLine(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today))
-    return showNote(`${resident.name}: “${line}”`, 0)
+    const talk = residentTalk(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today))
+    // 지난 이야기면 "보러 가기"로 그 집에 날아가 글을 연다
+    const told = talk.date ? entryOn(save, talk.date) : undefined
+    return showNote(`${resident.name}: “${talk.text}”`, 0, told && { label: '보러 가기', run: () => visitMemory(told) })
   }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
@@ -456,13 +458,24 @@ const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? 
 const note = app.querySelector<HTMLElement>('.build-note')!
 let noteTimer = 0
 note.addEventListener('click', () => (note.hidden = true))
-function showNote(text: string | null, delay = SHOW.go) {
+/** action: 알림 안에 둘 버튼(누르면 할 일을 하고 닫힌다). 버튼이 있으면 누를 틈을 조금 더 준다 */
+function showNote(text: string | null, delay = SHOW.go, action?: { label: string; run: () => void }) {
   clearTimeout(noteTimer)
   note.hidden = !text
   if (!text) return
   note.textContent = text
+  note.classList.toggle('with-action', !!action)
+  if (action) {
+    const go = document.createElement('button')
+    go.type = 'button'
+    go.className = 'note-go'
+    go.dataset.testid = 'note-go'
+    go.textContent = action.label
+    go.addEventListener('click', action.run)
+    note.appendChild(go)
+  }
   note.style.setProperty('--delay', `${calm ? 0 : delay}ms`)
-  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + 2500)
+  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + (action ? 5000 : 2500))
 }
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */

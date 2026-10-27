@@ -1904,3 +1904,48 @@ test('집을 짓거나 읽을 때 그 집 앞을 가리는 나무·주민이 잠
   await expect(veiled).toHaveCount(0)
   expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!).entries).toHaveLength(days.length + 1)
 })
+
+test('주민이 지난날 집 이야기를 들려주고, "보러 가기"를 누르면 그 집으로 날아가 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const days = [3, 10, 15]
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', days) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  const kong = page.getByTestId('resident-kong')
+  await expect(kong).toBeAttached()
+  const note = page.getByTestId('build-note')
+  const go = page.getByTestId('note-go')
+
+  // 첫 한마디는 오늘 이야기라 "보러 가기"가 없다
+  await kong.click({ force: true })
+  await expect(note).toContainText('콩이: “')
+  await expect(go).toHaveCount(0)
+
+  // 두 번째는 지난 이야기: 날짜와 함께 "보러 가기"
+  await kong.click({ force: true })
+  await expect(go).toBeVisible()
+  const said = (await note.textContent())!
+  const day = Number(said.match(/10월 (\d+)일/)![1])
+  expect(days).toContain(day)
+  expect((await go.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  const box = (await note.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await page.waitForTimeout(600) // 말풍선이 다 떠오를 때까지
+  await page.screenshot({ path: 'test-results/screens/resident-story.png' })
+
+  // 누르면 그 집으로 날아가 그날 글을 연다
+  await go.click()
+  await expect(note).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText(`2026-10 ${day}일의 한 줄`)
+  await expect(page.getByTestId(`house-2026-10-${String(day).padStart(2, '0')}`)).toBeInViewport()
+
+  // 다음 한마디는 여느 때 말이라 버튼이 없다
+  await page.getByTestId('reader-close').click()
+  await kong.dispatchEvent('click') // 날아간 뒤라 콩이는 화면 밖일 수 있다
+  await expect(note).toContainText('콩이: “')
+  await expect(go).toHaveCount(0)
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
