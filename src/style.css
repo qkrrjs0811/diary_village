@@ -188,6 +188,35 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .sky-bit.sun .rays, .sky-bit.cloud, .sky-bit.star, .sky-bit.drop { animation: none; }
 }
+/* 계절 흩날림: 꽃잎·낙엽·눈은 천천히 흔들리며 떨어지고, 여름 밤 반딧불은 제자리에서 깜빡인다 */
+.drift { position: absolute; top: 0; width: var(--size); opacity: 0.85; transform: translate(-50%, calc(var(--y) * 1cqh)); }
+.drift svg { display: block; width: 100%; height: auto; overflow: visible; }
+.drift.petal, .drift.leaf, .drift.snow {
+  top: -16px;
+  animation: drift-fall calc(13s + var(--d) * 6s) linear calc(var(--y) * -0.13s - var(--d) * 3s) infinite;
+}
+.drift.snow { opacity: 0.9; animation-duration: calc(16s + var(--d) * 6s); }
+.drift.petal svg, .drift.leaf svg { animation: drift-sway calc(2.4s + var(--d) * 1.6s) ease-in-out calc(var(--d) * -3s) infinite alternate; }
+.drift.snow svg { animation: drift-sway calc(3.2s + var(--d) * 2s) ease-in-out calc(var(--d) * -3s) infinite alternate; }
+.drift.firefly { animation: glow calc(2.2s + var(--d) * 1.8s) ease-in-out calc(var(--d) * -4s) infinite alternate; }
+.drift.firefly { opacity: 1; }
+.drift.firefly svg { filter: drop-shadow(0 0 5px rgba(255, 236, 130, 1)); }
+@keyframes drift-fall {
+  from { transform: translate(-50%, 0); }
+  to { transform: translate(calc(-50% - 30px), calc(100cqh + 32px)); }
+}
+@keyframes drift-sway {
+  from { transform: translateX(-9px) rotate(-24deg); }
+  to { transform: translateX(9px) rotate(24deg); }
+}
+@keyframes glow {
+  from { opacity: 0.55; transform: translate(-50%, calc(var(--y) * 1cqh)); }
+  to { opacity: 0.95; transform: translate(-50%, calc(var(--y) * 1cqh - 8px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drift.drift, .drift.drift svg { animation: none; }
+  .drift.petal, .drift.leaf, .drift.snow { top: 0; }
+}
 .scene svg.dragging { cursor: grabbing; }
 /* 저녁·밤: 창문에 따뜻한 불이 켜진다 */
 .scene .win { transition: fill 0.6s; }

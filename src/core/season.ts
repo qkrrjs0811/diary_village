@@ -26,7 +26,7 @@ export interface DriftBit {
   delay: number
 }
 
-const SIZE: Record<DriftKind, [number, number]> = { petal: [7, 11], firefly: [4, 6], leaf: [9, 13], snow: [5, 9] }
+const SIZE: Record<DriftKind, [number, number]> = { petal: [10, 14], firefly: [8, 11], leaf: [10, 14], snow: [6, 10] }
 
 /** 같은 자리에 늘 같게 흩뿌리는 0~1 수 */
 function spread(i: number, salt: number): number {

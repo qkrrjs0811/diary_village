@@ -1,3 +1,4 @@
+import { driftBits, type DriftBit } from '../core/season'
 import { skyBits, type DayPart, type SkyBit, type WeatherKind } from '../core/weather'
 
 /** 하늘 그림 하나(작은 SVG). 모두 둥근 도형에 얇은 테두리다 */
@@ -29,14 +30,32 @@ function bitSvg(b: SkyBit): string {
   }
 }
 
+/** 계절에 흩날리는 것 하나(작은 SVG). 옅은 파스텔에 얇은 테두리 */
+function driftSvg(b: DriftBit): string {
+  switch (b.kind) {
+    case 'petal':
+      return `<svg viewBox="0 0 20 20"><path d="M10 2 Q17 6 14 14 Q10 19 6 14 Q3 6 10 2 Z" fill="#ffd3df" stroke="#e8a3b6" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 5 Q10.5 10 9.5 14" fill="none" stroke="#f3b6c6" stroke-width="1" stroke-linecap="round"/></svg>`
+    case 'leaf': {
+      const [fill, line] = b.delay < 0.5 ? ['#f2b36b', '#c98545'] : ['#e8936a', '#bd6b47']
+      return `<svg viewBox="0 0 20 20"><path d="M3 17 Q2 6 16 3 Q18 15 3 17 Z" fill="${fill}" stroke="${line}" stroke-width="1.2" stroke-linejoin="round"/><path d="M4 16 Q9 10 14 5" fill="none" stroke="${line}" stroke-width="1" stroke-linecap="round"/></svg>`
+    }
+    case 'snow':
+      return `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="#ffffff" stroke="#c9d6e6" stroke-width="1.4"/><circle cx="7.5" cy="7.5" r="2" fill="#eef4fb"/></svg>`
+    case 'firefly':
+      return `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="#fff6b8" opacity="0.5"/><circle cx="10" cy="10" r="5" fill="#fff4a8" stroke="#e8c95c" stroke-width="1"/></svg>`
+  }
+}
+
 /**
  * 오늘 기분 날씨를 지금 때(낮·저녁·밤)에 맞게 마을 하늘에 그린다. back: 마을 뒤(해·달·구름·별), front: 마을 앞(빗방울).
+ * 마을 앞에는 오늘 계절에 흩날리는 것(꽃잎·반딧불·낙엽·눈)도 옅게 얹는다(날짜로 정한다).
  * 누르기를 막지 않도록 둘 다 손가락을 통과시킨다.
  */
-export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind, part: DayPart) {
-  if (back.dataset.kind === kind && back.dataset.part === part) return
+export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind, part: DayPart, date: string) {
+  if (back.dataset.kind === kind && back.dataset.part === part && back.dataset.date === date) return
   back.dataset.kind = kind
   back.dataset.part = part
+  back.dataset.date = date
   back.innerHTML = ''
   front.innerHTML = ''
   for (const b of skyBits(kind, part)) {
@@ -53,5 +72,15 @@ export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind
       node.innerHTML = bitSvg(b)
       back.appendChild(node)
     }
+  }
+  for (const b of driftBits(date, part, kind)) {
+    const node = document.createElement('span')
+    node.className = `drift ${b.kind}`
+    node.style.left = `${b.x}%`
+    node.style.setProperty('--y', String(b.y))
+    node.style.setProperty('--size', `${b.size}px`)
+    node.style.setProperty('--d', String(b.delay))
+    node.innerHTML = driftSvg(b)
+    front.appendChild(node)
   }
 }

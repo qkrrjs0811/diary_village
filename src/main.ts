@@ -543,7 +543,7 @@ function paintSky() {
   scene.style.setProperty('--sky-bottom', bottom)
   scene.dataset.time = part
   scene.classList.toggle('lit', windowsLit(part))
-  drawSky(skyBack, skyFront, weatherOf(save.entries, today), part)
+  drawSky(skyBack, skyFront, weatherOf(save.entries, today), part, today)
 }
 
 render()

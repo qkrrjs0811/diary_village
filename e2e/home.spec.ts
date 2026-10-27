@@ -1122,6 +1122,64 @@ test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 
   }
 })
 
+const SEASON_SKIES: [string, string, string][] = [
+  ['2027-04-12T13:00:00+09:00', 'petal', 'spring'],
+  ['2027-07-20T21:00:00+09:00', 'firefly', 'summer'],
+  ['2026-10-27T13:00:00+09:00', 'leaf', 'autumn'],
+  ['2026-12-20T13:00:00+09:00', 'snow', 'winter'],
+]
+for (const [time, kind, name] of SEASON_SKIES) {
+  test(`${name}: 하늘에 계절 흩날림(${kind})이 보이고, 누르기를 막지 않는다`, async ({ page }) => {
+    const date = time.slice(0, 10)
+    await page.clock.install({ time: new Date(time) })
+    const entries = [{ date, text: `${name}의 한 줄`, mood: 'calm', writtenAt: Date.parse(time) }]
+    await page.addInitScript(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+    await page.goto('./')
+    const drift = page.getByTestId('rain').locator('.drift')
+    expect(await drift.count()).toBeGreaterThanOrEqual(8)
+    expect(await page.getByTestId('rain').locator(`.drift.${kind}`).count()).toBe(await drift.count())
+    if (kind !== 'firefly') {
+      const falling = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'drift-fall' && a.playState === 'running'))
+      expect(falling).toBe(true)
+    }
+    // 흩날리는 것 너머의 집도 그대로 눌린다
+    await page.getByTestId(`house-${date}`).click()
+    await expect(page.getByTestId('reader-text')).toHaveText(`${name}의 한 줄`)
+    await page.getByTestId('reader-close').click()
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/season-${name}.png` })
+  })
+}
+
+test('여름 낮에는 반딧불이 없다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2027-07-20T13:00:00+09:00') })
+  await page.goto('./')
+  await expect(page.getByTestId('rain').locator('.drift')).toHaveCount(0)
+})
+
+test('움직임 줄이기를 켜면 계절 흩날림이 멈춰 제자리에 있고, 비 오는 날엔 반만 흩날린다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: new Date('2026-12-20T13:00:00+09:00') })
+  await page.goto('./')
+  const snow = page.getByTestId('rain').locator('.drift.snow')
+  const clear = await snow.count()
+  expect(clear).toBeGreaterThanOrEqual(8)
+  const moving = await page.evaluate(() => document.getAnimations().some((a) => ['drift-fall', 'drift-sway'].includes((a as CSSAnimation).animationName)))
+  expect(moving).toBe(false)
+  // 멈춘 눈송이도 마을 화면 안에 퍼져 있다
+  const scene = (await page.getByTestId('scene').boundingBox())!
+  const ys = await Promise.all((await snow.all()).map(async (s) => (await s.boundingBox())!.y))
+  expect(ys.filter((y) => y > scene.y + scene.height / 2).length).toBeGreaterThan(0)
+  expect(ys.filter((y) => y < scene.y + scene.height / 2).length).toBeGreaterThan(0)
+
+  const rainy = { version: 1, entries: [{ date: '2026-12-20', text: '비', mood: 'blue', writtenAt: Date.parse('2026-12-20T12:00:00+09:00') }] }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(rainy)])
+  await page.reload()
+  expect(await page.getByTestId('rain').locator('.drop').count()).toBeGreaterThanOrEqual(20)
+  expect(await snow.count()).toBe(Math.ceil(clear / 2))
+  await page.screenshot({ path: 'test-results/screens/season-winter-rain.png' })
+})
+
 test('지금 시각에 따라 낮·저녁·밤 하늘이 되고, 저녁·밤에는 창문에 불이 켜진다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   const entries = monthEntries('2026-10', [1, 3, 4, 6, 8, 9, 11, 13, 15, 16, 18, 20, 21, 23, 24, 26])
