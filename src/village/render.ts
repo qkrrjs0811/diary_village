@@ -436,6 +436,9 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
     const c = P(0.5, b + 0.07, H + 4)
     const t = el('text', { x: c.x, y: c.y, 'text-anchor': 'middle', 'font-size': 8 }, house)
     t.textContent = icon
+  } else {
+    // 아직 제 그림이 없는 건물은 보통 집 모양에 간판만 단다
+    drawSign(house, P, b, icon)
   }
   return H
 }

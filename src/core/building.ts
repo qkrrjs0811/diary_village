@@ -11,6 +11,12 @@ export type BuildingId =
   | 'lighthouse'
   | 'musicHall'
   | 'cinema'
+  | 'restaurant'
+  | 'park'
+  | 'school'
+  | 'station'
+  | 'gallery'
+  | 'farm'
 
 export interface Building {
   id: BuildingId
@@ -37,10 +43,22 @@ export const BUILDINGS: Building[] = [
   { id: 'lighthouse', name: '등대', icon: '🌊', words: ['바다', '바닷가', '등대', '해변', '파도'] },
   { id: 'musicHall', name: '음악당', icon: '🎵', words: ['음악', '노래', '공연', '콘서트', '피아노'] },
   { id: 'cinema', name: '영화관', icon: '🎬', words: ['영화', '극장', '팝콘'] },
+  // 로드맵 R3에 더한 여섯 종. 원래 10종의 말이 하나도 없을 때만 고른다
+  { id: 'restaurant', name: '식당', icon: '🍚', words: ['식당', '맛집', '김밥', '떡볶이', '라면', '국수', '파스타', '피자', '치킨', '밥'] },
+  { id: 'park', name: '공원', icon: '🌳', words: ['공원', '산책', '소풍', '피크닉', '나들이'] },
+  { id: 'school', name: '학교', icon: '🏫', words: ['학교', '공부', '시험', '수업', '숙제', '과제', '강의'] },
+  { id: 'station', name: '기차역', icon: '🚉', words: ['기차', '여행', '지하철', '버스', '공항', '비행기', 'ktx'] },
+  { id: 'gallery', name: '미술관', icon: '🖼️', words: ['미술관', '미술', '전시', '갤러리', '그림', '사진'] },
+  { id: 'farm', name: '텃밭', icon: '🌱', words: ['텃밭', '식물', '채소', '화분', '상추', '토마토', '씨앗'] },
 ]
+
+/** 나중에 더한 건물. 원래 건물의 말이 하나라도 있으면 그쪽을 고르므로 이미 선 건물이 바뀌지 않는다 */
+export const NEW_BUILDINGS: BuildingId[] = ['restaurant', 'park', 'school', 'station', 'gallery', 'farm']
 
 /** 건물 단어가 들어 있지만 다른 뜻인 말. 찾기 전에 지운다(자리는 그대로 둔다) */
 const NOT_WORDS = ['산책', '책임', '대책', '자책', '책망', '빵점', '빵빵', '꽃게']
+/** 새 건물 말이 들어 있지만 다른 뜻인 말('나라면', '그림자' 등) */
+const NEW_NOT_WORDS = ['이라면', '나라면', '너라면', '다라면', '우리라면', '그림자', '버스킹']
 
 export interface BuildingMatch {
   id: BuildingId
@@ -53,10 +71,17 @@ export interface BuildingMatch {
  * 여러 개가 맞으면 글에서 먼저 나온 말이 이기고, 같은 자리면 더 긴 말, 그래도 같으면 목록 순서
  */
 export function findBuilding(text: string): BuildingMatch | null {
-  let hay = text.toLowerCase()
-  for (const not of NOT_WORDS) hay = hay.split(not).join(' '.repeat(not.length))
+  const lower = text.toLowerCase()
+  const old = BUILDINGS.filter((b) => !NEW_BUILDINGS.includes(b.id))
+  const added = BUILDINGS.filter((b) => NEW_BUILDINGS.includes(b.id))
+  return findIn(lower, old, NOT_WORDS) ?? findIn(lower, added, NEW_NOT_WORDS)
+}
+
+function findIn(text: string, buildings: Building[], notWords: string[]): BuildingMatch | null {
+  let hay = text
+  for (const not of notWords) hay = hay.split(not).join(' '.repeat(not.length))
   let best: (BuildingMatch & { at: number }) | null = null
-  for (const b of BUILDINGS) {
+  for (const b of buildings) {
     for (const word of b.words) {
       const at = hay.indexOf(word)
       if (at < 0) continue

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, buildingNote, buildingOf, findBuilding } from './building'
+import { BUILDINGS, NEW_BUILDINGS, buildingNote, buildingOf, findBuilding } from './building'
+import { LANDMARKS } from './landmark'
 import type { Entry } from './types'
 
 describe('글 단어로 건물 정하기', () => {
@@ -41,7 +42,7 @@ describe('글 단어로 건물 정하기', () => {
   })
 
   it('비슷하지만 다른 뜻의 말로는 정하지 않는다', () => {
-    expect(findBuilding('저녁에 산책했다')).toBeNull() // '책'이 들어 있지만 책이 아니다
+    expect(findBuilding('저녁에 산책했다')?.id).not.toBe('bookstore') // '책'이 들어 있지만 책이 아니다
     expect(findBuilding('책임감이 무거웠다')).toBeNull()
     expect(findBuilding('산책하다 책방에 들렀다')).toEqual({ id: 'bookstore', word: '책방' })
   })
@@ -100,5 +101,68 @@ describe('건물이 생겼다는 알림', () => {
 
   it('맞는 말이 없으면 알림이 없다', () => {
     expect(buildingNote(null)).toBeNull()
+  })
+})
+
+describe('새 건물 여섯 종(로드맵 R3)', () => {
+  const OLD = ['cafe', 'bookstore', 'field', 'catHouse', 'dogHouse', 'flowerShop', 'bakery', 'lighthouse', 'musicHall', 'cinema']
+  const NEW = ['restaurant', 'park', 'school', 'station', 'gallery', 'farm']
+
+  it('건물은 16종이고 원래 10종 뒤에 새 여섯 종이 온다', () => {
+    expect(BUILDINGS.map((b) => b.id)).toEqual([...OLD, ...NEW])
+    expect(NEW_BUILDINGS).toEqual(NEW)
+  })
+
+  it('건물 id는 명소 id와 겹치지 않는다(수첩의 칸 이름이 같아지지 않게)', () => {
+    for (const l of LANDMARKS) expect(BUILDINGS.map((b) => b.id)).not.toContain(l.id)
+  })
+
+  it('흔한 하루의 말로 새 건물이 선다', () => {
+    expect(findBuilding('점심에 김밥을 먹었다')).toEqual({ id: 'restaurant', word: '김밥' })
+    expect(findBuilding('떡볶이 최고')?.id).toBe('restaurant')
+    expect(findBuilding('저녁에 산책했다')).toEqual({ id: 'park', word: '산책' })
+    expect(findBuilding('한강으로 소풍')?.id).toBe('park')
+    expect(findBuilding('시험 공부를 했다')).toEqual({ id: 'school', word: '시험' })
+    expect(findBuilding('기차 타고 여행')).toEqual({ id: 'station', word: '기차' })
+    expect(findBuilding('지하철에서 졸았다')?.id).toBe('station')
+    expect(findBuilding('전시를 보고 왔다')).toEqual({ id: 'gallery', word: '전시' })
+    expect(findBuilding('사진을 많이 찍었다')?.id).toBe('gallery')
+    expect(findBuilding('텃밭에 상추를 심었다')).toEqual({ id: 'farm', word: '텃밭' })
+    expect(findBuilding('Took the KTX')?.id).toBe('station')
+  })
+
+  it('원래 10종의 말이 하나라도 있으면 원래 건물 그대로다(이미 선 건물이 바뀌지 않는다)', () => {
+    const oldWords = BUILDINGS.filter((b) => OLD.includes(b.id)).flatMap((b) => b.words.map((w) => [b.id, w] as const))
+    const newWords = BUILDINGS.filter((b) => NEW.includes(b.id)).flatMap((b) => b.words)
+    expect(newWords.length).toBeGreaterThan(0)
+    for (const [id, w] of oldWords) {
+      expect(findBuilding(w)?.id).toBe(id)
+      for (const n of newWords) {
+        expect(findBuilding(`${n} 하고 ${w}`)?.id).toBe(id)
+        expect(findBuilding(`${w} 하고 ${n}`)?.id).toBe(id)
+      }
+    }
+    expect(findBuilding('산책하다 커피')?.id).toBe('cafe')
+    expect(findBuilding('공원에서 고양이를 봤다')?.id).toBe('catHouse')
+  })
+
+  it('새 여섯 종끼리는 원래 규칙대로 먼저 나온 말이 이긴다', () => {
+    expect(findBuilding('공부하고 산책')?.id).toBe('school')
+    expect(findBuilding('산책하고 공부')?.id).toBe('park')
+  })
+
+  it('비슷하지만 다른 뜻의 말로는 새 건물을 정하지 않는다', () => {
+    expect(findBuilding('나라면 그랬을 거야')).toBeNull()
+    expect(findBuilding('내일이라면 좋겠다')).toBeNull()
+    expect(findBuilding('그림자가 길었다')).toBeNull()
+    expect(findBuilding('거리에서 버스킹을 봤다')).toBeNull()
+    expect(findBuilding('라면 끓여 먹음')?.id).toBe('restaurant')
+    expect(findBuilding('밥솥을 새로 샀다')?.id).toBe('restaurant')
+  })
+
+  it('알림은 받침에 맞게 붙는다', () => {
+    expect(buildingNote({ id: 'restaurant', word: '라면' })).toBe("🍚 '라면'을 찾아 식당이 생겼어요")
+    expect(buildingNote({ id: 'park', word: '산책' })).toBe("🌳 '산책'을 찾아 공원이 생겼어요")
+    expect(buildingNote({ id: 'station', word: '여행' })).toBe("🚉 '여행'을 찾아 기차역이 생겼어요")
   })
 })

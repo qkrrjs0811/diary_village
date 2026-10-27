@@ -453,6 +453,49 @@ test('읽기 창에서 쓴 글을 지우면 확인을 한 번 더 받고, 빈 �
   await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
 })
 
+test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 건물의 말이 든 날은 그대로다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const texts: [number, string, string][] = [
+    [22, '김밥 싸서 소풍 갔다', 'restaurant'],
+    [23, '시험 공부를 했다', 'school'],
+    [24, '산책하다 커피 한 잔', 'cafe'], // 원래 건물의 말이 있으면 원래 건물
+    [25, '그냥 조용한 하루', 'house'],
+  ]
+  const entries = texts.map(([d, text], i) => ({
+    date: `2026-10-${d}`,
+    text,
+    mood: moods[i % moods.length],
+    writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`),
+  }))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  for (const [d, , kind] of texts) await expect(page.getByTestId(`house-2026-10-${d}`)).toHaveAttribute('data-building', kind)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('저녁에 동네 산책')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'park')
+  await expect(page.getByTestId('build-note')).toHaveText("🌳 '산책'을 찾아 공원이 생겼어요")
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-note-park.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.clock.runFor(6000)
+
+  await page.getByTestId('house-2026-10-27').click()
+  await expect(page.getByTestId('reader-building')).toHaveText("🌳 공원 · '산책'에서 생겼어요")
+  await page.getByTestId('reader-close').click()
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-count')).toHaveText('4 / 16')
+  await expect(page.getByTestId('book-park').locator('.book-name')).toHaveText('공원')
+  await page.getByTestId('book-farm').click()
+  await expect(page.getByTestId('book-detail')).toHaveText('❔ 흙을 만지고 싹을 돌본 날에 생겨요')
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.entries.find((e: { date: string }) => e.date === '2026-10-24').text).toBe('산책하다 커피 한 잔')
+})
+
 test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽기 창에 건물 이름이 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
@@ -1007,7 +1050,7 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(book).toBeVisible()
   await expect(page.getByTestId('book-stage')).toContainText('마을 · 한 줄을 12일 남겼어요')
   await expect(page.getByTestId('book-stage')).toContainText('18일 더 쓰면 🌳 큰 마을')
-  await expect(page.getByTestId('book-count')).toHaveText('3 / 10')
+  await expect(page.getByTestId('book-count')).toHaveText('3 / 16')
   await expect(page.getByTestId('book-cafe')).toHaveAttribute('data-found', 'true')
   await expect(page.getByTestId('book-cinema')).toHaveAttribute('data-found', 'false')
   await expect(page.getByTestId('book-cinema').locator('.book-name')).toHaveText('???')
@@ -1059,7 +1102,7 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await page.getByTestId('write-submit').click()
   await page.clock.runFor(4000)
   await badge.click()
-  await expect(page.getByTestId('book-count')).toHaveText('4 / 10')
+  await expect(page.getByTestId('book-count')).toHaveText('4 / 16')
   await expect(page.getByTestId('book-cinema').locator('.book-name')).toHaveText('영화관')
   const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
   expect(Object.keys(stored).sort()).toEqual(['entries', 'version'])
@@ -1069,7 +1112,7 @@ test('빈 마을의 수첩은 모두 힌트 칸이다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
   await page.getByTestId('village-stage').click()
-  await expect(page.getByTestId('book-count')).toHaveText('0 / 10')
+  await expect(page.getByTestId('book-count')).toHaveText('0 / 16')
   await expect(page.getByTestId('book-stage')).toContainText('10일 더 쓰면 🏘️ 마을')
   await expect(page.locator('[data-testid="book"] [data-found="true"]')).toHaveCount(0)
   await expect(page.getByTestId('book-decorate')).toHaveCount(0) // 열린 소품이 없으면 꾸미기 버튼도 없다

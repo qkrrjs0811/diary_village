@@ -14,6 +14,12 @@ export const HINTS: Record<BuildingId, string> = {
   lighthouse: '파도 소리를 들은 날',
   musicHall: '흥얼흥얼 노래한 날',
   cinema: '큰 화면 앞에 앉은 날',
+  restaurant: '맛있는 한 그릇을 비운 날',
+  park: '나무 사이를 천천히 걸은 날',
+  school: '연필 들고 열심히 익힌 날',
+  station: '어딘가로 멀리 떠난 날',
+  gallery: '눈에 담고 싶은 장면을 만난 날',
+  farm: '흙을 만지고 싹을 돌본 날',
 }
 
 export interface CollectionItem {
