@@ -1,8 +1,12 @@
 import type { ImportPlan } from '../core/backup'
 import { DEFAULT_NAME, NAME_MAX } from '../core/name'
 
-/** 위쪽 ⚙️ 로 여는 설정 창. 마을 이름 짓기와 백업 내려받기·가져오기가 있다 */
+/** 위쪽 ⚙️ 로 여는 설정 창. 마을 이름 짓기, 소리 켜기·끄기, 백업 내려받기·가져오기가 있다 */
 export function createSettings(handlers: {
+  /** 지금 소리가 켜져 있는지 */
+  soundOn: () => boolean
+  /** 소리를 켜거나 끈다. 저장하지 못하면 false */
+  setSound: (on: boolean) => boolean
   /** 지금 지어 둔 이름(없으면 빈 글) */
   villageName: () => string
   /** 이름을 바꾼다. 성공하면 null, 실패하면 이유. 저장을 못 읽는 상태면 null(덮어쓰지 않도록 막는다) */
@@ -35,6 +39,13 @@ export function createSettings(handlers: {
           <button type="button" class="build" data-testid="name-save" disabled>이름 짓기</button>
         </div>
         <div class="settings-msg" data-testid="name-msg" role="status"></div>
+      </div>
+      <div class="settings-group">
+        <button type="button" class="sound-toggle" data-testid="sound-toggle" role="switch">
+          <span class="sound-text"><b class="settings-label"></b><small></small></span>
+          <span class="switch" aria-hidden="true"><i></i></span>
+        </button>
+        <div class="settings-msg" data-testid="sound-msg" role="status"></div>
       </div>
       <div class="settings-group">
         <div class="settings-label">백업</div>
@@ -75,6 +86,21 @@ export function createSettings(handlers: {
     nameSave.addEventListener('click', rename)
     nameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.isComposing) rename()
+    })
+    const toggle = sheet.querySelector<HTMLButtonElement>('[data-testid="sound-toggle"]')!
+    const soundMsg = sheet.querySelector<HTMLElement>('[data-testid="sound-msg"]')!
+    const showSound = () => {
+      const on = handlers.soundOn()
+      toggle.setAttribute('aria-checked', String(on))
+      toggle.querySelector('b')!.textContent = on ? '🔔 소리' : '🔕 소리'
+      toggle.querySelector('small')!.textContent = on ? '집을 지을 때 실로폰 소리와 떨림이 나요' : '소리도 떨림도 없이 조용히 지어요'
+    }
+    showSound()
+    toggle.addEventListener('click', () => {
+      const ok = handlers.setSound(!handlers.soundOn())
+      soundMsg.classList.toggle('err', !ok)
+      soundMsg.textContent = ok ? '' : '저장하지 못했어요. 저장 공간을 확인해 주세요'
+      showSound()
     })
     sheet.querySelector('[data-testid="backup-export"]')!.addEventListener('click', () => {
       if (!handlers.exportFile) return

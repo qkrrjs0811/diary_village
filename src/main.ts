@@ -23,6 +23,7 @@ import { createReader } from './ui/reader'
 import { dateLabel } from './ui/format'
 import { createSettings } from './ui/settings'
 import { createSound } from './ui/sound'
+import { setSound, soundOn } from './core/sound'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
@@ -116,6 +117,15 @@ const reader = createReader({
 document.body.appendChild(reader.root)
 
 const settings = createSettings({
+  soundOn: () => soundOn(kv),
+  setSound(on) {
+    try {
+      setSound(kv, on)
+      return true
+    } catch {
+      return false
+    }
+  },
   villageName: () => save.villageName ?? '',
   rename: readOnly
     ? null

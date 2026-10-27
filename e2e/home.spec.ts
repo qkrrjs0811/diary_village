@@ -51,31 +51,33 @@ test('처음 열면 오늘 자리가 비어 있고, 한 줄을 쓰면 집이 생
   expect(saved.entries).toHaveLength(1)
 })
 
+/** 소리·떨림을 가로채 window.notes·buzz 에 기록한다(실제로 울리지 않는다) */
+function listenSound() {
+  const w = window as unknown as { notes: number[]; buzz: unknown[]; AudioContext: unknown }
+  w.notes = []
+  w.buzz = []
+  const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} })
+  w.AudioContext = class {
+    state = 'running'
+    currentTime = 0
+    destination = {}
+    resume() {
+      return Promise.resolve()
+    }
+    createGain() {
+      return { gain: param(), connect: (x: unknown) => x }
+    }
+    createOscillator() {
+      const frequency = param()
+      return { type: '', frequency, connect: (x: unknown) => x, start: () => w.notes.push(frequency.value), stop() {} }
+    }
+  }
+  Object.defineProperty(navigator, 'vibrate', { value: (p: unknown) => (w.buzz.push(p), true) })
+}
+
 test('집이 쑥 올라오는 순간 그날 기분의 실로폰 소리가 울리고 폰이 짧게 떤다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
-  // 소리·떨림을 가로채 기록한다(실제로 울리지 않는다)
-  await page.addInitScript(() => {
-    const w = window as unknown as { notes: number[]; buzz: unknown[]; AudioContext: unknown }
-    w.notes = []
-    w.buzz = []
-    const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} })
-    w.AudioContext = class {
-      state = 'running'
-      currentTime = 0
-      destination = {}
-      resume() {
-        return Promise.resolve()
-      }
-      createGain() {
-        return { gain: param(), connect: (x: unknown) => x }
-      }
-      createOscillator() {
-        const frequency = param()
-        return { type: '', frequency, connect: (x: unknown) => x, start: () => w.notes.push(frequency.value), stop() {} }
-      }
-    }
-    Object.defineProperty(navigator, 'vibrate', { value: (p: unknown) => (w.buzz.push(p), true) })
-  })
+  await page.addInitScript(listenSound)
   await page.goto('./')
   await page.getByTestId('write-input').fill('비가 와서 창밖만 봤다')
   await page.getByTestId('mood-blue').click()
@@ -94,6 +96,51 @@ test('집이 쑥 올라오는 순간 그날 기분의 실로폰 소리가 울리
   // 저장은 기록뿐이고 소리 설정은 아직 없다(처음엔 켜짐)
   const keys = await page.evaluate(() => Object.keys(localStorage).sort())
   expect(keys).toEqual(['diary-village:save'])
+})
+
+test('설정 창에서 소리를 끄면 다시 열어도 꺼져 있고, 집을 지어도 소리·떨림이 없다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  await page.getByTestId('settings-open').click()
+  const toggle = page.getByTestId('sound-toggle')
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await expect(toggle).toContainText('🔔 소리')
+  const box = (await toggle.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  await expect(page.getByTestId('settings-close')).toBeInViewport()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/settings-sound-on.png' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect(toggle).toContainText('🔕 소리')
+  await expect(toggle).toContainText('조용히')
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: 'test-results/screens/settings-sound-off.png' })
+  expect(await page.evaluate(() => localStorage.getItem('diary-village:sound'))).toBe('off')
+
+  // 다시 열어도 꺼져 있다
+  await page.reload()
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('sound-toggle')).toHaveAttribute('aria-checked', 'false')
+  await page.getByTestId('settings-close').click()
+
+  // 집을 지어도 조용하다
+  await page.getByTestId('write-input').fill('조용한 밤')
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  await page.clock.runFor(2000)
+  expect(await page.evaluate(() => (window as unknown as { notes: number[] }).notes)).toEqual([])
+  expect(await page.evaluate(() => (window as unknown as { buzz: unknown[] }).buzz)).toEqual([])
+
+  // 다시 켜면 켜짐으로 남고, 기록은 그대로다
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('sound-toggle').click()
+  await expect(page.getByTestId('sound-toggle')).toHaveAttribute('aria-checked', 'true')
+  expect(await page.evaluate(() => localStorage.getItem('diary-village:sound'))).toBe('on')
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries).toHaveLength(1)
 })
 
 test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', async ({ page }) => {
