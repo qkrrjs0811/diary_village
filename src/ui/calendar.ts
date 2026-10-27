@@ -1,7 +1,8 @@
 import { calendarMonth, calendarRange, shiftMonth } from '../core/calendar'
 import { monthKey } from '../core/date'
 import { moodOf } from '../core/mood'
-import { searchEntries } from '../core/search'
+import { searchEntries, type SearchPart } from '../core/search'
+import { treasuredDays } from '../core/treasure'
 import { buildingInfo } from '../core/building'
 import { monthRecap, yearRecap } from '../core/recap'
 import type { Entry } from '../core/types'
@@ -17,6 +18,7 @@ const monthDay = (date: string) => dateLabel(date).replace(/ \S+요일$/, '')
  * 넘겨 볼 수 있는 달은 처음 집을 지은 달부터 이번 달까지다.
  * "한 해"로 바꾸면 열두 달 칸을 그달 가장 많이 고른 기분 색으로 칠해 보이고, 달을 누르면 그달 달력으로 간다.
  * 위쪽 찾기 칸에 말을 넣으면 달력 대신 그 말이 들어간 지난 글을 보이고, 누르면 그 집으로 간다(폰 안에서만 찾는다)
+ * "소중한 날"로 바꾸면 사용자가 표시한 날만 날짜 순으로 모아 보이고, 누르면 그 집으로 간다
  */
 export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   const back = document.createElement('div')
@@ -31,6 +33,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       <div class="cal-modes" role="group" aria-label="달력 보기">
         <button type="button" class="cal-mode" data-testid="calendar-mode-month" data-mode="month">한 달</button>
         <button type="button" class="cal-mode" data-testid="calendar-mode-year" data-mode="year">한 해</button>
+        <button type="button" class="cal-mode" data-testid="calendar-mode-treasure" data-mode="treasure">💛 소중한 날</button>
       </div>
       <div class="cal-body"></div>
       <div class="sheet-buttons">
@@ -52,9 +55,14 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   })
   modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) =>
     b.addEventListener('click', () => {
-      if (b.dataset.mode === 'year') {
-        if (mode !== 'year') year = Number(month.slice(0, 4))
+      if (b.dataset.mode === 'treasure') {
+        if (mode !== 'treasure') before = mode
+        mode = 'treasure'
+      } else if (b.dataset.mode === 'year') {
+        if (mode === 'month' || (mode === 'treasure' && before === 'month')) year = Number(month.slice(0, 4))
         mode = 'year'
+      } else if (mode === 'treasure' && before === 'month') {
+        mode = 'month'
       } else if (mode !== 'month') {
         mode = 'month'
         // 보던 해에서 넘겨 볼 수 있는 가장 늦은 달
@@ -75,7 +83,9 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   let today = ''
   let month = ''
   let year = 0
-  let mode: 'month' | 'year' = 'month'
+  let mode: 'month' | 'year' | 'treasure' = 'month'
+  /** 소중한 날을 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
+  let before: 'month' | 'year' = 'month'
 
   function show() {
     const { first, last } = calendarRange(entries, erased, today)
@@ -98,8 +108,9 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
             if (!c) return '<span class="cal-blank"></span>'
             const style = c.mood ? ` style="background:${soft(c.mood)}"` : ''
             const mark = c.mood ? moodOf(c.mood).emoji : c.state === 'erased' ? '🌱' : ''
-            return `<button type="button" class="cal-day ${c.state}${c.today ? ' today' : ''}" data-testid="cal-${c.date}" data-state="${c.state}"${c.mood ? ` data-mood="${c.mood}"` : ''}${style} ${c.state === 'future' ? 'disabled' : ''}>
-              <span class="cal-num">${c.day}</span><span class="cal-mark" aria-hidden="true">${mark}</span>
+            const treasured = c.state === 'written' && entries.some((e) => e.date === c.date && e.treasured === true)
+            return `<button type="button" class="cal-day ${c.state}${c.today ? ' today' : ''}" data-testid="cal-${c.date}" data-state="${c.state}"${c.mood ? ` data-mood="${c.mood}"` : ''}${treasured ? ' data-treasured="true"' : ''}${style} ${c.state === 'future' ? 'disabled' : ''}>
+              <span class="cal-num">${c.day}</span><span class="cal-mark" aria-hidden="true">${mark}</span>${treasured ? '<span class="cal-heart" aria-label="소중한 날">💛</span>' : ''}
             </button>`
           })
           .join('')}
@@ -178,26 +189,39 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     const word = query.trim()
     sheet.querySelector('.cal-found')!.textContent = hits.length ? `"${word}" · 한 줄 ${hits.length}개를 찾았어요` : `"${word}"이(가) 들어간 한 줄은 아직 없어요`
     const list = sheet.querySelector('.cal-hits')!
-    for (const { entry, parts } of hits) {
-      const hit = document.createElement('button')
-      hit.type = 'button'
-      hit.className = 'cal-hit'
-      hit.dataset.testid = `hit-${entry.date}`
-      hit.style.background = soft(entry.mood, 0.3)
-      hit.innerHTML = `<span class="cal-hit-mood" aria-hidden="true">${moodOf(entry.mood).emoji}</span><span class="cal-hit-main"><span class="cal-hit-date"></span><span class="cal-hit-text"></span></span>`
-      hit.querySelector('.cal-hit-date')!.textContent = `${entry.date.slice(0, 4)}년 ${dateLabel(entry.date)}`
-      const text = hit.querySelector('.cal-hit-text')!
-      for (const p of parts) {
-        const span = document.createElement(p.hit ? 'mark' : 'span')
-        span.textContent = p.text
-        text.appendChild(span)
-      }
-      hit.addEventListener('click', () => {
-        close()
-        handlers.onOpen(entry)
-      })
-      list.appendChild(hit)
+    for (const { entry, parts } of hits) list.appendChild(note(entry, parts))
+  }
+
+  /** 소중한 날 모아 보기. 표시한 날만 날짜 순으로, 찾은 한 줄과 같은 쪽지로 놓는다 */
+  function showTreasured() {
+    const days = treasuredDays({ version: 1, entries })
+    sheet.innerHTML = `
+      <div class="cal-found" data-testid="treasure-count" role="status">${days.length ? `💛 소중한 날 ${days.length}일` : '아직 소중한 날이 없어요<br>다시 읽고 싶은 날, 그 집을 열어 🤍를 눌러 보세요'}</div>
+      <div class="cal-hits" data-testid="treasure-list"></div>`
+    const list = sheet.querySelector('.cal-hits')!
+    for (const entry of days) list.appendChild(note(entry, [{ text: entry.text, hit: false }]))
+  }
+
+  /** 한 줄 쪽지 단추. 글은 textContent로만 넣고, 누르면 창을 닫고 그 집으로 간다 */
+  function note(entry: Entry, parts: SearchPart[]) {
+    const hit = document.createElement('button')
+    hit.type = 'button'
+    hit.className = 'cal-hit'
+    hit.dataset.testid = `hit-${entry.date}`
+    hit.style.background = soft(entry.mood, 0.3)
+    hit.innerHTML = `<span class="cal-hit-mood" aria-hidden="true">${moodOf(entry.mood).emoji}</span><span class="cal-hit-main"><span class="cal-hit-date"></span><span class="cal-hit-text"></span></span>`
+    hit.querySelector('.cal-hit-date')!.textContent = `${entry.date.slice(0, 4)}년 ${dateLabel(entry.date)}`
+    const text = hit.querySelector('.cal-hit-text')!
+    for (const p of parts) {
+      const span = document.createElement(p.hit ? 'mark' : 'span')
+      span.textContent = p.text
+      text.appendChild(span)
     }
+    hit.addEventListener('click', () => {
+      close()
+      handlers.onOpen(entry)
+    })
+    return hit
   }
 
   /** 찾을 말이 있으면 찾은 한 줄, 없으면 한 달 또는 한 해 달력 */
@@ -207,6 +231,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     modes.hidden = finding
     modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)))
     if (finding) find(input.value)
+    else if (mode === 'treasure') showTreasured()
     else if (mode === 'year') showYear()
     else show()
   }
@@ -229,6 +254,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       erased = erasedDates
       today = now
       mode = at?.length === 4 ? 'year' : 'month'
+      before = mode
       month = at && mode === 'month' ? at : monthKey(now)
       year = mode === 'year' ? Number(at) : Number(month.slice(0, 4))
       input.value = ''

@@ -2560,3 +2560,98 @@ test('밤에도 소중한 날 하트 깃발이 보인다', async ({ page }) => {
   await finishAnimations(page)
   await page.screenshot({ path: 'test-results/screens/treasure-flag-night.png' })
 })
+
+test('기분 달력에 소중한 날 하트가 붙고, "소중한 날"에서 모아 보다가 누르면 그 집 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const openCalendar = async () => {
+    await page.getByTestId('village-stage').click()
+    await page.getByTestId('book-calendar').click()
+    await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  }
+
+  // 처음엔 소중한 날이 없어서 다정하게 알려 준다
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries: monthEntries('2026-10', [5, 9]) })])
+  await page.reload()
+  await openCalendar()
+  await expect(page.locator('.cal-heart')).toHaveCount(0)
+  await page.getByTestId('calendar-mode-treasure').click()
+  await expect(page.getByTestId('treasure-count')).toContainText('아직 소중한 날이 없어요')
+  await expect(page.getByTestId('treasure-list').locator('.cal-hit')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/treasure-none.png' })
+  await page.getByTestId('calendar-close').click()
+
+  const marked = ['2026-09-12', '2026-10-05', '2026-10-20']
+  const entries = ([...monthEntries('2026-09', [3, 12]), ...monthEntries('2026-10', [2, 5, 9, 20, 26])] as Entry[]).map((e): Entry =>
+    marked.includes(e.date) ? { ...e, treasured: true } : e,
+  )
+  entries[0] = { ...entries[0], text: '합격 발표를 기다렸다' }
+  entries[1] = { ...entries[1], text: '<b>합격</b>한 날, 바다를 보러 갔다' }
+  const erased = [{ date: '2026-10-10', erasedAt: Date.parse('2026-10-11T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+
+  // 달력에서 표시한 날 칸에만 하트가 붙는다(지운 날·표시 안 한 날은 없음)
+  await openCalendar()
+  await expect(page.locator('.cal-heart')).toHaveCount(2)
+  await expect(page.getByTestId('cal-2026-10-05').locator('.cal-heart')).toHaveCount(1)
+  await expect(page.getByTestId('cal-2026-10-20').locator('.cal-heart')).toHaveCount(1)
+  await expect(page.getByTestId('cal-2026-10-09').locator('.cal-heart')).toHaveCount(0)
+  await expect(page.getByTestId('cal-2026-10-10').locator('.cal-heart')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/calendar-treasure.png' })
+
+  // 지난달을 보다가 소중한 날을 열면 날짜 순으로 모인다
+  await page.getByTestId('calendar-prev').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 9월')
+  const mode = page.getByTestId('calendar-mode-treasure')
+  await mode.click()
+  await expect(mode).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('calendar-days')).toHaveCount(0)
+  await expect(page.getByTestId('treasure-count')).toHaveText('💛 소중한 날 3일')
+  const list = page.getByTestId('treasure-list').locator('.cal-hit')
+  await expect(list).toHaveCount(3)
+  await expect(list.nth(0)).toHaveAttribute('data-testid', 'hit-2026-09-12')
+  await expect(list.nth(1)).toHaveAttribute('data-testid', 'hit-2026-10-05')
+  await expect(list.nth(2)).toHaveAttribute('data-testid', 'hit-2026-10-20')
+  // 글 속 꺾쇠는 글자 그대로 보인다
+  await expect(page.getByTestId('hit-2026-09-12')).toContainText('<b>합격</b>한 날, 바다를')
+  await expect(page.getByTestId('hit-2026-09-12')).toContainText('2026년 9월 12일 토요일')
+  for (const id of ['hit-2026-09-12', 'hit-2026-10-20', 'calendar-mode-month', 'calendar-mode-year', 'calendar-mode-treasure', 'calendar-close']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.x + box.width).toBeLessThanOrEqual(390)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.screenshot({ path: 'test-results/screens/treasure-list.png' })
+
+  // 찾기에 말을 넣으면 찾기가 먼저, 비우면 소중한 날로 돌아온다
+  await page.getByTestId('calendar-search').fill('합격')
+  await expect(page.getByTestId('search-count')).toHaveText('"합격" · 한 줄 2개를 찾았어요')
+  await page.getByTestId('calendar-search-clear').click()
+  await expect(page.getByTestId('treasure-count')).toHaveText('💛 소중한 날 3일')
+
+  // 한 달로 돌아오면 보던 달 그대로다
+  await page.getByTestId('calendar-mode-month').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 9월')
+  await expect(page.getByTestId('cal-2026-09-12').locator('.cal-heart')).toHaveCount(1)
+
+  // 모아 본 날을 누르면 창이 닫히고 그 집으로 가서 글을 연다
+  await mode.click()
+  await page.getByTestId('hit-2026-10-05').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 5일의 한 줄')
+  await expect(page.getByTestId('reader-treasure')).toHaveText('💛 소중한 날')
+
+  // 읽기 창에서 풀면 다시 열었을 때 하트도 목록도 빠진다
+  await page.getByTestId('reader-treasure').click()
+  await page.getByTestId('reader-close').click()
+  await openCalendar()
+  await expect(page.getByTestId('cal-2026-10-05').locator('.cal-heart')).toHaveCount(0)
+  await page.getByTestId('calendar-mode-treasure').click()
+  await expect(page.getByTestId('treasure-count')).toHaveText('💛 소중한 날 2일')
+  // 모아 보기는 저장을 바꾸지 않는다(푼 날 칸만 빠짐)
+  const now = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(now.entries).toEqual(entries.map((e) => (e.date === '2026-10-05' ? plain([e])[0] : e)))
+  expect(now.erased).toEqual(erased)
+})

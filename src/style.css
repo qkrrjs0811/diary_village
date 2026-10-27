@@ -422,6 +422,9 @@ button { font: inherit; color: inherit; }
 .cal-day.today { box-shadow: 0 0 0 2px var(--accent); }
 .cal-num { font-size: 12px; font-weight: 600; }
 .cal-mark { height: 16px; font-size: 14px; line-height: 16px; }
+/* 소중한 날: 칸 오른쪽 위 작은 하트 */
+.cal-day[data-treasured] { position: relative; }
+.cal-heart { position: absolute; top: 1px; right: 3px; font-size: 10px; line-height: 1; pointer-events: none; }
 /* 찾기: 달력 위 찾기 칸. 말을 넣으면 달력 대신 찾은 한 줄이 기분 색 쪽지로 놓인다 */
 .cal-search { position: relative; margin-bottom: 12px; }
 .sheet .cal-search .line-input { padding-right: 48px; }
