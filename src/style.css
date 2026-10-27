@@ -512,6 +512,10 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .resident .stroll, .resident .face, .resident .hop { animation: none; }
 }
+/* 집을 지어 다가갈 때·집을 읽을 때 그 집 앞을 가리는 나무·주민을 잠깐 옅게 한다 */
+.things .tree, .things .resident { transition: opacity 0.35s ease; }
+.things .veiled { opacity: 0.25; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .things .tree, .things .resident { transition: none; } }
 .landmark { cursor: pointer; }
 .landmark.pop { transform-box: fill-box; transform-origin: 50% 100%; animation: pop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0s) both; }
 .blades { animation: spin 14s linear infinite; }

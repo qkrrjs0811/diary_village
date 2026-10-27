@@ -1439,6 +1439,37 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   for (const it of items) it.draw()
 }
 
+type Box = { x: number; y: number; width: number; height: number }
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+
+/**
+ * 그 날 집 앞(나중에 그린 것)에서 집을 가리는 나무·주민을 잠깐 옅게 한다. 옅게 한 수를 돌려준다.
+ * 주민은 한 칸 길을 오가므로 걷는 길 전체가 집과 겹치는지 본다. 그림만 바꾸고 아무것도 저장하지 않는다
+ */
+export function veilFront(svg: SVGSVGElement, date: string): number {
+  unveil(svg)
+  const house = svg.querySelector<SVGGraphicsElement>(`.house[data-date="${date}"]`)
+  if (!house) return 0
+  const box = house.getBBox()
+  let count = 0
+  for (const node of svg.querySelectorAll<SVGGraphicsElement>('.things .tree, .things .resident')) {
+    if (!(house.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) continue
+    const b = node.getBBox()
+    const dx = parseFloat(node.style.getPropertyValue('--dx')) || 0
+    const dy = parseFloat(node.style.getPropertyValue('--dy')) || 0
+    const path = { x: b.x + Math.min(0, dx), y: b.y + Math.min(0, dy), width: b.width + Math.abs(dx), height: b.height + Math.abs(dy) }
+    if (!overlaps(box, path)) continue
+    node.classList.add('veiled')
+    count++
+  }
+  return count
+}
+
+/** 옅게 한 나무·주민을 원래대로 */
+export function unveil(svg: SVGSVGElement) {
+  for (const node of svg.querySelectorAll('.veiled')) node.classList.remove('veiled')
+}
+
 /** 구역 하나가 화면에 들어오는 viewBox */
 export function blockView(block: Block): { x: number; y: number; w: number; h: number } {
   const x0 = block.bx * (BLOCK_W + ROAD) - ROAD / 2

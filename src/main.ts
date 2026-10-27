@@ -30,7 +30,7 @@ import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
 import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
 import { SHOW, START_UNIT } from './core/view'
-import { blockView, cellAt, drawVillage, iso } from './village/render'
+import { blockView, cellAt, drawVillage, iso, unveil, veilFront } from './village/render'
 import type { Village } from './core/village'
 
 /** 브라우저 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 메모리에만 둔다 */
@@ -97,6 +97,7 @@ const reader = createReader({
         }
         save = r.save
         render()
+        veilFront(svg, date)
         return { entry: r.entry }
       },
   onErase: readOnly
@@ -114,8 +115,17 @@ const reader = createReader({
         showNote(`🌱 ${dateLabel(date).replace(/ \S+요일$/, '')} 자리가 빈 땅으로 돌아갔어요`, 0)
         return null
       },
+  onClose: () => unveil(svg),
 })
 document.body.appendChild(reader.root)
+
+/** 그날 글을 연다. 읽는 동안 그 집 앞을 가리는 나무·주민은 옅어진다 */
+let veilTimer = 0
+function readEntry(entry: Entry) {
+  clearTimeout(veilTimer)
+  reader.open(entry)
+  veilFront(svg, entry.date)
+}
 
 const settings = createSettings({
   soundOn: () => soundOn(kv),
@@ -224,6 +234,10 @@ const card = createWriteCard({
     const before = builtDays(save)
     save = r.save
     render(r.entry.date)
+    // 다가가 짓는 동안 새 집 앞을 가리는 나무·주민을 옅게 했다가, 원래 보기로 돌아올 때 되돌린다
+    clearTimeout(veilTimer)
+    veilFront(svg, r.entry.date)
+    veilTimer = window.setTimeout(() => unveil(svg), (calm ? 0 : SHOW.go) + SHOW.hold)
     sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
     // 지은 건물과 새로 열린 꾸밈 소품을 한 알림에 줄을 나눠 보인다
     const notes = [buildingNote(buildingOf(r.entry)), decorNote(reachedDecors(before, builtDays(save)))].filter(Boolean)
@@ -231,7 +245,7 @@ const card = createWriteCard({
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
     return null
   },
-  onOpen: (entry) => reader.open(entry),
+  onOpen: readEntry,
   onMemory: visitMemory,
   onRecap: (month) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), month),
 })
@@ -241,13 +255,13 @@ let memoryTimer = 0
 function visitMemory(entry: Entry) {
   const lot = drawn?.village.blocks.flatMap((b) => b.lots).find((l) => l.date === entry.date)
   clearTimeout(memoryTimer)
-  if (!lot) return reader.open(entry)
+  if (!lot) return readEntry(entry)
   camera.glide(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)
   const node = svg.querySelector(`[data-testid="house-${entry.date}"]`)
   node?.classList.remove('remember')
   void node?.getBoundingClientRect()
   node?.classList.add('remember')
-  memoryTimer = window.setTimeout(() => reader.open(entry), calm ? 0 : SHOW.go + 150)
+  memoryTimer = window.setTimeout(() => readEntry(entry), calm ? 0 : SHOW.go + 150)
 }
 app.appendChild(card.root)
 
@@ -272,7 +286,7 @@ const camera = createCamera(svg, (target, at) => {
   }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
-  if (entry) reader.open(entry)
+  if (entry) readEntry(entry)
 }, grabDecor)
 
 /*

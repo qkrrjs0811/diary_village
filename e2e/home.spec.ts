@@ -1829,3 +1829,50 @@ test('집·건물 바로 앞 칸에는 나무 대신 꽃·풀이 나서 집을 �
   await page.screenshot({ path: 'test-results/screens/houses-front-clear.png' })
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
+
+test('집을 짓거나 읽을 때 그 집 앞을 가리는 나무·주민이 잠깐 옅어졌다가 돌아온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const days = [2, 3, 5, 8, 9, 12, 13, 15, 16, 19, 20, 22, 24, 25, 26]
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', days) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  const veiled = page.locator('svg .veiled')
+  const kong = page.getByTestId('resident-kong')
+  await expect(kong).toBeAttached()
+  await expect(veiled).toHaveCount(0)
+
+  // 26일 집 앞 길을 걷는 주민(콩)은 그 집을 읽는 동안 옅어지고, 누르기를 막지 않는다
+  await page.getByTestId('house-2026-10-26').dispatchEvent('click')
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  await expect(kong).toHaveClass(/veiled/)
+  await expect.poll(() => kong.evaluate((e) => Number(getComputedStyle(e).opacity))).toBeLessThan(0.5)
+  expect(await kong.evaluate((e) => getComputedStyle(e).pointerEvents)).toBe('none')
+  // 집 뒤(먼저 그린 것)는 옅어지지 않는다
+  for (const node of await veiled.all()) {
+    expect(await node.evaluate((n) => !!(document.querySelector('[data-testid="house-2026-10-26"]')!.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+  }
+  const house = (await page.getByTestId('house-2026-10-26').boundingBox())!
+  await page.mouse.move(house.x + house.width / 2, house.y + house.height / 2)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/read-unveil.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.getByTestId('reader-close').click()
+  await expect(veiled).toHaveCount(0)
+  await expect.poll(() => kong.evaluate((e) => Number(getComputedStyle(e).opacity))).toBe(1)
+
+  // 짓는 동안 새 집 앞을 가리는 것이 옅어졌다가, 원래 보기로 돌아올 때 되돌아온다
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('따뜻한 차 한 잔')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeAttached()
+  expect(await veiled.count()).toBeGreaterThan(0)
+  await page.clock.runFor(1500)
+  expect(await veiled.count()).toBeGreaterThan(0)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-unveil.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.clock.runFor(2500)
+  await expect(veiled).toHaveCount(0)
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!).entries).toHaveLength(days.length + 1)
+})

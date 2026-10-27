@@ -11,13 +11,18 @@ export function createReader(handlers: {
   onEdit: ((date: string, text: string, mood: MoodId) => { error: string } | { entry: Entry }) | null
   /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 null 을 돌려준다 */
   onErase: ((date: string) => string | null) | null
+  /** 창이 닫힐 때 */
+  onClose?: () => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
   back.hidden = true
   back.innerHTML = `<div class="sheet" data-testid="reader" role="dialog" aria-modal="true"></div>`
   const sheet = back.querySelector<HTMLElement>('.sheet')!
-  const close = () => (back.hidden = true)
+  const close = () => {
+    back.hidden = true
+    handlers.onClose?.()
+  }
   back.addEventListener('click', (e) => {
     if (e.target === back) close()
   })
