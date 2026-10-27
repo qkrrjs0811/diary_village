@@ -8,7 +8,8 @@ import { buildVillage } from './core/village'
 import { createReader } from './ui/reader'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
-import { blockView, drawVillage } from './village/render'
+import { START_UNIT } from './core/view'
+import { blockView, drawVillage, iso } from './village/render'
 
 /** 브라우저 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 메모리에만 둔다 */
 function openStorage(): { kv: KV; persistent: boolean } {
@@ -97,9 +98,11 @@ function render(newDate?: string) {
   scene.style.setProperty('--sky-bottom', mood.sky[1])
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'
   // 날이 바뀌었을 때만 오늘 구역으로 화면을 옮긴다(둘러보던 자리를 지킨다)
+  // 처음엔 오늘 자리를 가운데에 두고 집이 또렷이 보이게 가까이 본다
   if (shownDay !== today) {
     const block = village.blocks.find((b) => b.month === today.slice(0, 7))!
-    camera.show(blockView(block))
+    const lot = block.lots.find((l) => l.date === today)!
+    if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)) camera.show(blockView(block))
     shownDay = today
   }
 }

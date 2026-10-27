@@ -62,8 +62,10 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   await expect(page.getByTestId('today-spot')).toBeVisible()
   await page.screenshot({ path: 'test-results/screens/home-month.png' })
 
-  // 끌어서 지난달 구역을 본다
+  // 멀리 보고 끌어서 지난달 구역을 본다
   const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 200)
   await page.mouse.move(box.x + box.width / 2, box.y + 60)
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 160, box.y + 300, { steps: 8 })
@@ -71,6 +73,65 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   await expect(page.getByTestId('month-2026-09')).toBeInViewport()
   await expect(page.getByTestId('reader')).toBeHidden() // 끌기는 누름이 아니다
   await page.screenshot({ path: 'test-results/screens/home-drag.png' })
+})
+
+test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대·축소해도 누르기가 된다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const house = page.getByTestId('house-2026-10-26')
+  const width = async () => (await house.boundingBox())!.width
+  // 처음 열면 집이 작지 않다(칸 48 → 화면 약 80px)
+  await expect(house).toBeInViewport()
+  const start = await width()
+  expect(start).toBeGreaterThan(50)
+  await page.screenshot({ path: 'test-results/screens/zoom-start.png' })
+
+  const svg = (await page.getByTestId('village').boundingBox())!
+  const cx = svg.x + svg.width / 2
+  const cy = svg.y + svg.height / 2
+  await page.mouse.move(cx, cy)
+  // 휠로 가까이 — 한계에서 멈춘다
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -200)
+  const near = await width()
+  expect(near).toBeGreaterThan(start * 1.5)
+  await page.mouse.wheel(0, -200)
+  expect(await width()).toBeCloseTo(near, 0)
+  await page.screenshot({ path: 'test-results/screens/zoom-near.png' })
+  // 휠로 멀리 — 한계에서 멈춘다
+  for (let i = 0; i < 20; i++) await page.mouse.wheel(0, 200)
+  const far = await width()
+  expect(far).toBeLessThan(start / 2)
+  await page.mouse.wheel(0, 200)
+  expect(await width()).toBeCloseTo(far, 0)
+  await page.screenshot({ path: 'test-results/screens/zoom-far.png' })
+
+  // 두 손가락을 벌리면 가까이 본다
+  await page.evaluate(
+    ([x, y]) => {
+      const svg = document.querySelector('[data-testid="village"]')!
+      const fire = (type: string, id: number, px: number) =>
+        svg.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: px, clientY: y, bubbles: true, isPrimary: id === 1 }))
+      fire('pointerdown', 1, x - 20)
+      fire('pointerdown', 2, x + 20)
+      for (let i = 1; i <= 10; i++) {
+        fire('pointermove', 1, x - 20 - i * 10)
+        fire('pointermove', 2, x + 20 + i * 10)
+      }
+      fire('pointerup', 1, x - 120)
+      fire('pointerup', 2, x + 120)
+    },
+    [cx, cy],
+  )
+  const pinched = await width()
+  expect(pinched).toBeGreaterThan(far * 2)
+  await expect(page.getByTestId('reader')).toBeHidden() // 두 손가락은 누름이 아니다
+
+  // 확대한 채로 집을 누르면 그날 글이 열린다
+  await house.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
 })
 
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {
