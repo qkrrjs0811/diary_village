@@ -70,6 +70,7 @@ app.innerHTML = `
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
     <div class="sky sky-back" data-testid="sky" aria-hidden="true"></div>
+    <div class="sky far" data-testid="far" aria-hidden="true"></div>
     <svg data-testid="village" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="sky sky-front" data-testid="rain" aria-hidden="true"></div>
     <div class="weather" data-testid="weather"></div>
@@ -79,6 +80,7 @@ const svg = app.querySelector<SVGSVGElement>('svg')!
 const scene = app.querySelector<HTMLElement>('.scene')!
 const skyBack = app.querySelector<HTMLElement>('.sky-back')!
 const skyFront = app.querySelector<HTMLElement>('.sky-front')!
+const skyFar = app.querySelector<HTMLElement>('.far')!
 const banner = app.querySelector<HTMLElement>('.banner')!
 if (readOnly) {
   banner.textContent = '저장된 일기를 읽지 못했어요. 기록을 지키려고 새로 쓰기를 잠시 막았어요.'
@@ -649,7 +651,7 @@ function paintSky() {
   scene.dataset.time = part
   scene.classList.toggle('lit', windowsLit(part))
   scene.classList.toggle('smoky', smokeOn(today, part))
-  drawSky(skyBack, skyFront, weatherOf(save.entries, today), part, today)
+  drawSky(skyBack, skyFar, skyFront, weatherOf(save.entries, today), part, today)
 }
 
 render()

@@ -1,6 +1,7 @@
 import { PLAZA } from './landmark'
-import { seasonOf } from './season'
+import { seasonOf, type Season } from './season'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
+import { mix, type DayPart } from './weather'
 
 /** 빈 땅에 나는 것: 나무 또는 작은 꽃·풀 */
 export interface Scenery {
@@ -153,4 +154,85 @@ export function islandEdge(village: Village, today: string): { rim: RimBit[]; cl
     }
   }
   return { rim, cliff }
+}
+
+/** 먼 산 봉우리 하나(화면 %). x: 가운데, w: 밑동 너비, h: 구름 바다 윗줄에서 꼭대기까지 높이 */
+export interface Hill {
+  x: number
+  w: number
+  h: number
+}
+
+/** 구름 바다 윗줄의 뭉게 하나. x: 한 폭 안 자리(0~100), y: 띠 안 높이(0 위 ~ 100 아래), r: 크기 */
+export interface Puff {
+  x: number
+  y: number
+  r: number
+}
+
+/** 섬 아래·뒤 먼 바깥 풍경. seaTop: 구름 바다 윗줄(화면 위에서 %), 색은 계절·때를 따른다 */
+export interface FarScene {
+  hills: Hill[]
+  puffs: Puff[]
+  seaTop: number
+  hillFill: string
+  hillLine: string
+  snow: boolean
+  seaFill: string
+  seaLine: string
+  seaShade: string
+}
+
+/** 먼 산 한 겹. 이웃 봉우리끼리 밑동이 겹쳐 화면 양 끝 너머까지 이어진다 */
+const HILLS: Hill[] = [
+  { x: -4, w: 30, h: 7 },
+  { x: 18, w: 30, h: 10 },
+  { x: 38, w: 26, h: 6 },
+  { x: 57, w: 32, h: 9 },
+  { x: 78, w: 28, h: 6.5 },
+  { x: 98, w: 32, h: 8.5 },
+]
+
+/** 구름 바다 윗줄 뭉게. 한 폭 안에만 두어 두 폭을 이어 흘려도 이음매가 없다 */
+const PUFFS: Puff[] = [
+  { x: 4, y: 40, r: 7 },
+  { x: 15, y: 30, r: 9 },
+  { x: 27, y: 45, r: 6 },
+  { x: 37, y: 33, r: 8 },
+  { x: 49, y: 42, r: 7 },
+  { x: 60, y: 28, r: 9 },
+  { x: 72, y: 44, r: 6 },
+  { x: 82, y: 34, r: 8 },
+  { x: 93, y: 42, r: 7 },
+]
+
+const SEA_TOP = 64
+const HILL_COLOR: Record<Season, [string, string]> = {
+  spring: ['#bfe0c4', '#93bba0'],
+  summer: ['#a6d4b4', '#7fae90'],
+  autumn: ['#e8cba0', '#c9a074'],
+  winter: ['#cdd9e6', '#9eb0c6'],
+}
+const SEA = { fill: '#fffdf9', line: '#e3d9cc', shade: '#eef3f7' }
+/** 저녁 노을빛·밤빛으로 물들이기 */
+const TINT: Record<Exclude<DayPart, 'day'>, { hill: [string, number]; sea: [string, number] }> = {
+  evening: { hill: ['#f6b9a6', 0.3], sea: ['#ffd2c0', 0.35] },
+  night: { hill: ['#3a4078', 0.5], sea: ['#8a8cc6', 0.5] },
+}
+
+/**
+ * 떠 있는 섬 아래·뒤로 깔리는 먼 바깥(먼 산 한 겹과 구름 바다). 날짜의 계절과 지금 때로만 정하고 저장하지 않는다.
+ * 산 모양·구름 자리는 늘 같고 색만 계절(봄 연두·여름 초록·가을 갈대빛·겨울 눈 덮인 푸른빛)과 때를 따른다.
+ * 해·달·하늘 구름보다 아래에 깔려 날씨 하늘과 겹치지 않는다
+ */
+export function farScene(date: string, part: DayPart): FarScene {
+  const season = seasonOf(date)
+  let [hillFill, hillLine] = HILL_COLOR[season]
+  let { fill: seaFill, line: seaLine, shade: seaShade } = SEA
+  if (part !== 'day') {
+    const { hill, sea } = TINT[part]
+    ;[hillFill, hillLine] = [mix(hillFill, hill[0], hill[1]), mix(hillLine, hill[0], hill[1])]
+    ;[seaFill, seaLine, seaShade] = [mix(seaFill, sea[0], sea[1]), mix(seaLine, sea[0], sea[1]), mix(seaShade, sea[0], sea[1])]
+  }
+  return { hills: HILLS, puffs: PUFFS, seaTop: SEA_TOP, hillFill, hillLine, snow: season === 'winter', seaFill, seaLine, seaShade }
 }

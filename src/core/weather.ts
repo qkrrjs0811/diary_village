@@ -46,7 +46,7 @@ export function windowsLit(part: DayPart): boolean {
   return part !== 'day'
 }
 
-function mix(a: string, b: string, t: number): string {
+export function mix(a: string, b: string, t: number): string {
   const ca = parseInt(a.slice(1), 16)
   const cb = parseInt(b.slice(1), 16)
   const ch = (s: number) => Math.round(((ca >> s) & 255) * (1 - t) + ((cb >> s) & 255) * t)

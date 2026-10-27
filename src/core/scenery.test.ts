@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { blockScenery, islandEdge, islandSlabs, outerSides, PLAZA_TREES, signSpots } from './scenery'
+import { blockScenery, farScene, islandEdge, islandSlabs, outerSides, PLAZA_TREES, signSpots } from './scenery'
 import { BLOCK_H, BLOCK_W, ROAD, buildVillage, hash } from './village'
 import { LANDMARKS } from './landmark'
 import type { Entry } from './types'
+import { skyBits } from './weather'
 
 const e = (date: string): Entry => ({ date, text: date, mood: 'calm', writtenAt: 0 })
 
@@ -163,5 +164,78 @@ describe('떠 있는 섬 가장자리', () => {
     }))
     const b = buildVillage(many, '2026-10-28')
     expect(islandEdge(a, '2026-10-28')).toEqual(islandEdge(b, '2026-10-28'))
+  })
+})
+
+describe('먼 바깥 풍경(구름 바다·먼 산)', () => {
+  const PARTS = ['day', 'evening', 'night'] as const
+  const DAYS = { spring: '2027-04-12', summer: '2027-07-20', autumn: '2026-10-28', winter: '2026-12-20' }
+  const light = (hex: string) => {
+    const n = parseInt(hex.slice(1), 16)
+    return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114
+  }
+
+  it('날짜와 때만으로 정해 언제 열어도 같다(저장하지 않음)', () => {
+    for (const part of PARTS) expect(farScene('2026-10-28', part)).toEqual(farScene('2026-10-28', part))
+  })
+
+  it('같은 계절 안에서는 날이 바뀌어도 같고, 산 모양·구름 자리는 계절이 바뀌어도 그대로다(색만 바뀐다)', () => {
+    expect(farScene('2027-04-01', 'day')).toEqual(farScene('2027-05-20', 'day'))
+    const spring = farScene(DAYS.spring, 'day')
+    const winter = farScene(DAYS.winter, 'night')
+    expect(winter.hills).toEqual(spring.hills)
+    expect(winter.puffs).toEqual(spring.puffs)
+    expect(winter.seaTop).toBe(spring.seaTop)
+  })
+
+  it('먼 산은 화면 너비 끝까지 끊김 없이 이어진다', () => {
+    const { hills } = farScene(DAYS.spring, 'day')
+    expect(hills.length).toBeGreaterThanOrEqual(5)
+    expect(hills.length).toBeLessThanOrEqual(10)
+    const sorted = [...hills].sort((a, b) => a.x - b.x)
+    expect(sorted[0].x - sorted[0].w / 2).toBeLessThanOrEqual(0)
+    expect(sorted.at(-1)!.x + sorted.at(-1)!.w / 2).toBeGreaterThanOrEqual(100)
+    for (let i = 1; i < sorted.length; i++) expect(sorted[i].x - sorted[i].w / 2).toBeLessThan(sorted[i - 1].x + sorted[i - 1].w / 2)
+  })
+
+  it('산과 구름 바다는 해·달·하늘 구름보다 아래에 있어 겹치지 않는다', () => {
+    const scene = farScene(DAYS.spring, 'day')
+    const kinds = ['sunny', 'partly', 'cloudy', 'rain', 'starry'] as const
+    const skyLow = Math.max(...kinds.flatMap((k) => PARTS.flatMap((p) => skyBits(k, p).filter((b) => b.kind !== 'drop').map((b) => b.y))))
+    for (const h of scene.hills) expect(scene.seaTop - h.h).toBeGreaterThan(skyLow + 8)
+    expect(scene.seaTop).toBeGreaterThanOrEqual(55)
+    expect(scene.seaTop).toBeLessThanOrEqual(75)
+  })
+
+  it('구름 바다 뭉게는 한 폭(0~100) 안에 있어 두 폭을 이어 흘려도 이음매가 없고, 어수선하지 않게 적다', () => {
+    const { puffs } = farScene(DAYS.spring, 'day')
+    expect(puffs.length).toBeGreaterThanOrEqual(6)
+    expect(puffs.length).toBeLessThanOrEqual(14)
+    for (const p of puffs) {
+      expect(p.x).toBeGreaterThanOrEqual(0)
+      expect(p.x).toBeLessThan(100)
+      expect(p.y).toBeGreaterThanOrEqual(0)
+      expect(p.y).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('계절마다 산 색이 다르고, 눈 덮인 봉우리는 겨울에만 있다', () => {
+    const fills = Object.values(DAYS).map((d) => farScene(d, 'day').hillFill)
+    expect(new Set(fills).size).toBe(4)
+    expect(farScene(DAYS.winter, 'day').snow).toBe(true)
+    for (const d of [DAYS.spring, DAYS.summer, DAYS.autumn]) expect(farScene(d, 'day').snow).toBe(false)
+  })
+
+  it('저녁은 노을빛, 밤은 더 어두운 빛으로 산과 구름 바다를 물들인다', () => {
+    for (const d of Object.values(DAYS)) {
+      const day = farScene(d, 'day')
+      const evening = farScene(d, 'evening')
+      const night = farScene(d, 'night')
+      expect(evening.hillFill).not.toBe(day.hillFill)
+      expect(evening.seaFill).not.toBe(day.seaFill)
+      expect(light(night.hillFill)).toBeLessThan(light(day.hillFill))
+      expect(light(night.seaFill)).toBeLessThan(light(day.seaFill))
+      for (const c of [day, evening, night].flatMap((s) => [s.hillFill, s.hillLine, s.seaFill, s.seaLine, s.seaShade])) expect(c).toMatch(/^#[0-9a-f]{6}$/)
+    }
   })
 })

@@ -242,7 +242,21 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .sky-bit.sun .rays, .sky-bit.cloud, .sky-bit.star, .sky-bit.drop { animation: none; }
 }
-/* 계절 흩날림: 꽃잎·낙엽·눈은 천천히 흔들리며 떨어지고, 여름 밤 반딧불은 제자리에서 깜빡인다 */
+/* 먼 바깥: 섬 아래·뒤 먼 산 한 겹과 아주 천천히 흐르는 구름 바다. 화면에 붙어 있어 둘러봐도 끝이 없다 */
+.far { opacity: 0.92; }
+.far .far-hills { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.8; }
+.far-sea { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; }
+.far-flow { display: flex; width: 200%; flex: none; animation: sea-flow 180s linear infinite; }
+.far .far-puffs { position: static; display: block; flex: none; width: 50%; height: auto; }
+.far-deep { position: relative; flex: 1; margin-top: -3px; background: linear-gradient(var(--sea), var(--shade)); }
+@keyframes sea-flow {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .far-flow { animation: none; }
+}
+/* 계절 흩날림:꽃잎·낙엽·눈은 천천히 흔들리며 떨어지고, 여름 밤 반딧불은 제자리에서 깜빡인다 */
 .drift { position: absolute; top: 0; width: var(--size); opacity: 0.85; transform: translate(-50%, calc(var(--y) * 1cqh)); }
 .drift svg { display: block; width: 100%; height: auto; overflow: visible; }
 .drift.petal, .drift.leaf, .drift.snow {

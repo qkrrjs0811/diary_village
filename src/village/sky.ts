@@ -1,4 +1,5 @@
-import { driftBits, type DriftBit } from '../core/season'
+import { farScene, type Hill } from '../core/scenery'
+import { driftBits, seasonOf, type DriftBit } from '../core/season'
 import { skyBits, type DayPart, type SkyBit, type WeatherKind } from '../core/weather'
 
 /** 하늘 그림 하나(작은 SVG). 모두 둥근 도형에 얇은 테두리다 */
@@ -46,12 +47,44 @@ function driftSvg(b: DriftBit): string {
   }
 }
 
+/** 둥근 봉우리 하나(밑동은 구름 바다 뒤로 숨는다) */
+function hillPath(h: Hill, seaTop: number): string {
+  const [x0, x1, top, base] = [h.x - h.w / 2, h.x + h.w / 2, seaTop - h.h, seaTop + 8]
+  return `M${x0} ${base} C${x0 + h.w * 0.22} ${top - h.h * 0.25} ${x1 - h.w * 0.22} ${top - h.h * 0.25} ${x1} ${base} Z`
+}
+
+/**
+ * 섬 아래·뒤 먼 바깥: 먼 산 한 겹과 구름 바다. 화면에 붙어 있어 끌어서 둘러봐도 끝이 드러나지 않는다.
+ * 구름 바다는 두 폭을 이어 아주 천천히 옆으로 흐른다(움직임 줄이기면 멈춤). 뭉게는 굵은 테두리를 먼저 모두 그리고
+ * 그 위에 속을 칠해, 겹친 뭉게 사이에 금이 가지 않고 바깥 둘레만 얇은 테두리가 남는다
+ */
+function drawFar(el: HTMLElement, date: string, part: DayPart) {
+  const s = farScene(date, part)
+  el.dataset.season = seasonOf(date)
+  el.dataset.part = part
+  const hills = s.hills
+    .map((h, i) => {
+      const d = hillPath(h, s.seaTop)
+      const cap = s.snow
+        ? `<clipPath id="far-hill-${i}"><path d="${d}"/></clipPath><path clip-path="url(#far-hill-${i})" d="M${h.x - h.w / 2} ${s.seaTop - h.h * 0.62} Q${h.x - h.w * 0.2} ${s.seaTop - h.h * 0.5} ${h.x} ${s.seaTop - h.h * 0.66} Q${h.x + h.w * 0.2} ${s.seaTop - h.h * 0.5} ${h.x + h.w / 2} ${s.seaTop - h.h * 0.62} L${h.x + h.w / 2} 0 L${h.x - h.w / 2} 0 Z" fill="#ffffff"/>`
+        : ''
+      return `<path d="${d}" fill="${s.hillFill}"/>${cap}<path d="${d}" fill="none" stroke="${s.hillLine}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`
+    })
+    .join('')
+  // 뭉게 띠: 가로 100 × 세로 30. y·r은 띠 높이(30)에 맞춘다. 양 끝에 걸친 뭉게는 반대쪽에도 그려 두 폭이 이어진다
+  const wrapped = s.puffs.flatMap((p) => [p, { ...p, x: p.x - 100 }, { ...p, x: p.x + 100 }])
+  const circles = (fill: string, grow: number) => wrapped.map((p) => `<circle cx="${p.x}" cy="${(p.y * 0.3).toFixed(1)}" r="${p.r + grow}" fill="${fill}"/>`).join('')
+  const strip = `<svg class="far-puffs" viewBox="0 0 100 30">${circles(s.seaLine, 0.6)}<rect y="11" width="100" height="17" fill="${s.seaLine}"/>${circles(s.seaFill, 0)}<rect y="11.6" width="100" height="18.4" fill="${s.seaFill}"/></svg>`
+  el.innerHTML = `<svg class="far-hills" viewBox="0 0 100 100" preserveAspectRatio="none">${hills}</svg>
+    <div class="far-sea" style="top:${s.seaTop}%;--sea:${s.seaFill};--shade:${s.seaShade}"><div class="far-flow">${strip}${strip}</div><div class="far-deep"></div></div>`
+}
+
 /**
  * 오늘 기분 날씨를 지금 때(낮·저녁·밤)에 맞게 마을 하늘에 그린다. back: 마을 뒤(해·달·구름·별), front: 마을 앞(빗방울).
  * 마을 앞에는 오늘 계절에 흩날리는 것(꽃잎·반딧불·낙엽·눈)도 옅게 얹는다(날짜로 정한다).
  * 누르기를 막지 않도록 둘 다 손가락을 통과시킨다.
  */
-export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind, part: DayPart, date: string) {
+export function drawSky(back: HTMLElement, far: HTMLElement, front: HTMLElement, kind: WeatherKind, part: DayPart, date: string) {
   if (back.dataset.kind === kind && back.dataset.part === part && back.dataset.date === date) return
   back.dataset.kind = kind
   back.dataset.part = part
@@ -73,6 +106,7 @@ export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind
       back.appendChild(node)
     }
   }
+  drawFar(far, date, part)
   for (const b of driftBits(date, part, kind)) {
     const node = document.createElement('span')
     node.className = `drift ${b.kind}`

@@ -1182,6 +1182,60 @@ for (const [time, months, name] of ISLAND_SEASONS) {
   })
 }
 
+const FAR_VIEWS: [string, string[], string][] = [
+  ['2027-04-12T13:00:00+09:00', ['2027-02', '2027-03', '2027-04'], 'day'],
+  ['2026-12-20T21:30:00+09:00', ['2026-10', '2026-11', '2026-12'], 'night'],
+  ['2026-10-27T13:00:00+09:00', [], 'first'],
+]
+for (const [time, months, name] of FAR_VIEWS) {
+  test(`${name}: 섬 아래·뒤로 먼 산과 구름 바다가 깔리고, 끌어도 끝이 드러나지 않으며 누르기를 막지 않는다`, async ({ page }) => {
+    const date = time.slice(0, 10)
+    await page.clock.install({ time: new Date(time) })
+    const entries = [...months.flatMap((m) => monthEntries(m, [3, 8, 10])), { date, text: `${name}의 먼 바다`, mood: 'calm', writtenAt: Date.parse(time) }]
+    await page.addInitScript(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+    await page.goto('./')
+    const far = page.getByTestId('far')
+    await expect(far).toHaveAttribute('data-part', name === 'night' ? 'night' : 'day')
+    await expect(far).toHaveCSS('pointer-events', 'none')
+    expect(await far.locator('.far-hills path').count()).toBeGreaterThanOrEqual(6)
+    await expect(far.locator('.far-puffs')).toHaveCount(2)
+    if (name === 'night') expect(await far.locator('[clip-path]').count()).toBeGreaterThan(0)
+    // 구름 바다는 화면 아래 끝까지, 양옆 끝까지 덮는다
+    const scene = (await page.getByTestId('scene').boundingBox())!
+    const sea = (await far.locator('.far-sea').boundingBox())!
+    expect(sea.x).toBeLessThanOrEqual(scene.x + 1)
+    expect(sea.x + sea.width).toBeGreaterThanOrEqual(scene.x + scene.width - 1)
+    expect(sea.y + sea.height).toBeGreaterThanOrEqual(scene.y + scene.height - 1)
+    const flowing = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'sea-flow'))
+    expect(flowing).toBe(true)
+    // 먼 바깥이 있어도 집이 그대로 눌린다
+    await page.getByTestId(`house-${date}`).click()
+    await expect(page.getByTestId('reader-text')).toHaveText(`${name}의 먼 바다`)
+    await page.getByTestId('reader-close').click()
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/far-${name}.png` })
+    // 멀리 보고 끌어 둘러봐도 먼 바깥은 화면에 붙어 있어 끝이 드러나지 않는다
+    const svg = (await page.getByTestId('village').boundingBox())!
+    await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 300)
+    await page.mouse.down()
+    await page.mouse.move(svg.x + svg.width / 2 - 140, svg.y + svg.height / 2 - 160, { steps: 6 })
+    await page.mouse.up()
+    const after = (await far.locator('.far-sea').boundingBox())!
+    expect(after).toEqual(sea)
+    await page.screenshot({ path: `test-results/screens/far-${name}-far.png` })
+  })
+}
+
+test('움직임 줄이기를 켜면 구름 바다가 흐르지 않는다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  await expect(page.getByTestId('far').locator('.far-puffs')).toHaveCount(2)
+  const flowing = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'sea-flow'))
+  expect(flowing).toBe(false)
+})
+
 test('여름 낮에는 반딧불이 없다', async ({ page }) => {
   await page.clock.install({ time: new Date('2027-07-20T13:00:00+09:00') })
   await page.goto('./')
