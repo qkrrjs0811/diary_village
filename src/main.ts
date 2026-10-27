@@ -1,6 +1,6 @@
 import './style.css'
 import { dayKey } from './core/date'
-import { entryOn, writeEntry } from './core/entries'
+import { entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
@@ -57,10 +57,10 @@ const reader = createReader()
 document.body.appendChild(reader.root)
 
 const card = createWriteCard({
-  onSubmit(text: string, mood: MoodId) {
+  onSubmit(text: string, mood: MoodId, day: Day) {
     if (readOnly) return '지금은 쓸 수 없어요'
-    const r = writeEntry(save, { text, mood }, Date.now())
-    if (!r.ok) return r.reason === 'already' ? '오늘은 이미 집을 지었어요' : '한 줄을 다시 확인해 주세요'
+    const r = writeEntry(save, { text, mood }, Date.now(), day)
+    if (!r.ok) return r.reason === 'already' ? `${day === 'today' ? '오늘은' : '어제는'} 이미 집을 지었어요` : '한 줄을 다시 확인해 주세요'
     try {
       writeSave(kv, r.save)
     } catch {
@@ -90,7 +90,7 @@ function render(newDate?: string) {
   const village = buildVillage(save.entries, today)
   drawVillage(svg, village, { today, newDate, buildDelay: newDate && !calm ? SHOW.go : 0 })
   const todayEntry = entryOn(save, today)
-  card.render(today, todayEntry)
+  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   // 하늘은 오늘 기분(안 썼으면 가장 최근 기분)을 따른다

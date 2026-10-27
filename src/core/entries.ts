@@ -1,4 +1,4 @@
-import { dayKey } from './date'
+import { addDays, dayKey } from './date'
 import type { Entry, MoodId, SaveData } from './types'
 
 /** 짧게 써도 되는 게 핵심이라 길게 쓸 이유를 만들지 않는다. 글 길이는 마을에 영향을 주지 않는다 */
@@ -19,11 +19,19 @@ export function entryOn(save: SaveData, date: string): Entry | undefined {
 
 export type WriteResult = { ok: true; save: SaveData; entry: Entry } | { ok: false; reason: 'empty' | 'long' | 'already' }
 
-/** 오늘 한 줄을 쓴다. 하루에 하나뿐이다 */
-export function writeEntry(save: SaveData, input: { text: string; mood: MoodId }, now: number): WriteResult {
+/** 늦게 자는 사람을 위해 어제까지는 쓸 수 있다. 어제를 안 썼으면 그 날짜, 아니면 null. 그보다 전은 열지 않는다 */
+export function yesterdayOpen(save: SaveData, now: number): string | null {
+  const date = addDays(dayKey(now), -1)
+  return entryOn(save, date) ? null : date
+}
+
+export type Day = 'today' | 'yesterday'
+
+/** 오늘(또는 어제) 한 줄을 쓴다. 하루에 하나뿐이다. writtenAt은 실제로 쓴 시각이다 */
+export function writeEntry(save: SaveData, input: { text: string; mood: MoodId }, now: number, day: Day = 'today'): WriteResult {
   const checked = checkText(input.text)
   if (!checked.ok) return checked
-  const date = dayKey(now)
+  const date = day === 'today' ? dayKey(now) : addDays(dayKey(now), -1)
   if (entryOn(save, date)) return { ok: false, reason: 'already' }
   const entry: Entry = { date, text: checked.text, mood: input.mood, writtenAt: now }
   const entries = [...save.entries, entry].sort((a, b) => a.date.localeCompare(b.date))

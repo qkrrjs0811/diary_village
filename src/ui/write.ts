@@ -1,33 +1,38 @@
-import { checkText, MAX_TEXT } from '../core/entries'
+import { checkText, MAX_TEXT, type Day } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel } from './format'
 
 export interface WriteCard {
   root: HTMLElement
-  /** 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다 */
-  render(today: string, entry: Entry | undefined): void
+  /** 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null) */
+  render(today: string, entry: Entry | undefined, yesterday: string | null): void
 }
+
+const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
 
 export function createWriteCard(handlers: {
   /** 실패하면 사용자에게 보일 이유를 돌려준다 */
-  onSubmit(text: string, mood: MoodId): string | null
+  onSubmit(text: string, mood: MoodId, day: Day): string | null
   onOpen(entry: Entry): void
 }): WriteCard {
   const root = document.createElement('section')
   root.className = 'card'
   root.dataset.testid = 'write-card'
-  let mood: MoodId | null = null
-  let draft = ''
+  /** 어제 칸에 쓰는 중이면 'yesterday'. 오늘과 어제의 쓰던 글·기분은 따로 둔다 */
+  let day: Day = 'today'
+  const mood: Record<Day, MoodId | null> = { today: null, yesterday: null }
+  const draft: Record<Day, string> = { today: '', yesterday: '' }
+  let shown: { today: string; entry: Entry | undefined; yesterday: string | null } = { today: '', entry: undefined, yesterday: null }
 
-  function renderForm(today: string) {
+  function renderForm(date: string, d: Day) {
     root.innerHTML = `
-      <div class="card-head"><b>오늘의 한 줄</b><span data-testid="today-date">${dateLabel(today)}</span></div>
-      <div class="moods" role="group" aria-label="오늘 기분">
-        ${MOODS.map((m) => `<button type="button" class="mood" data-mood="${m.id}" data-testid="mood-${m.id}" aria-pressed="${m.id === mood}"><span class="e">${m.emoji}</span><span class="l">${m.label}</span></button>`).join('')}
+      <div class="card-head"><b>${WORD[d]}의 한 줄</b><span data-testid="today-date">${dateLabel(date)}</span></div>
+      <div class="moods" role="group" aria-label="${WORD[d]} 기분">
+        ${MOODS.map((m) => `<button type="button" class="mood" data-mood="${m.id}" data-testid="mood-${m.id}" aria-pressed="${m.id === mood[d]}"><span class="e">${m.emoji}</span><span class="l">${m.label}</span></button>`).join('')}
       </div>
       <div class="line-row">
-        <input class="line-input" data-testid="write-input" type="text" enterkeyhint="done" autocomplete="off" placeholder="오늘을 한 줄로 남겨요" />
+        <input class="line-input" data-testid="write-input" type="text" enterkeyhint="done" autocomplete="off" placeholder="${WORD[d]}을 한 줄로 남겨요" />
         <button type="button" class="build" data-testid="write-submit">집 짓기</button>
       </div>
       <div class="hint"><span class="msg" data-testid="write-msg"></span><span class="len" data-testid="write-len"></span></div>`
@@ -35,38 +40,39 @@ export function createWriteCard(handlers: {
     const submit = root.querySelector<HTMLButtonElement>('.build')!
     const msg = root.querySelector<HTMLElement>('.msg')!
     const len = root.querySelector<HTMLElement>('.len')!
-    input.value = draft
+    input.value = draft[d]
 
     const update = () => {
-      draft = input.value
-      const n = [...draft.replace(/\s+/g, ' ').trim()].length
+      draft[d] = input.value
+      const n = [...draft[d].replace(/\s+/g, ' ').trim()].length
       len.textContent = `${n} / ${MAX_TEXT}`
       len.classList.toggle('err', n > MAX_TEXT)
-      const checked = checkText(draft)
-      submit.disabled = !checked.ok || mood == null
+      const checked = checkText(draft[d])
+      submit.disabled = !checked.ok || mood[d] == null
       msg.classList.remove('err')
-      if (mood == null) msg.textContent = '오늘 기분을 골라 주세요'
+      if (mood[d] == null) msg.textContent = `${WORD[d]} 기분을 골라 주세요`
       else if (!checked.ok && checked.reason === 'long') msg.textContent = '조금만 짧게 써 주세요'
       else msg.textContent = ''
     }
     root.querySelectorAll<HTMLButtonElement>('.mood').forEach((b) =>
       b.addEventListener('click', () => {
-        mood = b.dataset.mood as MoodId
+        mood[d] = b.dataset.mood as MoodId
         root.querySelectorAll('.mood').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
         update()
       }),
     )
     input.addEventListener('input', update)
     const send = () => {
-      if (submit.disabled || mood == null) return
-      const err = handlers.onSubmit(draft, mood)
+      const m = mood[d]
+      if (submit.disabled || m == null) return
+      const err = handlers.onSubmit(draft[d], m, d)
       if (err) {
         msg.textContent = err
         msg.classList.add('err')
         return
       }
-      draft = ''
-      mood = null
+      draft[d] = ''
+      mood[d] = null
     }
     submit.addEventListener('click', send)
     input.addEventListener('keydown', (e) => {
@@ -84,11 +90,40 @@ export function createWriteCard(handlers: {
     root.querySelector('.today-line')!.addEventListener('click', () => handlers.onOpen(entry))
   }
 
+  /** 어제를 안 썼으면 카드 아래에 작게 어제 칸으로 가는(또는 오늘로 돌아오는) 버튼을 둔다 */
+  function renderSwitch(yesterday: string) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'other-day'
+    if (day === 'yesterday') {
+      b.dataset.testid = 'back-today'
+      b.textContent = shown.entry ? '오늘의 한 줄 보기' : '오늘의 한 줄로 돌아가기'
+    } else {
+      b.dataset.testid = 'write-yesterday'
+      const [, m, dd] = yesterday.split('-').map(Number)
+      b.textContent = `🌙 어제(${m}월 ${dd}일)도 남길까요?`
+    }
+    b.addEventListener('click', () => {
+      day = day === 'yesterday' ? 'today' : 'yesterday'
+      draw()
+    })
+    root.appendChild(b)
+  }
+
+  function draw() {
+    const { today, entry, yesterday } = shown
+    if (!yesterday) day = 'today'
+    if (day === 'yesterday' && yesterday) renderForm(yesterday, 'yesterday')
+    else if (entry) renderDone(today, entry)
+    else renderForm(today, 'today')
+    if (yesterday) renderSwitch(yesterday)
+  }
+
   return {
     root,
-    render(today, entry) {
-      if (entry) renderDone(today, entry)
-      else renderForm(today)
+    render(today, entry, yesterday) {
+      shown = { today, entry, yesterday }
+      draw()
     },
   }
 }

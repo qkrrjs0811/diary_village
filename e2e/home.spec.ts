@@ -191,6 +191,70 @@ test('짓는 연출 중에 손을 대면 그 자리에서 멈춘다', async ({ p
   expect(await page.getByTestId('village').getAttribute('viewBox')).toBe(stopped)
 })
 
+test('어제를 안 썼으면 "어제도 남길까요?"로 어제 칸에 쓴다', async ({ page }) => {
+  // 자정을 넘긴 늦은 밤. 그 전날(24일)까지는 써 두었다
+  await page.clock.install({ time: new Date('2026-10-27T00:40:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('write-yesterday')).toHaveText('🌙 어제(10월 26일)도 남길까요?')
+  await expect(page.getByTestId('write-yesterday')).toBeInViewport()
+  expect((await page.getByTestId('write-yesterday').boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/yesterday-offer.png' })
+
+  // 오늘 쓰던 글은 어제 칸으로 갔다 와도 남아 있다
+  await page.getByTestId('write-input').fill('오늘 쓰던 글')
+  await page.getByTestId('write-yesterday').click()
+  await expect(page.getByTestId('today-date')).toHaveText('10월 26일 월요일')
+  await expect(page.getByTestId('write-input')).toHaveValue('')
+  await expect(page.getByTestId('write-msg')).toHaveText('어제 기분을 골라 주세요')
+  await page.getByTestId('back-today').click()
+  await expect(page.getByTestId('today-date')).toHaveText('10월 27일 화요일')
+  await expect(page.getByTestId('write-input')).toHaveValue('오늘 쓰던 글')
+
+  await page.getByTestId('write-yesterday').click()
+  await page.getByTestId('mood-tired').click()
+  await page.getByTestId('write-input').fill('야근하고 와서 늦게 남기는 어제')
+  await page.screenshot({ path: 'test-results/screens/yesterday-form.png' })
+  await page.getByTestId('write-submit').click()
+
+  await expect(page.getByTestId('house-2026-10-26')).toBeAttached()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 5채')
+  // 어제를 쓰면 다시 오늘 칸이고, 어제 버튼은 사라진다. 오늘 자리는 그대로 비어 있다
+  await expect(page.getByTestId('today-date')).toHaveText('10월 27일 화요일')
+  await expect(page.getByTestId('write-yesterday')).toHaveCount(0)
+  await expect(page.getByTestId('today-spot')).toBeAttached()
+  await page.clock.runFor(4000)
+  await page.screenshot({ path: 'test-results/screens/yesterday-built.png' })
+
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  const y = saved.entries.find((e: { date: string }) => e.date === '2026-10-26')
+  expect(y).toMatchObject({ text: '야근하고 와서 늦게 남기는 어제', mood: 'tired' })
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('야근하고 와서 늦게 남기는 어제')
+})
+
+test('오늘을 먼저 써도 어제 칸은 남아 있고, 그보다 전 날은 열지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('오늘 먼저')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('today-line')).toContainText('오늘 먼저')
+  await expect(page.getByTestId('write-yesterday')).toBeVisible()
+  await page.clock.runFor(4000)
+  await page.screenshot({ path: 'test-results/screens/yesterday-after-today.png' })
+  await page.getByTestId('write-yesterday').click()
+  await expect(page.getByTestId('back-today')).toHaveText('오늘의 한 줄 보기')
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('어제도')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('today-line')).toContainText('오늘 먼저')
+  await expect(page.getByTestId('write-yesterday')).toHaveCount(0)
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 2채')
+})
+
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {
   await page.goto('./')
   await page.evaluate((k) => localStorage.setItem(k, '{broken'), KEY)
