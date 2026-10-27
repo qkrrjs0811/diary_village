@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DRIFT_OF, driftBits, seasonOf, type Season } from './season'
+import { DRIFT_OF, driftBits, seasonOf, smokeOn, smokePuff, type Season } from './season'
 import { skyBits } from './weather'
 import type { DayPart } from './weather'
 
@@ -66,5 +66,39 @@ describe('계절 흩날림', () => {
   it('기분·쓴 날 수와 무관하다(날짜와 때만 받는다), 날씨 하늘(skyBits)은 그대로다', () => {
     expect(driftBits.length).toBeLessThanOrEqual(3)
     expect(skyBits('rain').some((b) => (b.kind as string) === 'leaf')).toBe(false)
+  })
+})
+
+describe('굴뚝 연기', () => {
+  it('가을·겨울의 저녁·밤에만 피어오른다(봄·여름과 낮엔 없다)', () => {
+    const want: Record<Season, boolean> = { spring: false, summer: false, autumn: true, winter: true }
+    const dates: Record<Season, string> = { spring: '2026-04-10', summer: '2026-07-10', autumn: '2026-10-27', winter: '2027-01-05' }
+    for (const s of Object.keys(dates) as Season[]) {
+      expect(smokeOn(dates[s], 'day')).toBe(false)
+      expect(smokeOn(dates[s], 'evening')).toBe(want[s])
+      expect(smokeOn(dates[s], 'night')).toBe(want[s])
+    }
+    // 계절은 집이 선 달이 아니라 오늘로 정한다
+    expect(smokeOn('2026-12-01', 'night')).toBe(true)
+    expect(smokeOn('2026-02-28', 'evening')).toBe(true)
+    expect(smokeOn('2026-03-01', 'evening')).toBe(false)
+  })
+
+  it('집마다 날짜로 정한 가락으로 피어 같은 날 집은 늘 같고, 이웃한 집끼리는 박자가 어긋난다', () => {
+    expect(smokePuff('2026-10-05')).toEqual(smokePuff('2026-10-05'))
+    const days = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`)
+    const puffs = days.map(smokePuff)
+    for (const p of puffs) {
+      expect(p.delay).toBeGreaterThanOrEqual(0)
+      expect(p.delay).toBeLessThan(1)
+      expect([-1, 1]).toContain(p.lean)
+      // 어수선하지 않게 집마다 두세 줌만
+      expect(p.count).toBeGreaterThanOrEqual(2)
+      expect(p.count).toBeLessThanOrEqual(3)
+    }
+    for (let i = 1; i < puffs.length; i++) expect(Math.abs(puffs[i].delay - puffs[i - 1].delay)).toBeGreaterThanOrEqual(0.15)
+    // 바람 방향이 한쪽으로만 쏠리지 않는다
+    expect(new Set(puffs.map((p) => p.lean)).size).toBe(2)
+    expect(new Set(puffs.map((p) => p.count)).size).toBe(2)
   })
 })

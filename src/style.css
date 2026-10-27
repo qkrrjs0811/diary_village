@@ -223,6 +223,23 @@ button { font: inherit; color: inherit; }
 .scene.lit .win { fill: #ffd56e; stroke: #f5b94f; }
 /* 지붕 위 풍향계·새는 뒤 집 누르기를 가로막지 않는다 */
 .roof-vane, .roof-bird { pointer-events: none; }
+/* 가을·겨울 저녁·밤: 굴뚝에서 연기가 천천히 피어오른다(누르기는 그대로 통과) */
+.smoke { display: none; pointer-events: none; }
+.scene.smoky .smoke { display: inline; }
+.smoke .puff {
+  fill: #fbf7f0; stroke: rgba(160, 140, 125, 0.35); stroke-width: 0.5;
+  transform-box: fill-box; transform-origin: center; opacity: 0;
+  animation: puff 4.8s ease-out calc(var(--d) * -4.8s - var(--i) * 1.6s) infinite;
+}
+.scene.lit .smoke .puff { fill: #e9e3ef; }
+@keyframes puff {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  20% { opacity: 0.75; }
+  100% { opacity: 0; transform: translate(calc(var(--lean) * 7px), -20px) scale(1.7); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .smoke .puff { animation: none; opacity: calc(0.6 - var(--i) * 0.18); transform: translate(calc(var(--lean) * var(--i) * 3px), calc(var(--i) * -6px)) scale(calc(0.8 + var(--i) * 0.3)); }
+}
 .weather {
   position: absolute;
   top: 10px;

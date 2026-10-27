@@ -66,3 +66,24 @@ export function driftBits(date: string, part: DayPart, weather?: WeatherKind): D
   })
   return weather === 'rain' ? bits.filter((_, i) => i % 2 === 0) : bits
 }
+
+/** 굴뚝 연기는 쌀쌀한 계절(가을·겨울)의 저녁·밤에 피어오른다. 계절은 오늘 날짜로 정한다 */
+export function smokeOn(today: string, part: DayPart): boolean {
+  const season = seasonOf(today)
+  return part !== 'day' && (season === 'autumn' || season === 'winter')
+}
+
+/**
+ * 한 집 굴뚝 연기의 가락. delay: 피어오르기 시작을 늦추는 정도(0~1), lean: 바람에 기우는 쪽, count: 연기 줌 수(2~3).
+ * 집이 선 날짜로만 정해 늘 같고, 이웃한 날 집끼리는 박자가 어긋나 한꺼번에 뭉게뭉게 오르지 않는다.
+ */
+export function smokePuff(houseDate: string): { delay: number; lean: -1 | 1; count: number } {
+  const day = dayNumber(houseDate)
+  // 황금비만큼씩 돌리면 이웃한 날의 시작이 0.38 넘게 벌어진다
+  const turn = (day * 0.618034) % 1
+  return {
+    delay: Math.floor(turn * 100) / 100,
+    lean: spread(day, 21) < 0.5 ? -1 : 1,
+    count: spread(day, 22) < 0.5 ? 2 : 3,
+  }
+}

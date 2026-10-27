@@ -1240,6 +1240,80 @@ test('지금 시각에 따라 낮·저녁·밤 하늘이 되고, 저녁·밤에�
   await shot('time-night-rain')
 })
 
+test('가을·겨울 저녁·밤에는 굴뚝에서 연기가 천천히 피어오른다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', Array.from({ length: 26 }, (_, i) => i + 1))
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+  const scene = page.getByTestId('scene')
+  const smoke = page.locator('.smoke')
+  // 굴뚝 있는 집마다 연기가 있지만 가을 낮에는 보이지 않는다
+  const chimneys = await smoke.count()
+  expect(chimneys).toBeGreaterThan(3)
+  expect(chimneys).toBeLessThan(26)
+  await expect(scene).not.toHaveClass(/smoky/)
+  await expect(smoke.first()).toBeHidden()
+
+  // 저녁이 되면 피어오른다. 연기 줌은 두세 개, 집마다 박자가 다르다
+  await page.clock.fastForward('05:00:00')
+  await expect(scene).toHaveAttribute('data-time', 'evening')
+  await expect(scene).toHaveClass(/smoky/)
+  await expect(smoke.first()).toBeVisible()
+  const puffs = await smoke.evaluateAll((l) => l.map((g) => g.querySelectorAll('.puff').length))
+  expect(puffs.every((n) => n >= 2 && n <= 3)).toBe(true)
+  expect(new Set(await smoke.evaluateAll((l) => l.map((g) => (g as SVGElement).style.getPropertyValue('--d')))).size).toBeGreaterThan(2)
+  const moving = await page.evaluate(() => document.getAnimations().filter((a) => (a as CSSAnimation).animationName === 'puff').length)
+  expect(moving).toBeGreaterThanOrEqual(chimneys * 2)
+  // 연기는 누르기를 가로막지 않는다
+  expect(await smoke.first().evaluate((e) => getComputedStyle(e).pointerEvents)).toBe('none')
+  const hit = await smoke.last().evaluate((g) => {
+    const r = g.querySelector('.puff')!.getBoundingClientRect()
+    return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.classList.contains('puff') ?? false
+  })
+  expect(hit).toBe(false)
+  // 연기가 피는 저녁에도 집은 그대로 눌린다
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  await page.getByTestId('reader-close').click()
+
+  const shot = async (name: string) => {
+    await page.waitForTimeout(700)
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/${name}.png` })
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  }
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -200)
+  await page.clock.fastForward('03:00:00')
+  await expect(scene).toHaveAttribute('data-time', 'night')
+  await expect(scene).toHaveClass(/smoky/)
+  await shot('chimney-smoke-night')
+
+  // 움직임 줄이기면 멈춘 옅은 연기
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(() => page.evaluate(() => document.getAnimations().filter((a) => (a as CSSAnimation).animationName === 'puff').length)).toBe(0)
+  const still = await page.locator('.smoke .puff').first().evaluate((e) => Number(getComputedStyle(e).opacity))
+  expect(still).toBeGreaterThan(0.3)
+  expect(still).toBeLessThan(1)
+  await shot('chimney-smoke-still')
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
+test('봄·여름 밤에는 굴뚝 연기가 없다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-04-20T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-04', Array.from({ length: 20 }, (_, i) => i + 1))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('scene')).toHaveAttribute('data-time', 'night')
+  await expect(page.getByTestId('scene')).not.toHaveClass(/smoky/)
+  expect(await page.locator('.smoke').count()).toBeGreaterThan(0)
+  await expect(page.locator('.smoke').first()).toBeHidden()
+})
+
 test('보통 집마다 문 색·창 모양·꽃상자·현관·지붕 위 작은 것이 달라 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')

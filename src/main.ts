@@ -30,6 +30,7 @@ import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
 import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
+import { smokeOn } from './core/season'
 import { SHOW, START_UNIT } from './core/view'
 import { blockView, cellAt, drawVillage, iso, unveil, veilFront } from './village/render'
 import type { Village } from './core/village'
@@ -558,6 +559,7 @@ function paintSky() {
   scene.style.setProperty('--sky-bottom', bottom)
   scene.dataset.time = part
   scene.classList.toggle('lit', windowsLit(part))
+  scene.classList.toggle('smoky', smokeOn(today, part))
   drawSky(skyBack, skyFront, weatherOf(save.entries, today), part, today)
 }
 

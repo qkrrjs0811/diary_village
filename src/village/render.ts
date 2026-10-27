@@ -9,7 +9,7 @@ import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import type { Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_TREES, blockScenery } from '../core/scenery'
-import { seasonOf, type Season } from '../core/season'
+import { seasonOf, smokePuff, type Season } from '../core/season'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -277,6 +277,17 @@ function drawChimney(house: Element, P: Place, H: number) {
   poly(house, [P(cu, cv + 0.1, H), P(cu + 0.1, cv + 0.1, H), P(cu + 0.1, cv + 0.1, H + 20), P(cu, cv + 0.1, H + 20)], '#c98f72')
   poly(house, [P(cu + 0.1, cv + 0.1, H), P(cu + 0.1, cv, H), P(cu + 0.1, cv, H + 20), P(cu + 0.1, cv + 0.1, H + 20)], '#d9a487')
   poly(house, [P(cu, cv, H + 20), P(cu + 0.1, cv, H + 20), P(cu + 0.1, cv + 0.1, H + 20), P(cu, cv + 0.1, H + 20)], '#e3b49a')
+}
+
+/**
+ * 굴뚝 연기: 둥근 연기 줌이 천천히 피어올라 옅어진다. 늘 그려 두고 쌀쌀한 저녁·밤(`.scene.smoky`)에만 보인다.
+ * 가락은 집이 선 날짜로 정해 이웃한 집끼리 박자가 어긋난다
+ */
+function drawSmoke(layer: Element, P: Place, H: number, date: string) {
+  const top = P(0.39, 0.41, H + 20)
+  const { delay, lean, count } = smokePuff(date)
+  const g = el('g', { class: 'smoke', 'data-date': date, style: `--d:${delay};--lean:${lean}` }, layer)
+  for (let i = 0; i < count; i++) el('circle', { cx: top.x, cy: top.y - 3, r: 2.4 + i * 0.4, class: 'puff', style: `--i:${i}` }, g)
 }
 
 /** 지붕. 지붕 색은 기분 색이다. 돌려주는 값은 지붕 꼭대기 높이 */
@@ -610,7 +621,7 @@ function drawGalleryBits(house: Element, P: Place, a: number, b: number, H: numb
 }
 
 /** 그날 건물(글 단어로 정함) 또는 보통 집. 기분은 지붕 색만 바꾼다. 돌려주는 값은 연출을 띄울 높이 */
-function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
+function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: Element): number {
   const look = houseLook(entry)
   const kind = buildingOf(entry)?.id
   const house = el('g', {
@@ -674,8 +685,10 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
           : kind === 'musicHall'
             ? 'dome'
             : look.roofStyle
-  if ((kind === 'bakery' || (!kind && look.chimney)) && style !== 'flat') drawChimney(house, P, H)
+  const chimney = (kind === 'bakery' || (!kind && look.chimney)) && style !== 'flat'
+  if (chimney) drawChimney(house, P, H)
   const top = drawRoof(house, P, a, b, H, style, look.roof, look.wall, kind !== 'cinema' && kind !== 'gallery')
+  if (chimney && smokes) drawSmoke(smokes, P, H, entry.date)
   if (!kind) {
     // 지붕 위 작은 것은 용마루 오른쪽(굴뚝을 피해), 모임지붕은 꼭짓점에 둔다
     const spot = style === 'hip' ? P(0.5, 0.5, top) : style === 'gable' ? P(0.66, 0.5, top) : P(0.64, 0.6, top)
@@ -1471,6 +1484,8 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   const ground = el('g', { class: 'ground' }, svg)
   const delay = `--delay:${opt.buildDelay ?? 0}ms`
   const things = el('g', { class: 'things', style: delay }, svg)
+  // 굴뚝 연기는 집 위 따로 된 층에 둔다(움직이는 연기가 집 모양을 흔들지 않게)
+  const smokes = el('g', { class: 'smokes' }, svg)
   const fx = el('g', { class: 'fx', style: delay }, svg)
   const labels = el('g', { class: 'labels' }, svg)
   // 땅: 뒤 구역부터. 광장은 첫 구역 바로 아래(구역 자리 0,1)라 그 깊이에 끼운다
@@ -1525,7 +1540,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
         items.push({
           depth,
           draw: () => {
-            const H = drawHouse(things, lot, entry, isNew)
+            const H = drawHouse(things, lot, entry, isNew, smokes)
             if (isNew) drawBuildFx(fx, lot, H)
           },
         })
