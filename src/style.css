@@ -707,6 +707,17 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .celebrate-icons span, .landmark.pop, .blades { animation: none; }
 }
+/* 읽기 창 위 그날의 방 그림: 누르기·밀어 넘기기는 창으로 통과한다 */
+.reader-room {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 12px;
+  border: 1.5px solid #d9c9b0;
+  border-radius: 18px;
+  overflow: hidden;
+  pointer-events: none;
+}
 .reader-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .treasure-btn {
   flex: none;

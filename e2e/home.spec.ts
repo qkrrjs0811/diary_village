@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 import { BUILDING_PROMPTS, PROMPTS, SEASON_PROMPTS, YESTERDAY_PROMPTS, todayPrompt, yesterdayPrompt } from '../src/core/prompt'
+import { roomOf } from '../src/core/interior'
 import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
@@ -3152,4 +3153,71 @@ test('열리는 날 앱을 열면 잔치 카드 다음에 편지가 차례로 �
   const byTime = (t: number) => saved.letters.find((l: { writtenAt: number }) => l.writtenAt === t)
   expect(byTime(summer.writtenAt).readAt).toBeGreaterThan(0)
   expect(byTime(extra.writtenAt)).toEqual(extra)
+})
+
+test('집을 눌러 읽으면 그날의 방이 보이고, 앞뒤로 넘기거나 고치면 방도 따라 바뀐다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-01', [14]), ...monthEntries('2026-10', [5, 9, 26])] as Entry[]
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+
+  const room = page.getByTestId('reader-room')
+  const expectRoom = async (entry: Entry) => {
+    const r = roomOf(entry)
+    await expect(room).toHaveAttribute('data-wall', r.wall)
+    await expect(room).toHaveAttribute('data-floor', r.floor)
+    await expect(page.getByTestId('room-window')).toHaveAttribute('data-view', r.view)
+    await expect(page.getByTestId('room-curtain')).toHaveAttribute('fill', r.curtain)
+    const items = await room.locator('.room-furn').evaluateAll((els) => els.map((e) => e.getAttribute('data-furn')))
+    expect(items).toEqual(r.items) // 가구는 언제나 셋
+  }
+  const byDate = (d: string) => entries.find((e) => e.date === d)!
+
+  await page.getByTestId('house-2026-10-09').dispatchEvent('click')
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 9일의 한 줄')
+  await expectRoom(byDate('2026-10-09'))
+  // 방은 창 안에 다 보이고, 글은 담지 않는다
+  await page.waitForTimeout(400)
+  const rb = (await room.boundingBox())!
+  expect(rb.x).toBeGreaterThanOrEqual(0)
+  expect(rb.x + rb.width).toBeLessThanOrEqual(390)
+  expect(rb.y).toBeGreaterThanOrEqual(0)
+  expect(await room.textContent()).not.toContain('한 줄')
+  // 방 그림은 누르기를 막지 않는다(손가락은 창에 닿는다)
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('svg')?.getAttribute('data-testid') ?? null, [rb.x + rb.width / 2, rb.y + rb.height / 2])
+  expect(hit).toBeNull()
+  await page.screenshot({ path: 'test-results/screens/reader-room.png' })
+
+  // 방 위를 밀어도 넘어간다
+  const sheet = page.getByTestId('reader')
+  const at = (px: number) => ({ pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: px, clientY: rb.y + rb.height / 2, bubbles: true })
+  await sheet.dispatchEvent('pointerdown', at(rb.x + rb.width - 40))
+  await sheet.dispatchEvent('pointerup', at(rb.x + 40))
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  await expectRoom(byDate('2026-10-26'))
+
+  // 고쳐서 빵집이 되면 대표 가구만 바뀌고 벽지·바닥·나머지 가구는 그대로
+  const before = roomOf(byDate('2026-10-26'))
+  await page.getByTestId('reader-edit').click()
+  await expect(room).toHaveCount(0) // 고치기 창에는 방이 없다
+  await page.getByTestId('edit-input').fill('갓 구운 빵 냄새가 좋았다')
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('reader-building')).toContainText('빵집')
+  const edited = { ...byDate('2026-10-26'), text: '갓 구운 빵 냄새가 좋았다' }
+  await expectRoom(edited)
+  const after = roomOf(edited)
+  expect(after.items[0]).toBe('oven')
+  expect([after.wall, after.floor, after.items[1], after.items[2]]).toEqual([before.wall, before.floor, before.items[1], before.items[2]])
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-room-bakery.png' })
+
+  // 겨울 날은 창밖에 눈
+  for (let i = 0; i < 3; i++) await page.getByTestId('reader-prev').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-01 14일의 한 줄')
+  await expectRoom(byDate('2026-01-14'))
+  await expect(page.getByTestId('room-window')).toHaveAttribute('data-view', 'winter')
+  await page.clock.runFor(1500)
+  await page.screenshot({ path: 'test-results/screens/reader-room-winter.png' })
 })

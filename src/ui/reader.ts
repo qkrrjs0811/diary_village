@@ -2,7 +2,9 @@ import { buildingInfo, buildingOf } from '../core/building'
 import { dayKey } from '../core/date'
 import { checkText, MAX_TEXT } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
+import { roomOf } from '../core/interior'
 import type { Entry, MoodId } from '../core/types'
+import { roomSvg } from '../village/room'
 import { dateLabel, fullDateLabel } from './format'
 
 /** 이만큼(px) 옆으로 밀면 앞뒤 날로 넘긴다 */
@@ -68,7 +70,9 @@ export function createReader(handlers: {
   function showRead(entry: Entry, from?: 'prev' | 'next') {
     swipeTo = null
     const m = moodOf(entry.mood)
+    // 문을 열고 들어간 그날의 방. 날짜·기분·건물로만 그리고 글은 담지 않는다
     sheet.innerHTML = `
+      ${roomSvg(roomOf(entry))}
       <div class="reader-head">
         <div>
           <div class="reader-date" data-testid="reader-date"></div>
