@@ -3222,6 +3222,46 @@ test('집을 눌러 읽으면 그날의 방이 보이고, 앞뒤로 넘기거나
   await page.screenshot({ path: 'test-results/screens/reader-room-winter.png' })
 })
 
+for (const [part, time] of [['day', '13:00'], ['evening', '18:30'], ['night', '21:00']] as const) {
+  test(`방 빛은 지금 때를 따른다: ${part}`, async ({ page }) => {
+    await page.clock.install({ time: new Date(`2026-10-27T${time}:00+09:00`) })
+    await page.goto('./')
+    const entries = monthEntries('2026-10', [5, 9, 26]) as Entry[]
+    const before = { version: 1, entries }
+    await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(before)])
+    await page.reload()
+
+    await page.getByTestId('house-2026-10-09').dispatchEvent('click')
+    const room = page.getByTestId('reader-room')
+    // 마을 하늘과 방 빛이 같은 때다
+    await expect(room).toHaveAttribute('data-time', part)
+    await expect(page.getByTestId('scene')).toHaveAttribute('data-time', part)
+    await expect(page.getByTestId('room-window')).toHaveAttribute('data-time', part)
+    await expect(page.getByTestId('room-lamp')).toHaveAttribute('data-on', String(part !== 'day'))
+    await expect(page.getByTestId('room-stars')).toHaveCount(part === 'night' ? 1 : 0)
+    await expect(page.getByTestId('room-sunset')).toHaveCount(part === 'evening' ? 1 : 0)
+    await expect(room.locator('.room-tint')).toHaveCount(part === 'day' ? 0 : 1)
+    // 빛이 바뀌어도 방(벽지·바닥·가구)은 그대로다
+    const r = roomOf(entries[1])
+    await expect(room).toHaveAttribute('data-wall', r.wall)
+    await expect(room).toHaveAttribute('data-floor', r.floor)
+    const items = await room.locator('.room-furn').evaluateAll((els) => els.map((e) => e.getAttribute('data-furn')))
+    expect(items).toEqual(r.items)
+    // 앞뒤로 넘겨도 같은 빛
+    await page.getByTestId('reader-next').click()
+    await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+    await expect(room).toHaveAttribute('data-time', part)
+    // 방 위 누르기는 그대로 통과하고, 저장은 바뀌지 않는다
+    await page.waitForTimeout(400)
+    const rb = (await room.boundingBox())!
+    const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('svg')?.getAttribute('data-testid') ?? null, [rb.x + rb.width - 90, rb.y + 24])
+    expect(hit).toBeNull()
+    expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)).toEqual(before)
+    await page.screenshot({ path: `test-results/screens/reader-room-${part}.png` })
+    await room.screenshot({ path: `test-results/screens/room-light-${part}.png` })
+  })
+}
+
 test('건물 16종의 방에는 저마다 대표 가구가 그림으로 놓이고, 방은 창 안에 다 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

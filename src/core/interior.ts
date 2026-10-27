@@ -3,6 +3,7 @@ import { monthKey } from './date'
 import { seasonOf, type Season } from './season'
 import type { Entry } from './types'
 import { hash, houseLook } from './village'
+import { windowsLit, type DayPart } from './weather'
 
 /** 집 안에 놓는 가구. 그림은 `src/village` 쪽에서 그린다 */
 export type Furniture =
@@ -90,4 +91,29 @@ export function roomOf(entry: Entry): Room {
     view: seasonOf(entry.date),
     items: [match ? SIGNATURE[match.id] : cozy[0], cozy[1], cozy[2]],
   }
+}
+
+/** 지금 때(낮·저녁·밤)에 따른 방 빛 */
+export interface RoomLight {
+  part: DayPart
+  /** 창밖 하늘 위·아래 색. 낮은 null(계절 하늘 그대로) */
+  sky: [string, string] | null
+  /** 방 안에 얇게 덧칠하는 빛 */
+  tint: string
+  tintOpacity: number
+  /** 작은 등불을 켠다(마을 창문 불빛과 같이) */
+  lamp: boolean
+  /** 창밖에 별과 달 */
+  stars: boolean
+}
+
+/**
+ * 방 빛은 지금 때로만 정한다. 기분·날짜·건물·쓴 날 수와 무관하고 저장하지 않는다.
+ * 밤 방·낮 방 어느 쪽도 더 좋지 않다(가구와 벽지는 그대로)
+ */
+export function roomLight(part: DayPart): RoomLight {
+  const lamp = windowsLit(part)
+  if (part === 'evening') return { part, sky: ['#f3b6a8', '#ffdcae'], tint: '#ffb877', tintOpacity: 0.12, lamp, stars: false }
+  if (part === 'night') return { part, sky: ['#46517f', '#7a79a8'], tint: '#3c4270', tintOpacity: 0.24, lamp, stars: true }
+  return { part, sky: null, tint: '#ffffff', tintOpacity: 0, lamp, stars: false }
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { BUILDINGS } from './building'
-import { COZY_ITEMS, FLOORS, roomOf, SIGNATURE, WALLPAPERS } from './interior'
+import { COZY_ITEMS, FLOORS, roomLight, roomOf, SIGNATURE, WALLPAPERS } from './interior'
 import { MOODS } from './mood'
 import type { Entry } from './types'
 import { houseLook } from './village'
+import { windowsLit, type DayPart } from './weather'
 
 const e = (date: string, text = '오늘도 무사히', mood: Entry['mood'] = 'calm'): Entry => ({ date, text, mood, writtenAt: 0 })
 
@@ -79,5 +80,41 @@ describe('집 안 방', () => {
     expect(roomOf(e('2026-07-10')).view).toBe('summer')
     expect(roomOf(e('2026-10-10')).view).toBe('autumn')
     expect(roomOf(e('2026-01-10')).view).toBe('winter')
+  })
+})
+
+describe('방 빛', () => {
+  const parts: DayPart[] = ['day', 'evening', 'night']
+
+  it('낮엔 덧칠·등불 없이 창밖 계절 하늘 그대로다', () => {
+    const l = roomLight('day')
+    expect(l.part).toBe('day')
+    expect(l.sky).toBeNull()
+    expect(l.tintOpacity).toBe(0)
+    expect(l.lamp).toBe(false)
+    expect(l.stars).toBe(false)
+  })
+
+  it('저녁엔 창밖 노을, 밤엔 별과 달. 등불은 마을 창문 불빛과 같이 켜진다', () => {
+    const ev = roomLight('evening')
+    const ni = roomLight('night')
+    expect(ev.sky).not.toBeNull()
+    expect(ni.sky).not.toBeNull()
+    expect(ev.sky).not.toEqual(ni.sky)
+    expect(ev.stars).toBe(false)
+    expect(ni.stars).toBe(true)
+    for (const p of parts) expect(roomLight(p).lamp).toBe(windowsLit(p))
+  })
+
+  it('밤 방 덧칠이 저녁보다 짙고, 어느 때도 방을 가릴 만큼 짙지 않다', () => {
+    expect(roomLight('night').tintOpacity).toBeGreaterThan(roomLight('evening').tintOpacity)
+    expect(roomLight('evening').tintOpacity).toBeGreaterThan(0)
+    for (const p of parts) expect(roomLight(p).tintOpacity).toBeLessThanOrEqual(0.3)
+  })
+
+  it('빛은 때로만 정해지고 방(벽지·가구·커튼)은 그대로다', () => {
+    const before = roomOf(e('2026-10-28', '커피 한 잔', 'blue'))
+    for (const p of parts) expect(roomLight(p)).toEqual(roomLight(p))
+    expect(roomOf(e('2026-10-28', '커피 한 잔', 'blue'))).toEqual(before)
   })
 })

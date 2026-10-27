@@ -1,5 +1,5 @@
 import { buildingInfo, type BuildingId } from '../core/building'
-import { SIGNATURE, type Furniture, type Room } from '../core/interior'
+import { roomLight, SIGNATURE, type Furniture, type Room, type RoomLight } from '../core/interior'
 import type { Season } from '../core/season'
 
 /** 방 그림 크기(viewBox). 읽기 창 너비에 맞춰 늘어난다 */
@@ -58,8 +58,29 @@ const VIEW: Record<Season, { sky: string; ground: string; trees: string[]; bits?
   winter: { sky: '#e3ebf2', ground: '#ffffff', trees: ['#eef3f6', '#dfe8ee'], bits: '#ffffff' },
 }
 
+/** 창밖 하늘: 낮은 계절 하늘, 저녁은 노을과 지는 해, 밤은 달과 별 */
+function windowSky(view: Season, light: RoomLight): string {
+  const { x, y, w, h } = WIN
+  if (!light.sky) {
+    const sun = view === 'summer' ? `<circle cx="${x + w - 12}" cy="${y + 14}" r="5" fill="#ffe08a"/>` : ''
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${VIEW[view].sky}"/>${sun}`
+  }
+  const [top, bottom] = light.sky
+  const sky = `<linearGradient id="room-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#room-sky)"/>`
+  if (!light.stars) return `${sky}<circle data-testid="room-sunset" cx="${x + w - 13}" cy="${y + 15}" r="6" fill="#ffb27a" ${S}/>`
+  const stars = [[8, 18], [22, 9], [30, 24], [44, 16], [14, 28]]
+    .map(([dx, dy], i) => `<circle cx="${x + dx}" cy="${y + dy}" r="${i % 2 ? 0.9 : 1.2}" fill="#fff6d0"/>`)
+    .join('')
+  // 초승달: 노란 원에 하늘 색 원을 겹친다
+  const mx = x + w - 13
+  const my = y + 13
+  return `${sky}<g data-testid="room-stars">${stars}
+    <circle cx="${mx}" cy="${my}" r="5.5" fill="#fff1b8"/><circle cx="${mx + 2.6}" cy="${my - 1.6}" r="4.8" fill="${top}"/></g>`
+}
+
 /** 창: 둥근 위쪽, 창밖은 그날 계절, 양옆에 기분 색 커튼 */
-function window_(view: Season, curtain: string): string {
+function window_(view: Season, curtain: string, light: RoomLight): string {
   const { x, y, w, h } = WIN
   const v = VIEW[view]
   const r = w / 2
@@ -73,15 +94,16 @@ function window_(view: Season, curtain: string): string {
   const tree = (cx: number, c: string, s: number) =>
     `<rect x="${cx - 1.5}" y="${gy - 6 * s}" width="3" height="${8 * s}" fill="#b08a68"/>
      <circle cx="${cx}" cy="${gy - 10 * s}" r="${8 * s}" fill="${c}" ${S}/>`
-  const sun = view === 'summer' ? `<circle cx="${x + w - 12}" cy="${y + 14}" r="5" fill="#ffe08a"/>` : ''
-  const scene = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${v.sky}"/>${sun}
+  // 저녁·밤엔 창밖 땅과 나무도 그때 빛으로 살짝 물든다
+  const dusk = light.sky ? `<rect x="${x}" y="${gy - 20}" width="${w}" height="${h}" fill="${light.sky[0]}" opacity="${light.stars ? 0.45 : 0.25}"/>` : ''
+  const scene = `${windowSky(view, light)}
     <path d="M${x} ${gy} q${w / 2} -6 ${w} 0 V${y + h} H${x} Z" fill="${v.ground}"/>
-    ${tree(x + 15, v.trees[0], 1)}${tree(x + 37, v.trees[1], 0.8)}${bits}`
+    ${tree(x + 15, v.trees[0], 1)}${tree(x + 37, v.trees[1], 0.8)}${bits}${dusk}`
   // 커튼: 위에서 늘어져 양옆으로 묶인 모양
   const cw = 15
   const left = `M${x - 9} ${y - 3} H${x + cw - 4} Q${x + 2} ${y + 26} ${x + 2} ${y + h + 4} H${x - 9} Z`
   const right = `M${x + w + 9} ${y - 3} H${x + w - cw + 4} Q${x + w - 2} ${y + 26} ${x + w - 2} ${y + h + 4} H${x + w + 9} Z`
-  return `<g data-testid="room-window" data-view="${view}">
+  return `<g data-testid="room-window" data-view="${view}" data-time="${light.part}">
     <clipPath id="room-win-clip"><path d="${shape}"/></clipPath>
     <g clip-path="url(#room-win-clip)">${scene}</g>
     <path d="${shape}" fill="none" stroke="${LINE}" stroke-width="2.4"/>
@@ -278,16 +300,39 @@ function furniture(item: Furniture, slot: (typeof SLOTS)[number]): string {
   return `<g class="room-furn" data-furn="${item}" transform="translate(${slot.x} ${slot.y}) scale(${slot.k})">${shadow}${art}</g>`
 }
 
-/** 그날 방 그림(SVG 글). 그림은 모두 코드로 그린 도형이고, 글은 담지 않는다 */
-export function roomSvg(room: Room): string {
+/** 벽 등불: 창과 오른쪽 가구 사이 벽에 건다. 켜지면 둥근 빛이 번진다 */
+const SCONCE = { x: 212, y: 26 }
+
+function sconce(on: boolean): string {
+  const { x, y } = SCONCE
+  const glow = on
+    ? `<radialGradient id="room-glow"><stop offset="0" stop-color="#ffe7a8" stop-opacity="0.75"/><stop offset="1" stop-color="#ffe7a8" stop-opacity="0"/></radialGradient>
+      <circle cx="${x}" cy="${y + 4}" r="46" fill="url(#room-glow)"/>`
+    : ''
+  return `<g data-testid="room-lamp" data-on="${on}">
+    ${glow}
+    <path d="M${x} ${y - 8} V${y - 2}" stroke="${LINE}" stroke-width="1.6" stroke-linecap="round"/>
+    <rect x="${x - 4}" y="${y - 10}" width="8" height="4" rx="2" fill="#d9b48a" ${S}/>
+    <path d="M${x - 8} ${y + 8} L${x - 5} ${y - 2} H${x + 5} L${x + 8} ${y + 8} Z" fill="${on ? '#ffe7a0' : '#f7e4b8'}" ${S}/>
+  </g>`
+}
+
+/** 그날 방 그림(SVG 글). 그림은 모두 코드로 그린 도형이고, 글은 담지 않는다. 빛은 지금 때를 따른다 */
+export function roomSvg(room: Room, light: RoomLight = roomLight('day')): string {
+  // 저녁·밤엔 방 전체를 얇게 물들이고, 그 위로 등불 빛이 번진다
+  const tint = light.tintOpacity
+    ? `<rect class="room-tint" x="0" y="0" width="${ROOM_W}" height="${ROOM_H}" fill="${light.tint}" opacity="${light.tintOpacity}"/>`
+    : ''
   return `<svg class="reader-room" data-testid="reader-room" viewBox="0 0 ${ROOM_W} ${ROOM_H}"
-      data-wall="${room.wall}" data-floor="${room.floor}" role="img" aria-label="그날의 방">
+      data-wall="${room.wall}" data-floor="${room.floor}" data-time="${light.part}" role="img" aria-label="그날의 방">
     ${wall(room.wall)}
-    ${window_(room.view, room.curtain)}
+    ${window_(room.view, room.curtain, light)}
     <rect x="0" y="${FLOOR_Y - 4}" width="${ROOM_W}" height="5" fill="#f2dfc4" stroke="${LINE}" stroke-width="1"/>
     ${floor(room.floor)}
     ${furniture(room.items[0], SLOTS[0])}
     ${furniture(room.items[1], SLOTS[1])}
     ${furniture(room.items[2], SLOTS[2])}
+    ${tint}
+    ${sconce(light.lamp)}
   </svg>`
 }
