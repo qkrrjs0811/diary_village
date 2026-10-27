@@ -666,6 +666,15 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .resident .stroll, .resident .face, .resident .hop { animation: none; }
 }
+/* 오늘의 손님: 오늘 집 앞에서 살짝 들썩이고, 기다리는 손님은 말풍선이 천천히 깜빡인다 */
+.guest { cursor: pointer; }
+.guest .bob { animation: bob 1.4s ease-in-out infinite alternate; }
+@keyframes bob { to { transform: translateY(-1.8px); } }
+.guest .wait-bubble { animation: wait-bubble 2.4s ease-in-out infinite alternate; }
+@keyframes wait-bubble { from { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .guest .bob, .guest .wait-bubble { animation: none; }
+}
 /* 집을 지어 다가갈 때·집을 읽을 때 그 집 앞을 가리는 나무·주민을 잠깐 옅게 한다 */
 .things .tree, .things .resident { transition: opacity 0.35s ease; }
 .things .veiled { opacity: 0.25; pointer-events: none; }

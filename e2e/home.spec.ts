@@ -1034,38 +1034,40 @@ test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한�
   await expect(page.getByTestId('today-spot')).toBeVisible()
   await expect(page.locator('.resident')).toHaveCount(0)
 
-  // 첫 한 줄을 쓰면 첫 주민이 오늘 구역 길에 온다
+  // 첫 한 줄을 쓰면 첫 주민이 온다. 오늘은 오늘의 손님으로 새 집 앞에 서 있다(걷는 길에는 없다)
   await page.getByTestId('mood-calm').click()
   await page.getByTestId('write-input').fill('라떼 한 잔 마신 날')
   await page.getByTestId('write-submit').click()
-  await expect(page.locator('.resident')).toHaveCount(1)
+  await expect(page.locator('.guest')).toHaveCount(1)
+  await expect(page.locator('.resident')).toHaveCount(0)
   await page.clock.runFor(4000)
   await finishAnimations(page)
-  const kong = page.getByTestId('resident-kong')
+  const kong = page.getByTestId('guest-kong')
   await expect(kong).toBeInViewport()
-  // 걷는 중이다
-  const walking = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'stroll' && a.playState === 'running'))
-  expect(walking).toBe(true)
   await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
   await page.screenshot({ path: 'test-results/screens/resident-first.png' })
 
   // 누르면 짧은 한마디. 다시 누르면 다른 말
   await kong.click({ force: true })
-  await expect(page.getByTestId('build-note')).toHaveText('콩이: “새로 생긴 카페에 가 봤어요!”')
+  await expect(page.getByTestId('build-note')).toHaveText('콩이: “오늘 생긴 카페에 커피 마시러 왔어요.”')
   const box = (await page.getByTestId('build-note').boundingBox())!
   expect(box.x).toBeGreaterThanOrEqual(0)
   expect(box.x + box.width).toBeLessThanOrEqual(390)
   await page.screenshot({ path: 'test-results/screens/resident-talk.png' })
   await kong.click({ force: true })
-  await expect(page.getByTestId('build-note')).not.toHaveText('콩이: “새로 생긴 카페에 가 봤어요!”')
+  await expect(page.getByTestId('build-note')).not.toHaveText('콩이: “오늘 생긴 카페에 커피 마시러 왔어요.”')
   await expect(page.getByTestId('build-note')).toContainText('콩이: “')
 
-  // 40일을 쓴 마을에는 주민 10명이 오늘 구역 길과 광장을 걷는다
+  // 40일을 쓴 마을에는 주민 10명. 둘은 오늘 집 손님이고 여덟이 오늘 구역 길과 광장을 걷는다
   const entries = dayEntries('2026-09-18', 40)
   await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
   await page.reload()
-  await expect(page.locator('.resident')).toHaveCount(10)
+  await expect(page.locator('.resident')).toHaveCount(8)
+  await expect(page.locator('.guest')).toHaveCount(2)
   await finishAnimations(page)
+  // 걷는 중이다
+  const walking = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'stroll' && a.playState === 'running'))
+  expect(walking).toBe(true)
   await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
   await page.screenshot({ path: 'test-results/screens/residents-town.png' })
   await zoomToPlaza(page, 3)
@@ -1074,7 +1076,90 @@ test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한�
 
   // 다시 열어도 주민은 그대로(마을은 기록에서 계산한다)
   await page.reload()
-  await expect(page.locator('.resident')).toHaveCount(10)
+  await expect(page.locator('.resident')).toHaveCount(8)
+  await expect(page.locator('.guest')).toHaveCount(2)
+})
+
+test('오늘의 손님: 쓰기 전엔 한 명이 오늘 자리 앞에서 기다리고, 쓰면 둘이 놀이 소품을 들고 오늘 집 앞에 온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 6, 9, 12, 15])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // 주민 셋 중 한 명이 오늘 자리 앞에서 기다린다(소품 없음, 재촉하지 않는 말)
+  const guests = page.locator('.guest')
+  await expect(guests).toHaveCount(1)
+  await expect(guests).toHaveClass(/waiting/)
+  await expect(page.locator('.resident')).toHaveCount(2)
+  await expect(page.locator('.guest .prop')).toHaveCount(0)
+  const waiter = guests.first()
+  await expect(waiter.locator('.wait-bubble')).toBeVisible()
+  await expect(waiter).toBeInViewport()
+  await finishAnimations(page)
+  const hit = (await waiter.locator('.hit').boundingBox())!
+  expect(Math.min(hit.width, hit.height)).toBeGreaterThanOrEqual(44)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/guest-waiting.png' })
+  await page.screenshot({ path: 'test-results/screens/guest-waiting-close.png', clip: { x: hit.x - 40, y: hit.y - 40, width: hit.width + 80, height: hit.height + 60 } })
+  await waiter.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('“오늘 자리에서 기다리고 있어요.”')
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 빵집을 지으면 손님 둘이 빵 바구니를 들고 오늘 집 앞에 온다
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('갓 구운 빵 냄새가 좋았다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-20')).toHaveAttribute('data-building', 'bakery')
+  await expect(guests).toHaveCount(2)
+  await expect(page.locator('.guest.waiting')).toHaveCount(0)
+  await expect(page.locator('.guest [data-testid="prop-bakery"]')).toHaveCount(2)
+  await expect(page.locator('.resident')).toHaveCount(1)
+  // 같은 주민이 두 군데 보이지 않는다
+  const ids = await page.locator('[data-guest], [data-resident]').evaluateAll((list) => list.map((n) => n.getAttribute('data-guest') ?? n.getAttribute('data-resident')))
+  expect(new Set(ids).size).toBe(3)
+  await page.clock.runFor(4000)
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/guest-visit.png' })
+  const house = (await page.getByTestId('house-2026-10-20').boundingBox())!
+  await page.screenshot({ path: 'test-results/screens/guest-visit-close.png', clip: { x: house.x - 40, y: house.y - 10, width: house.width + 80, height: house.height + 40 } })
+
+  // 누르면 손님 한마디(글은 옮기지 않는다)
+  const first = guests.first()
+  const name = await first.getAttribute('data-guest')
+  await first.click({ force: true })
+  const note = page.getByTestId('build-note')
+  await expect(note).toContainText('“오늘 생긴 빵집에 빵 사러 왔어요.”')
+  await expect(note).not.toContainText('냄새')
+  await page.screenshot({ path: 'test-results/screens/guest-talk.png' })
+  expect(name).toBeTruthy()
+
+  // 집 누르기는 그대로이고, 읽는 동안 손님은 옅어지지 않는다
+  await page.getByTestId('house-2026-10-20').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('갓 구운 빵 냄새가 좋았다')
+  await expect(page.locator('.guest.veiled')).toHaveCount(0)
+  await page.getByTestId('reader-close').click()
+
+  // 다시 열어도 같은 손님(날짜·주민으로 정하고 저장하지 않는다)
+  await page.reload()
+  await expect(page.locator(`[data-guest="${name}"]`)).toHaveCount(1)
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).some((k) => /guest/i.test(k))).toBe(false)
+})
+
+test('밤에도 오늘의 손님이 오늘 집 앞에 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T21:30:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 6, 9, 12, 15, 20])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.locator('.guest')).toHaveCount(2)
+  await expect(page.locator('.guest [data-testid="prop-house"]')).toHaveCount(2)
+  await expect(page.locator('.guest').first()).toBeInViewport()
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/guest-night.png' })
 })
 
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
@@ -2228,11 +2313,16 @@ test('잔치 날 처음 열면 잔치 카드가 한 번 뜨고, 누르면 축하
   await expect(page.getByTestId('festival')).toBeInViewport()
   await page.screenshot({ path: 'test-results/screens/festival-plaza.png' })
 
-  // 광장을 걷는 모모: 처음엔 오늘 이야기, 두 번째는 잔치 한마디
-  const momo = page.locator('[data-resident="momo"]')
-  await momo.click({ force: true })
-  await expect(page.getByTestId('build-note')).toContainText('모모')
-  await momo.click({ force: true })
+  // 광장을 걷는 주민(한 명은 오늘 자리 앞에서 기다리는 손님): 처음엔 오늘 이야기, 두 번째는 잔치 한마디
+  await expect(page.locator('.guest.waiting')).toHaveCount(1)
+  const shown = await page.locator('.resident').evaluateAll((list) => list.find((n) => {
+    const r = n.getBoundingClientRect()
+    return r.x > 0 && r.right < innerWidth && r.y > 0 && r.bottom < innerHeight
+  })?.getAttribute('data-resident'))
+  const walker = page.locator(`[data-resident="${shown}"]`)
+  await walker.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('“')
+  await walker.click({ force: true })
   await expect(page.getByTestId('build-note')).toContainText(/생일/)
 
   // 같은 날 다시 열어도 카드는 이번 열기에 한 번(본 표시는 저장하지 않는다)

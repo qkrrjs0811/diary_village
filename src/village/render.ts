@@ -7,7 +7,7 @@ import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX } from '../core/letter'
-import type { Walk } from '../core/resident'
+import type { Guest, GuestPlay, Resident, Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
@@ -1531,6 +1531,11 @@ function drawResident(g: Element, walk: Walk) {
   el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, stroll)
   const turn = el('g', { class: 'face' }, stroll)
   const body = el('g', { class: 'hop', style: `animation-delay:-${(seed % 7) / 10}s` }, turn)
+  drawBody(body, r, a)
+}
+
+/** 둥근 주민의 몸(귀·발·얼굴). a 는 발밑 땅 자리. 얼굴은 오른쪽을 본다 */
+function drawBody(body: Element, r: Resident, a: Pt) {
   const c = { x: a.x, y: a.y - 7.5 }
   const ear = shade(r.color, -0.08)
   if (r.ears === 'bunny') {
@@ -1557,6 +1562,131 @@ function drawResident(g: Element, walk: Walk) {
   for (const ex of [0.6, 3.6]) el('circle', { cx: c.x + ex, cy: c.y - 0.4, r: 0.75, fill: '#5a4636' }, body)
   el('path', { d: `M${c.x + 1.4} ${c.y + 1.6} q0.7 0.7 1.4 0`, fill: 'none', stroke: '#5a4636', 'stroke-width': 0.6, 'stroke-linecap': 'round' }, body)
   for (const ex of [-1.2, 5]) el('ellipse', { cx: c.x + ex, cy: c.y + 1.3, rx: 1.3, ry: 0.8, fill: '#ffaab8', opacity: 0.8 }, body)
+}
+
+/** 손님 놀이 소품. (x, y)는 소품이 놓인 땅 자리. 작고 둥글게, 얇은 갈색 테두리 */
+const PW = 0.7
+const PROP_ART: Record<GuestPlay, (g: Element, x: number, y: number) => void> = {
+  cafe: (g, x, y) => {
+    el('ellipse', { cx: x, cy: y, rx: 4.6, ry: 1.6, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 2.8} ${y - 4.5} h5.6 l-0.6 4 q-2.2 1 -4.4 0 z`, fill: '#ffd1dc', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x + 2.7} ${y - 3.6} q2.2 0 1.6 1.8 q-0.6 0.8 -1.8 0.4`, fill: 'none', stroke: '#c9a27e', 'stroke-width': 0.8 }, g)
+    el('path', { d: `M${x - 0.6} ${y - 6} q-1 -1.6 0.4 -3 M${x + 1.2} ${y - 6} q-1 -1.6 0.4 -3`, fill: 'none', stroke: 'rgba(255,255,255,0.9)', 'stroke-width': 0.8, 'stroke-linecap': 'round' }, g)
+  },
+  bookstore: (g, x, y) => {
+    el('path', { d: `M${x - 5} ${y - 1} l5 1.6 l5 -1.6 l0 -4 l-5 1.6 l-5 -1.6 z`, fill: '#cfe3f7', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${x} ${y + 0.6} v-4`, stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 3.6} ${y - 3.4} l2.6 0.8 M${x + 1} ${y - 2.6} l2.6 -0.8`, stroke: 'rgba(90,70,54,0.4)', 'stroke-width': 0.6 }, g)
+  },
+  field: (g, x, y) => {
+    el('circle', { cx: x, cy: y - 3, r: 3.4, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 1.2} ${y - 4.4} l1.2 -0.8 l1.2 0.8 l-0.4 1.4 h-1.6 z`, fill: '#5a4636', opacity: 0.7 }, g)
+  },
+  catHouse: (g, x, y) => {
+    el('circle', { cx: x, cy: y - 2.8, r: 3.2, fill: '#ffb8c6', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 2.4} ${y - 4} q2.4 1.6 4.6 0.4 M${x - 2.6} ${y - 2} q2.6 1.4 5 0`, fill: 'none', stroke: '#e58fa3', 'stroke-width': 0.6 }, g)
+    el('path', { d: `M${x + 3} ${y - 2} q2 1.6 3.6 0.6`, fill: 'none', stroke: '#e58fa3', 'stroke-width': 0.7, 'stroke-linecap': 'round' }, g)
+  },
+  dogHouse: (g, x, y) => {
+    el('rect', { x: x - 3, y: y - 2.4, width: 6, height: 1.8, rx: 0.9, fill: '#fff4e6', stroke: LINE, 'stroke-width': PW }, g)
+    for (const s of [-1, 1]) for (const t of [-1, 1]) el('circle', { cx: x + s * 3.4, cy: y - 1.5 + t * 1, r: 1.2, fill: '#fff4e6', stroke: LINE, 'stroke-width': PW }, g)
+  },
+  flowerShop: (g, x, y) => {
+    el('path', { d: `M${x - 3} ${y - 3.4} h6 l-1 3.6 h-4 z`, fill: '#e8a77c', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${x} ${y - 3.4} v-2.6`, stroke: '#6bb879', 'stroke-width': 0.9 }, g)
+    el('circle', { cx: x, cy: y - 7, r: 1.9, fill: '#ffc2d4', stroke: LINE, 'stroke-width': PW }, g)
+    el('circle', { cx: x, cy: y - 7, r: 0.7, fill: '#f5c45e' }, g)
+  },
+  bakery: (g, x, y) => {
+    el('path', { d: `M${x - 4.6} ${y - 3.6} h9.2 l-1.2 3.6 h-6.8 z`, fill: '#e2b97f', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${x - 3.6} ${y - 3.6} q3.6 -6 7.2 0`, fill: 'none', stroke: '#a7805e', 'stroke-width': 0.8 }, g)
+    el('ellipse', { cx: x - 1.2, cy: y - 4, rx: 2, ry: 1.2, fill: '#f5c98a', stroke: LINE, 'stroke-width': 0.6 }, g)
+    el('ellipse', { cx: x + 1.6, cy: y - 4.2, rx: 1.6, ry: 1.1, fill: '#e8b06c', stroke: LINE, 'stroke-width': 0.6 }, g)
+  },
+  lighthouse: (g, x, y) => {
+    el('path', { d: `M${x - 1.6} ${y} l1.6 -3.4 l1.6 3.4`, fill: 'none', stroke: '#a7805e', 'stroke-width': 0.8 }, g)
+    el('rect', { x: x - 3.6, y: y - 6.4, width: 7.2, height: 2.6, rx: 1.3, fill: '#cfe3f7', stroke: LINE, 'stroke-width': PW, transform: `rotate(-18 ${x} ${y - 5})` }, g)
+    el('circle', { cx: x + 3.4, cy: y - 6.2, r: 1.1, fill: '#dcecee', stroke: LINE, 'stroke-width': 0.6 }, g)
+  },
+  musicHall: (g, x, y) => {
+    el('rect', { x: x - 3.4, y: y - 7, width: 6.8, height: 6.4, rx: 1, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW }, g)
+    for (const k of [0, 1, 2]) el('path', { d: `M${x - 2.4} ${y - 5.6 + k * 1.6} h4.8`, stroke: 'rgba(90,70,54,0.3)', 'stroke-width': 0.5 }, g)
+    el('circle', { cx: x - 0.6, cy: y - 2.4, r: 0.9, fill: '#5a4636' }, g)
+    el('path', { d: `M${x + 0.3} ${y - 2.4} v-3.2 l1.4 0.6`, fill: 'none', stroke: '#5a4636', 'stroke-width': 0.6 }, g)
+  },
+  cinema: (g, x, y) => {
+    el('path', { d: `M${x - 3} ${y - 5} h6 l-0.8 5 h-4.4 z`, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    for (const k of [-1.8, 0, 1.8]) el('path', { d: `M${x + k - 0.4} ${y - 4.6} l-0.2 4.2`, stroke: '#ff8a8a', 'stroke-width': 0.9 }, g)
+    for (const [dx, dy] of [[-1.8, -5.6], [0, -6.4], [1.8, -5.6], [-0.8, -7], [1, -7.2]]) el('circle', { cx: x + dx, cy: y + dy, r: 1.2, fill: '#fff4d6', stroke: LINE, 'stroke-width': 0.5 }, g)
+  },
+  restaurant: (g, x, y) => {
+    el('ellipse', { cx: x, cy: y - 1.2, rx: 4, ry: 1.6, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 3.4} ${y - 1.6} q3.4 -5 6.8 0`, fill: '#fffdf8', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x + 3.6} ${y - 6.4} l1 5`, stroke: '#c9a27e', 'stroke-width': 0.9, 'stroke-linecap': 'round' }, g)
+    el('ellipse', { cx: x + 3.5, cy: y - 6.8, rx: 0.9, ry: 1.3, fill: '#c9a27e' }, g)
+  },
+  park: (g, x, y) => {
+    el('path', { d: `M${x - 6} ${y - 0.4} l4 -2.6 l8 0 l-4 2.6 z`, fill: '#ffd1dc', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${x - 3} ${y - 0.4} l4 -2.6 M${x} ${y - 0.4} l4 -2.6`, stroke: '#fffdf8', 'stroke-width': 0.8 }, g)
+  },
+  school: (g, x, y) => {
+    el('rect', { x: x - 3.4, y: y - 6.6, width: 6.8, height: 6.4, rx: 1.8, fill: '#ffe6a7', stroke: LINE, 'stroke-width': PW }, g)
+    el('path', { d: `M${x - 3.4} ${y - 4.4} h6.8`, stroke: LINE, 'stroke-width': PW }, g)
+    el('circle', { cx: x, cy: y - 4.4, r: 0.8, fill: '#a7805e' }, g)
+  },
+  station: (g, x, y) => {
+    el('rect', { x: x - 4, y: y - 4.6, width: 8, height: 4, rx: 0.8, fill: '#c9e8c0', stroke: LINE, 'stroke-width': PW, transform: `rotate(-8 ${x} ${y - 2.6})` }, g)
+    el('path', { d: `M${x + 1.4} ${y - 4.8} v4`, stroke: '#fffdf8', 'stroke-width': 0.6, 'stroke-dasharray': '0.8 0.6' }, g)
+  },
+  gallery: (g, x, y) => {
+    el('path', { d: `M${x - 3.4} ${y - 1} l6 -6`, stroke: '#c9a27e', 'stroke-width': 1.3, 'stroke-linecap': 'round' }, g)
+    el('path', { d: `M${x + 2.4} ${y - 6.2} l1.8 -1.8 q1.4 0.4 0.4 1.8 z`, fill: '#e5d4f5', stroke: LINE, 'stroke-width': 0.6 }, g)
+    el('ellipse', { cx: x - 1, cy: y + 0.2, rx: 2.4, ry: 0.9, fill: '#cfe3f7', opacity: 0.9 }, g)
+  },
+  farm: (g, x, y) => {
+    el('path', { d: `M${x - 3} ${y - 0.4} l0.4 -4.2 h4.8 l0.4 4.2 z`, fill: '#9ed3c2', stroke: LINE, 'stroke-width': PW, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${x + 2.4} ${y - 3.4} l3.2 -2.4`, stroke: '#9ed3c2', 'stroke-width': 1.4, 'stroke-linecap': 'round' }, g)
+    el('path', { d: `M${x - 2} ${y - 4.6} q1.8 -2.4 3.8 0`, fill: 'none', stroke: LINE, 'stroke-width': PW }, g)
+  },
+  house: (g, x, y) => {
+    el('path', { d: `M${x - 1} ${y} l1 -4 l1 4 z`, fill: '#9ed39b', stroke: LINE, 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, g)
+    for (const [dx, dy, c] of [[-1.6, -5.4, '#ffc2d4'], [1.6, -5.4, '#ffe6a7'], [0, -6.8, '#e5d4f5']] as const) el('circle', { cx: x + dx, cy: y + dy, r: 1.7, fill: c, stroke: LINE, 'stroke-width': 0.6 }, g)
+  },
+}
+
+/** 오늘의 손님 하나. 집 앞 가장자리에 서서 살짝 들썩이고, 집 쪽을 보며 옆에 놀이 소품을 둔다 */
+function drawGuest(g: Element, guest: Guest) {
+  const { resident: r, spot } = guest
+  const a = iso(spot.gx, spot.gy)
+  // 왼쪽 앞 자리(gx 가 칸 가운데)면 오른쪽(집 문)을 보고, 오른쪽 앞 자리면 왼쪽을 본다
+  const side = spot.gx % 1 !== 0 ? -1 : 1
+  const node = el('g', {
+    class: guest.waiting ? 'guest waiting' : 'guest',
+    'data-testid': `guest-${r.id}`,
+    'data-guest': r.id,
+    'data-play': guest.play ?? '',
+  }, g)
+  // 누르기 쉬운 넓은 투명 영역(처음 보기에서도 44px 넘게)
+  el('ellipse', { cx: a.x, cy: a.y - 8, rx: 16, ry: 15, fill: 'transparent', class: 'hit' }, node)
+  el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, node)
+  if (guest.play) {
+    const prop = el('g', { class: 'prop', 'data-testid': `prop-${guest.play}` }, node)
+    const px = a.x + side * 10
+    el('ellipse', { cx: px, cy: a.y + 0.6, rx: 4.6, ry: 1.6, fill: 'rgba(90,70,54,0.12)' }, prop)
+    PROP_ART[guest.play](prop, px, a.y + 0.4)
+  }
+  const turn = el('g', { transform: side === 1 ? '' : `translate(${2 * a.x} 0) scale(-1 1)` }, node)
+  const body = el('g', { class: 'bob', style: `animation-delay:-${(hash(r.id) % 9) / 10}s` }, turn)
+  drawBody(body, r, a)
+  // 기다리는 손님: 머리 위 작은 말풍선(…). 재촉하지 않는 조용한 표시
+  if (guest.waiting) {
+    // 오늘 자리 깃발과 겹치지 않게 바깥쪽(왼쪽) 위에 둔다
+    const b = { x: a.x - 11, y: a.y - 23 }
+    const bubble = el('g', { class: 'wait-bubble' }, node)
+    el('path', { d: `M${b.x + 2} ${b.y + 3.4} l3.4 3 l-0.4 -3.6`, fill: '#fffdf8', stroke: '#a7805e', 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, bubble)
+    el('rect', { x: b.x - 7, y: b.y - 4.5, width: 14, height: 9, rx: 4.5, fill: '#fffdf8', stroke: '#a7805e', 'stroke-width': 0.8 }, bubble)
+    for (const k of [-2.6, 0, 2.6]) el('circle', { cx: b.x + k, cy: b.y, r: 0.9, fill: '#a7805e' }, bubble)
+  }
 }
 
 /** 짓는 순간의 반짝임과 작은 먼지. 집 위에 따로 그려 집과 함께 늘어나지 않게 한다 */
@@ -1598,6 +1728,8 @@ export interface DrawOptions {
   sign?: { landmark: Landmark; lines: [string, string] } | null
   /** 주민이 걷는 길(누적 날 수로 계산) */
   walks?: Walk[]
+  /** 오늘의 손님(기록·날짜로 계산) */
+  guests?: Guest[]
   /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
   decors?: (PlacedDecor & DecorSpot & { index: number })[]
   /** 꾸미기 중: 소품을 놓을 수 있는 빈 칸 */
@@ -1653,6 +1785,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     items.push({ depth: PLAZA.gx + MAILBOX.col + PLAZA.gy + MAILBOX.row + MAILBOX_AT.u + MAILBOX_AT.v - 0.5, draw: () => drawMailbox(things, waiting) })
   }
   for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
+  for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()
   for (const d of opt.decors ?? []) {

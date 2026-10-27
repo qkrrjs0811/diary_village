@@ -17,7 +17,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, residentTalk, residentWalks, residentsOf } from './core/resident'
+import { RESIDENTS, guestLine, residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -379,13 +379,22 @@ const camera = createCamera(svg, (target, at) => {
   const id =target.closest('.landmark')?.getAttribute('data-landmark')
   const landmark = LANDMARKS.find((l) => l.id === id)
   if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
-  const rid = target.closest('.resident')?.getAttribute('data-resident')
+  const gid = target.closest('.guest')?.getAttribute('data-guest')
+  const rid = gid ?? target.closest('.resident')?.getAttribute('data-resident')
   const resident = RESIDENTS.find((r) => r.id === rid)
   if (resident) {
-    const tap = taps.get(resident.id) ?? 0
-    taps.set(resident.id, tap + 1)
     sound.cue('resident', resident.id)
     const today = dayKey(Date.now())
+    // 손님은 처음엔 손님 한마디(기다리다 집이 생기면 다시 처음부터), 다시 누르면 오늘 이야기 다음 차례를 잇는다
+    const guest = gid ? drawn?.guests.find((g) => g.resident.id === gid) : undefined
+    const guestKey = `guest:${resident.id}:${guest?.play ?? 'wait'}`
+    if (guest && !taps.has(guestKey)) {
+      taps.set(guestKey, 1)
+      taps.set(resident.id, Math.max(1, taps.get(resident.id) ?? 0))
+      return showNote(`${resident.name}: “${guestLine(guest)}”`, 0)
+    }
+    const tap = taps.get(resident.id) ?? 0
+    taps.set(resident.id, tap + 1)
     const talk = residentTalk(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today))
     // 지난 이야기면 "보러 가기"로 그 집에 날아가 글을 연다
     const told = talk.date ? entryOn(save, talk.date) : undefined
@@ -406,7 +415,7 @@ let pick: DecorId | null = null
 let picked: number | null = null
 let decorMsg = ''
 /** 마지막으로 그린 마을(누른 칸을 자리로 바꿀 때 쓴다) */
-let drawn: { village: Village; today: string } | null = null
+let drawn: { village: Village; today: string; guests: Guest[] } | null = null
 const HINT = '소품을 고르고 빈 자리(점선)를 눌러 놓아요. 놓은 소품은 눌러서 옮기거나 치워요'
 const decorName = (id: DecorId) => {
   const d = DECORS.find((x) => x.id === id)!
@@ -590,7 +599,10 @@ function render(newDate?: string) {
   const days = builtDays(save)
   const village = buildVillage(save.entries, today, (save.erased ?? []).map((x) => x.date))
   const festival = festivalOn(days, today)
-  drawn = { village, today }
+  // 오늘의 손님: 소품이 놓인 칸은 피해 오늘 집 앞에 선다. 손님이 된 주민은 걷지 않는다
+  const decors = decorsOnMap(village, today, save)
+  const guests = todayGuests(village, residentsOf(days), save.entries, today, decors)
+  drawn = { village, today, guests }
   if (picked != null && !save.decor?.[picked]) picked = null
   // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
   const spots = decorating && (pick != null || picked != null) ? decorSpots(village, today, save) : []
@@ -606,8 +618,9 @@ function render(newDate?: string) {
     buildDelay: newDate && !calm ? SHOW.go : 0,
     landmarks: earnedLandmarks(days),
     sign: nextSign(days),
-    walks: residentWalks(village, residentsOf(days)),
-    decors: decorsOnMap(village, today, save),
+    walks: residentWalks(village, residentsOf(days), guests),
+    guests,
+    decors,
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
   })
