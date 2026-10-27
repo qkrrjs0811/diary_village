@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addDays } from './date'
 import { LANDMARKS, PLAZA } from './landmark'
-import { canPlace, decorSpots, decorsOnMap, moveDecor, placeDecor, removeDecor } from './placing'
+import { canPlace, decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor } from './placing'
 import type { Entry, PlacedDecor, SaveData } from './types'
 import { buildVillage } from './village'
 
@@ -142,5 +142,25 @@ describe('마을에 그릴 소품', () => {
     const lot = v.blocks.find((b) => b.month === '2026-10')!.lots.find((l) => l.date === '2026-10-12')!
     const [d] = decorsOnMap(v, TODAY, more)
     expect([d.gx, d.gy]).toEqual([lot.gx, lot.gy])
+  })
+})
+
+describe('누른 마을 칸 → 소품 자리', () => {
+  it('구역 칸은 그달 구역 안 칸으로, 광장 칸은 광장 안 칸으로 바꾼다', () => {
+    const s = wrote(40, '2026-09-01')
+    const v = villageOf(s)
+    for (const b of v.blocks) {
+      const lot = b.lots[3]
+      expect(placeAt(v, lot.gx, lot.gy)).toEqual({ at: b.month, col: lot.col, row: lot.row })
+    }
+    expect(placeAt(v, PLAZA.gx + 2, PLAZA.gy + 4)).toEqual({ at: 'plaza', col: 2, row: 4 })
+  })
+
+  it('길·마을 밖·없는 구역 칸은 자리가 아니다', () => {
+    const v = villageOf(wrote(5))
+    expect(placeAt(v, 7, 0)).toBeNull() // 구역 사이 길
+    expect(placeAt(v, 0, 6)).toBeNull() // 구역과 광장 사이 길
+    expect(placeAt(v, -1, 2)).toBeNull()
+    expect(placeAt(v, 8, 0)).toBeNull() // 아직 없는 다음 달 구역
   })
 })

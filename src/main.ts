@@ -11,9 +11,10 @@ import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, t
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
-import { decorNote, reachedDecors } from './core/decor'
-import { decorsOnMap } from './core/placing'
+import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
+import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
+import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
 import { dateLabel } from './ui/format'
@@ -23,7 +24,8 @@ import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
 import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
 import { SHOW, START_UNIT } from './core/view'
-import { blockView, drawVillage, iso } from './village/render'
+import { blockView, cellAt, drawVillage, iso } from './village/render'
+import type { Village } from './core/village'
 
 /** 브라우저 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 메모리에만 둔다 */
 function openStorage(): { kv: KV; persistent: boolean } {
@@ -168,7 +170,7 @@ function visitLandmark(l: Landmark) {
 app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
 
 /** 머리줄 단계 이름표를 누르면 마을 수첩(단계·건물 도감·명소)이 열린다 */
-const book = createBook()
+const book = createBook({ onDecorate: readOnly ? null : () => setDecorating(true) })
 document.body.appendChild(book.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
 
@@ -195,7 +197,8 @@ const card = createWriteCard({
 })
 app.appendChild(card.root)
 
-const camera = createCamera(svg, (target) => {
+const camera = createCamera(svg, (target, at) => {
+  if (decorating) return decorTap(target, at)
   const id = target.closest('.landmark')?.getAttribute('data-landmark')
   const landmark = LANDMARKS.find((l) => l.id === id)
   if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
@@ -209,6 +212,162 @@ const camera = createCamera(svg, (target) => {
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
   if (entry) reader.open(entry)
+}, grabDecor)
+
+/*
+ * 꾸미기 모드: "오늘의 한 줄" 카드 자리에 소품 바구니가 온다.
+ * 바구니에서 소품을 골라(pick) 빈 자리를 누르면 놓이고, 놓인 소품을 누르면 골라져(picked) 빈 자리를 누르거나 끌어서 옮긴다.
+ * 소품 자리만 저장하고 기록(글)은 건드리지 않는다
+ */
+let decorating = false
+let pick: DecorId | null = null
+let picked: number | null = null
+let decorMsg = ''
+/** 마지막으로 그린 마을(누른 칸을 자리로 바꿀 때 쓴다) */
+let drawn: { village: Village; today: string } | null = null
+const HINT = '소품을 고르고 빈 자리(점선)를 눌러 놓아요. 놓은 소품은 눌러서 옮기거나 치워요'
+const decorName = (id: DecorId) => {
+  const d = DECORS.find((x) => x.id === id)!
+  return `${d.icon} ${d.name}`
+}
+/** "🪴 화분을", "🪑 벤치를": 받침이 있으면 '을' */
+const decorObj = (id: DecorId) => {
+  const name = decorName(id)
+  const last = name.charCodeAt(name.length - 1) - 0xac00
+  return `${name}${last >= 0 && last % 28 > 0 ? '을' : '를'}`
+}
+
+const tray = createDecorTray({
+  onPick(id) {
+    pick = id
+    picked = null
+    decorMsg = id ? `${decorObj(id)} 놓을 빈 자리를 눌러요` : HINT
+    render()
+  },
+  onRemove() {
+    if (picked == null) return
+    const id = save.decor?.[picked]?.id
+    if (!id || !keepDecor(removeDecor(save, picked))) return render()
+    picked = null
+    decorMsg = `${decorObj(id)} 치웠어요. 다시 놓을 수 있어요`
+    render()
+  },
+  onDone: () => setDecorating(false),
+})
+app.appendChild(tray.root)
+
+function setDecorating(on: boolean) {
+  decorating = on
+  pick = null
+  picked = null
+  decorMsg = HINT
+  note.hidden = true
+  render()
+}
+
+/** 소품 자리를 저장한다. 못 하면 바구니에 알리고 false */
+function keepDecor(next: SaveData): boolean {
+  try {
+    writeSave(kv, next)
+  } catch {
+    decorMsg = '저장하지 못했어요. 저장 공간을 확인해 주세요'
+    return false
+  }
+  save = next
+  return true
+}
+
+/** 화면 좌표 → 그 아래 땅의 소품 자리 */
+function placeUnder(p: { x: number; y: number }) {
+  if (!drawn) return null
+  const { gx, gy } = cellAt(camera.toVillage(p))
+  return placeAt(drawn.village, gx, gy)
+}
+
+/** 놓기·옮기기 결과를 저장하고 알린다 */
+function applyPlace(r: PlaceResult | null, done: string) {
+  if (r?.ok && keepDecor(r.save)) {
+    pick = null
+    picked = null
+    decorMsg = done
+  } else if (!r?.ok) decorMsg = '거기에는 놓을 수 없어요. 점선 자리를 골라요'
+  render()
+}
+
+/**
+ * 꾸미기 중 마을을 짧게 눌렀을 때: 고른 소품이 있으면 그 자리에 놓거나 옮긴다.
+ * 집·명소를 누르면 놓지 않고, 나무를 누르면 그 나무가 선 칸으로 본다(그림이 뒤 칸에 걸쳐 있어도)
+ */
+function decorTap(target: Element, at: { x: number; y: number }) {
+  if (!drawn || (pick == null && picked == null)) {
+    decorMsg = HINT
+    return render()
+  }
+  const { village, today } = drawn
+  const tree = target.closest('.tree')?.getAttribute('data-cell')?.split(',').map(Number)
+  const place = target.closest('.house, .landmark') ? null : tree ? placeAt(village, tree[0], tree[1]) : placeUnder(at)
+  if (pick != null) {
+    const id = pick
+    applyPlace(place && placeDecor(save, village, today, id, place), `${decorObj(id)} 놓았어요`)
+  } else if (picked != null) {
+    const id = save.decor![picked].id
+    applyPlace(place && moveDecor(save, village, today, picked, place), `${decorObj(id)} 옮겼어요`)
+  }
+}
+
+/** 꾸미기 중 놓인 소품에 손을 대면 화면 대신 그 소품을 잡는다. 짧게 누르면 고르고, 끌면 옮긴다 */
+let drag: { id: number; index: number; x: number; y: number; moved: boolean } | null = null
+function grabDecor(e: PointerEvent): boolean {
+  if (!decorating) return false
+  const node = (e.target as Element).closest('.decor')
+  const index = Number(node?.getAttribute('data-testid')?.replace('decor-', ''))
+  if (!node || !Number.isInteger(index)) return false
+  drag = { id: e.pointerId, index, x: e.clientX, y: e.clientY, moved: false }
+  return true
+}
+const dragNode = (index: number) => svg.querySelector<SVGGElement>(`[data-testid="decor-${index}"]`)
+window.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return
+  const dx = e.clientX - drag.x
+  const dy = e.clientY - drag.y
+  if (!drag.moved) {
+    if (Math.hypot(dx, dy) < 8) return
+    // 끌기 시작: 그 소품을 고르고 빈 자리를 보인다
+    drag.moved = true
+    pick = null
+    picked = drag.index
+    decorMsg = `${decorName(save.decor![drag.index].id)} · 빈 자리에 내려놓아요`
+    render()
+    dragNode(drag.index)?.classList.add('lifted')
+  }
+  const u = camera.unit()
+  dragNode(drag.index)?.setAttribute('transform', `translate(${(dx * u).toFixed(1)} ${(dy * u).toFixed(1)})`)
+})
+window.addEventListener('pointerup', (e) => {
+  if (!drag || e.pointerId !== drag.id) return
+  const { index, moved, x, y } = drag
+  drag = null
+  if (!moved) {
+    // 짧게 누름: 고르기(다시 누르면 내려놓기)
+    pick = null
+    picked = picked === index ? null : index
+    decorMsg = picked == null ? HINT : `${decorName(save.decor![index].id)} · 빈 자리를 누르거나 끌어서 옮겨요`
+    return render()
+  }
+  // 소품 발밑(칸 가운데)이 손가락을 따라 움직인 만큼 옮긴 자리
+  const d = drawn && decorsOnMap(drawn.village, drawn.today, save).find((x) => x.index === index)
+  if (!d || !drawn) return render()
+  const foot = iso(d.gx + 0.5, d.gy + 0.5)
+  const u = camera.unit()
+  const { gx, gy } = cellAt({ x: foot.x + (e.clientX - x) * u, y: foot.y + (e.clientY - y) * u })
+  const place = placeAt(drawn.village, gx, gy)
+  if (place && place.at === d.at && place.col === d.col && place.row === d.row) return render()
+  applyPlace(place && moveDecor(save, drawn.village, drawn.today, index, place), `${decorObj(d.id)} 옮겼어요`)
+})
+window.addEventListener('pointercancel', (e) => {
+  if (!drag || e.pointerId !== drag.id) return
+  drag = null
+  render()
 })
 
 let shownDay = ''
@@ -236,7 +395,17 @@ function render(newDate?: string) {
   // 지운 날은 빈 땅으로 돌아가지만 집을 지었던 날로 센다(명소·단계·주민을 빼앗지 않는다)
   const days = builtDays(save)
   const village = buildVillage(save.entries, today, (save.erased ?? []).map((x) => x.date))
+  drawn = { village, today }
+  if (picked != null && !save.decor?.[picked]) picked = null
+  // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
+  const spots = decorating && (pick != null || picked != null) ? decorSpots(village, today, save) : []
+  card.root.hidden = decorating
+  tray.root.hidden = !decorating
+  scene.classList.toggle('decorating', decorating)
+  if (decorating) tray.render(unlockedDecors(days), pick, picked != null, decorMsg)
   drawVillage(svg, village, {
+    spots,
+    picked: decorating ? (picked ?? undefined) : undefined,
     today,
     newDate,
     buildDelay: newDate && !calm ? SHOW.go : 0,

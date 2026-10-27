@@ -8,7 +8,11 @@ type Gesture =
   | { kind: 'drag'; id: number; px: number; py: number; view: View }
   | { kind: 'pinch'; dist: number; mid: Pt; anchor: Pt; view: View }
 
-export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => void) {
+/**
+ * onTap: 짧게 누른 곳(눌린 요소와 화면 좌표).
+ * grab: 누르기 시작할 때 true 를 돌려주면 그 손가락은 화면을 끌지 않는다(꾸미기 중 소품 끌기)
+ */
+export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt) => void, grab?: (e: PointerEvent) => boolean) {
   let view: View = { x: 0, y: 0, w: 100, h: 100 }
   const pointers = new Map<number, Pt>()
   let gesture: Gesture | null = null
@@ -50,6 +54,8 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
 
   svg.addEventListener('pointerdown', (e) => {
     stopShow()
+    // 잡은 손가락의 누름·끌기는 grab 쪽이 맡는다(뒤따르는 click 은 누름으로 보지 않는다)
+    if (pointers.size === 0 && grab?.(e)) return void (moved = true)
     if (pointers.size === 0) moved = false
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     restart()
@@ -87,7 +93,7 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
   window.addEventListener('pointercancel', end)
   svg.addEventListener('click', (e) => {
     if (moved) return
-    onTap(e.target as Element)
+    onTap(e.target as Element, { x: e.clientX, y: e.clientY })
   })
   svg.addEventListener(
     'wheel',
@@ -102,6 +108,10 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
   )
 
   return {
+    /** 화면 좌표 → 마을 그림(viewBox) 좌표 */
+    toVillage: (p: Pt) => toView(p, view),
+    /** 지금 화면 1px 이 마을 그림에서 몇인지 */
+    unit: () => unitOf(view, screen()) || 1,
     show(v: View) {
       stopShow()
       view = v

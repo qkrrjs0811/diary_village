@@ -980,6 +980,7 @@ test('빈 마을의 수첩은 모두 힌트 칸이다', async ({ page }) => {
   await expect(page.getByTestId('book-count')).toHaveText('0 / 10')
   await expect(page.getByTestId('book-stage')).toContainText('10일 더 쓰면 🏘️ 마을')
   await expect(page.locator('[data-testid="book"] [data-found="true"]')).toHaveCount(0)
+  await expect(page.getByTestId('book-decorate')).toHaveCount(0) // 열린 소품이 없으면 꾸미기 버튼도 없다
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/screens/book-empty.png' })
 })
@@ -1063,4 +1064,95 @@ test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알�
   // 소품은 기록에서 계산한다(저장은 기록뿐)
   const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
   expect(Object.keys(stored).sort()).toEqual(['entries', 'version'])
+})
+
+/** 요소 상자의 가운데(화면 좌표) */
+async function centerOf(loc: import('@playwright/test').Locator) {
+  const b = (await loc.boundingBox())!
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+}
+
+test('마을 수첩에서 꾸미기에 들어가 소품을 빈 자리에 놓고, 끌어 옮기고, 치운다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-10-10', 5) // 10월 10~14일: 화분·벤치가 열렸다
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const stored = async () => JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-decorate').click()
+  await expect(page.getByTestId('book')).toBeHidden()
+  await expect(page.getByTestId('write-card')).toBeHidden()
+  const tray = page.getByTestId('decorate')
+  await expect(tray).toBeVisible()
+  await expect(tray.locator('.decor-pick')).toHaveCount(2)
+  for (const b of await tray.locator('button:visible').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(page.locator('.spot')).toHaveCount(0)
+
+  // 꾸미기 중에는 집을 눌러도 읽기 창이 열리지 않는다
+  await page.locator('[data-date="2026-10-12"]').first().dispatchEvent('click')
+  await expect(page.getByTestId('reader')).toBeHidden()
+
+  // 벤치를 고르면 빈 자리가 점선으로 보이고, 집 자리를 누르면 놓지 않는다
+  await page.getByTestId('decorate-pick-bench').click()
+  await expect(page.getByTestId('decorate-pick-bench')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪑 벤치를 놓을 빈 자리를 눌러요')
+  expect(await page.locator('.spot').count()).toBeGreaterThan(10)
+  await expect(page.getByTestId('spot-2026-10-1-2')).toHaveCount(0) // 10월 12일: 집
+  await expect(page.getByTestId('spot-2026-10-2-4')).toHaveCount(0) // 오늘
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/decorate-pick.png' })
+  const house = await centerOf(page.locator('[data-date="2026-10-12"]').first())
+  await page.mouse.click(house.x, house.y)
+  await expect(page.getByTestId('decorate-msg')).toHaveText('거기에는 놓을 수 없어요. 점선 자리를 골라요')
+  expect((await stored()).decor).toBeUndefined()
+
+  // 10월 20일(지난 빈 날)에 놓는다
+  const spot = await centerOf(page.getByTestId('spot-2026-10-2-3'))
+  await page.mouse.click(spot.x, spot.y)
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪑 벤치를 놓았어요')
+  await expect(page.getByTestId('decor-0')).toHaveAttribute('data-decor', 'bench')
+  await expect(page.locator('.spot')).toHaveCount(0)
+  expect((await stored()).decor).toEqual([{ id: 'bench', at: '2026-10', col: 2, row: 3 }])
+
+  // 놓은 벤치를 눌러 고르고, 옆 칸(10월 21일)으로 끌어 옮긴다
+  const bench = await centerOf(page.getByTestId('decor-0'))
+  await page.mouse.click(bench.x, bench.y)
+  await expect(page.getByTestId('decor-0')).toHaveClass(/picked/)
+  await expect(page.getByTestId('decorate-remove')).toBeVisible()
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/decorate-picked.png' })
+  const foot = await centerOf(page.locator('.pick-ring'))
+  const next = await centerOf(page.getByTestId('spot-2026-10-3-3'))
+  await page.mouse.move(bench.x, bench.y)
+  await page.mouse.down()
+  await page.mouse.move(bench.x + (next.x - foot.x) / 2, bench.y + (next.y - foot.y) / 2, { steps: 4 })
+  await expect(page.getByTestId('decor-0')).toHaveClass(/lifted/)
+  await page.mouse.move(bench.x + next.x - foot.x, bench.y + next.y - foot.y, { steps: 4 })
+  await page.mouse.up()
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪑 벤치를 옮겼어요')
+  expect((await stored()).decor).toEqual([{ id: 'bench', at: '2026-10', col: 3, row: 3 }])
+
+  // 다시 골라 치운다. 기록(글)은 그대로다
+  const moved = await centerOf(page.getByTestId('decor-0'))
+  await page.mouse.click(moved.x, moved.y)
+  await page.getByTestId('decorate-remove').click()
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪑 벤치를 치웠어요. 다시 놓을 수 있어요')
+  await expect(page.locator('.decor')).toHaveCount(0)
+  const after = await stored()
+  expect(after.decor).toBeUndefined()
+  expect(after.entries).toEqual(entries)
+
+  // 화분을 하나 놓고 다 했어요를 누르면 한 줄 카드로 돌아오고, 다시 열어도 화분이 있다
+  await page.getByTestId('decorate-pick-pot').click()
+  const plot = await centerOf(page.getByTestId('spot-2026-10-2-3'))
+  await page.mouse.click(plot.x, plot.y)
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪴 화분을 놓았어요')
+  await page.getByTestId('decorate-done').click()
+  await expect(tray).toBeHidden()
+  await expect(page.getByTestId('write-card')).toBeVisible()
+  await page.reload()
+  await expect(page.getByTestId('decor-0')).toHaveAttribute('data-decor', 'pot')
+  await expect(page.getByTestId('decorate')).toBeHidden()
 })

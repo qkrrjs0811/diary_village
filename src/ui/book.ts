@@ -9,7 +9,10 @@ import { dateLabel } from './format'
  * 머리줄 단계 이름표를 누르면 여는 마을 수첩. 지금 단계, 건물 도감, 명소, 꾸밈 소품을 한 창에 모았다.
  * 모두 기록에서 계산한다. 칸을 누르면 아래에 그 칸 이야기가 보인다
  */
-export function createBook() {
+export function createBook(handlers: {
+  /** 소품 칸 아래 "마을 꾸미기"로 꾸미기 모드에 들어간다. 저장을 못 쓰면 null */
+  onDecorate: (() => void) | null
+}) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
   back.hidden = true
@@ -73,6 +76,7 @@ export function createBook() {
             .join('')}
         </div>
         <div class="book-detail" data-testid="book-decor-detail" role="status">칸을 누르면 이야기가 보여요</div>
+        ${handlers.onDecorate && decors.some((d) => d.unlocked) ? `<button type="button" class="sheet-btn build book-decorate" data-testid="book-decorate">🎨 마을 꾸미기</button>` : ''}
       </div>
       <div class="sheet-buttons">
         <button type="button" class="sheet-btn close" data-testid="book-close">닫기</button>
@@ -80,6 +84,10 @@ export function createBook() {
     sheet.querySelector('.book-stage b')!.textContent = `${stage.name} · 한 줄을 ${days}일 남겼어요`
     sheet.querySelector('.book-stage p')!.textContent = next ? `${next.left}일 더 쓰면 ${next.stage.icon} ${next.stage.name}` : '가장 큰 마을이 되었어요'
     sheet.querySelector('.close')!.addEventListener('click', close)
+    sheet.querySelector('.book-decorate')?.addEventListener('click', () => {
+      close()
+      handlers.onDecorate?.()
+    })
 
     const detail = sheet.querySelector<HTMLElement>('[data-testid="book-detail"]')!
     sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-buildings"] .book-cell').forEach((cell, i) => {

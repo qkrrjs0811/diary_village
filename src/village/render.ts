@@ -26,6 +26,13 @@ export function iso(gx: number, gy: number, h = 0): Pt {
   return { x: ((gx - gy) * TW) / 2, y: ((gx + gy) * TH) / 2 - h }
 }
 
+/** 화면 좌표(높이 0) → 그 자리의 땅 칸 */
+export function cellAt(p: Pt): { gx: number; gy: number } {
+  const u = p.x / (TW / 2)
+  const v = p.y / (TH / 2)
+  return { gx: Math.floor((u + v) / 2), gy: Math.floor((v - u) / 2) }
+}
+
 const pts = (list: Pt[]) => list.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
 
 function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number> = {}, parent?: Element) {
@@ -104,7 +111,8 @@ function drawTree(g: Element, gx: number, gy: number, season: Season, seed: numb
   const c = iso(gx + 0.5, gy + 0.5)
   const leaves = LEAVES[season]
   const size = 9 + (seed % 4)
-  const tree = el('g', { class: 'tree' }, g)
+  // 꾸미기 중 나무를 누르면 그 나무가 선 칸에 소품을 놓는다
+  const tree = el('g', { class: 'tree', 'data-cell': `${gx},${gy}` }, g)
   el('ellipse', { cx: c.x, cy: c.y + 2, rx: 9, ry: 4, fill: 'rgba(90,70,54,0.12)' }, tree)
   el('rect', { x: c.x - 2, y: c.y - 10, width: 4, height: 12, rx: 2, fill: '#a7805e' }, tree)
   const color = leaves[seed % leaves.length]
@@ -795,10 +803,28 @@ const DECOR_ART: Record<DecorId, (g: Element, P: Place, c: Pt) => void> = {
 }
 
 /** 사용자가 놓은 꾸밈 소품 하나 */
-function drawDecor(g: Element, d: PlacedDecor & DecorSpot & { index: number }) {
+function drawDecor(g: Element, d: PlacedDecor & DecorSpot & { index: number }, picked: boolean) {
   const P: Place = (u, v, h = 0) => iso(d.gx + u, d.gy + v, h)
-  const node = el('g', { class: 'decor', 'data-testid': `decor-${d.index}`, 'data-decor': d.id }, g)
+  const node = el('g', { class: picked ? 'decor picked' : 'decor', 'data-testid': `decor-${d.index}`, 'data-decor': d.id }, g)
+  // 꾸미기 중 고른 소품: 발밑에 둥근 빛 고리
+  if (picked) {
+    const c = P(0.5, 0.5)
+    el('ellipse', { cx: c.x, cy: c.y, rx: 19, ry: 9.5, fill: 'rgba(123,184,143,0.3)', stroke: '#7bb88f', 'stroke-width': 1.6, class: 'pick-ring' }, node)
+  }
   DECOR_ART[d.id](node, P, P(0.5, 0.5))
+}
+
+/** 꾸미기 중 소품을 놓을 수 있는 빈 칸 표시(점선 마름모) */
+function drawSpot(g: Element, s: DecorSpot) {
+  const P = (u: number, v: number) => iso(s.gx + u, s.gy + v)
+  const k = 0.16
+  poly(g, [P(k, k), P(1 - k, k), P(1 - k, 1 - k), P(k, 1 - k)], 'rgba(255,253,248,0.55)', {
+    class: 'spot',
+    'data-testid': `spot-${s.at}-${s.col}-${s.row}`,
+    stroke: '#7bb88f',
+    'stroke-width': 1.3,
+    'stroke-dasharray': '3 2.5',
+  })
 }
 
 /** 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다 */
@@ -890,6 +916,10 @@ export interface DrawOptions {
   walks?: Walk[]
   /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
   decors?: (PlacedDecor & DecorSpot & { index: number })[]
+  /** 꾸미기 중: 소품을 놓을 수 있는 빈 칸 */
+  spots?: DecorSpot[]
+  /** 꾸미기 중 고른(옮기려는) 소품의 저장 속 순서 */
+  picked?: number
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -924,8 +954,10 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   const decorAt = new Set<string>()
   for (const d of opt.decors ?? []) {
     decorAt.add(`${d.gx},${d.gy}`)
-    items.push({ depth: d.gx + d.gy, draw: () => drawDecor(things, d) })
+    items.push({ depth: d.gx + d.gy, draw: () => drawDecor(things, d, d.index === opt.picked) })
   }
+  // 빈 칸 표시는 그 칸의 나무보다 먼저(뒤에) 그려 땅에 깔린 것처럼 보인다
+  for (const s of opt.spots ?? []) items.push({ depth: s.gx + s.gy - 0.5, draw: () => drawSpot(things, s) })
   for (const [col, row] of [[0, 0], [6, 0], [0, 5]]) {
     const gx = PLAZA.gx + col
     const gy = PLAZA.gy + row

@@ -63,6 +63,17 @@ export function decorSpots(village: Village, today: string, save: SaveData): Dec
   return places.filter((p) => canPlace(village, today, save, p)).map((p) => groundSpot(village, today, p)!)
 }
 
+/** 누른 마을 칸(gx, gy)이 어느 구역(또는 광장)의 몇째 칸인지. 길·마을 밖이면 null */
+export function placeAt(village: Village, gx: number, gy: number): DecorPlace | null {
+  if (isCell(gx - PLAZA.gx, gy - PLAZA.gy, PLAZA.w, PLAZA.h)) return { at: 'plaza', col: gx - PLAZA.gx, row: gy - PLAZA.gy }
+  for (const b of village.blocks) {
+    const col = gx - b.bx * (BLOCK_W + ROAD)
+    const row = gy - b.by * (BLOCK_H + ROAD)
+    if (isCell(col, row, BLOCK_W, BLOCK_H)) return { at: b.month, col, row }
+  }
+  return null
+}
+
 export type PlaceResult = { ok: true; save: SaveData } | { ok: false; reason: 'locked' | 'spot' | 'missing' }
 
 const pick = (p: DecorPlace) => ({ at: p.at, col: p.col, row: p.row })
