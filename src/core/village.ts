@@ -86,20 +86,45 @@ export interface HouseLook {
   floors: 1 | 2
   roofStyle: RoofStyle
   chimney: boolean
+  /** 아래는 집집마다 다른 작은 손길. 날짜로만 정한다(기분과 무관) */
+  door: string
+  window: WindowShape
+  flowerBox: boolean
+  porch: Porch
+  roofTop: RoofTop
 }
+
+export type WindowShape = 'square' | 'round' | 'arch'
+export type Porch = 'lamp' | 'step' | 'none'
+export type RoofTop = 'none' | 'vane' | 'bird'
 
 const WALLS = ['#fff4e2', '#fdebd8', '#f6efe4', '#fff9ef']
 const ROOF_STYLES: RoofStyle[] = ['gable', 'gable', 'hip', 'flat']
+/** 파스텔 문 색(갈색·초록·하늘·분홍·노랑) */
+export const DOOR_COLORS = ['#b98a62', '#8fc4a0', '#9cc3e0', '#e8a9b8', '#e9c77a']
+export const WINDOW_SHAPES: WindowShape[] = ['square', 'round', 'arch']
+export const PORCHES: Porch[] = ['lamp', 'step', 'none']
+export const ROOF_TOPS: RoofTop[] = ['none', 'vane', 'bird']
+/** 지붕 위는 비어 있는 집이 조금 더 많게 */
+const ROOF_TOP_CYCLE: RoofTop[] = ['none', 'vane', 'none', 'bird', 'none', 'vane', 'bird']
 
 /** 집 모양은 날짜와 기분으로만 정한다. 글 길이는 쓰지 않는다 */
 export function houseLook(entry: Entry): HouseLook {
   const h = hash(entry.date)
   const mood = moodOf(entry.mood)
+  // 손길은 그달 안 날짜 차례로 돌려 이웃한 날 집이 닮지 않게 하고, 달마다 시작을 달리한다
+  const day = Number(entry.date.slice(8, 10))
+  const m = hash(monthKey(entry.date))
   return {
     roof: mood.roofs[h % mood.roofs.length],
     wall: WALLS[(h >>> 3) % WALLS.length],
     floors: (h >>> 6) % 3 === 0 ? 2 : 1,
     roofStyle: ROOF_STYLES[(h >>> 9) % ROOF_STYLES.length],
     chimney: (h >>> 12) % 2 === 0,
+    door: DOOR_COLORS[(day * 2 + m) % DOOR_COLORS.length],
+    window: WINDOW_SHAPES[(day + (m >>> 4)) % WINDOW_SHAPES.length],
+    flowerBox: (day * 4 + (m >>> 8)) % 9 < 4,
+    porch: PORCHES[(Math.floor((day - 1) / 3) + (m >>> 12)) % PORCHES.length],
+    roofTop: ROOF_TOP_CYCLE[(day * 3 + (m >>> 16)) % ROOF_TOP_CYCLE.length],
   }
 }

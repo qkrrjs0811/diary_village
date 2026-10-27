@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildVillage, houseLook, BLOCK_W, BLOCK_H } from './village'
+import { buildVillage, houseLook, BLOCK_W, BLOCK_H, DOOR_COLORS, WINDOW_SHAPES, PORCHES, ROOF_TOPS } from './village'
 import type { Entry } from './types'
 
 const e = (date: string, mood: Entry['mood'] = 'calm'): Entry => ({ date, text: date, mood, writtenAt: 0 })
@@ -74,6 +74,63 @@ describe('집 모양', () => {
       looks.add(`${l.floors}-${l.roofStyle}-${l.chimney}`)
     }
     expect(looks.size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('이미 선 집의 지붕 색·벽 색·층수·지붕 모양·굴뚝은 그대로다', () => {
+    const base = (x: Entry) => {
+      const l = houseLook(x)
+      return { roof: l.roof, wall: l.wall, floors: l.floors, roofStyle: l.roofStyle, chimney: l.chimney }
+    }
+    expect(base(e('2026-10-01', 'great'))).toEqual({ roof: '#ff8fa3', wall: '#fff9ef', floors: 1, roofStyle: 'flat', chimney: true })
+    expect(base(e('2026-10-27'))).toEqual({ roof: '#9ed39b', wall: '#fff9ef', floors: 1, roofStyle: 'flat', chimney: false })
+    expect(base(e('2025-02-14', 'blue'))).toEqual({ roof: '#7fa7d9', wall: '#fff9ef', floors: 1, roofStyle: 'gable', chimney: false })
+    expect(base(e('2026-12-25', 'tired'))).toEqual({ roof: '#a99be0', wall: '#fdebd8', floors: 2, roofStyle: 'gable', chimney: false })
+  })
+})
+
+describe('집집마다 다른 손길', () => {
+  const october = Array.from({ length: 31 }, (_, i) => houseLook(e(`2026-10-${String(i + 1).padStart(2, '0')}`)))
+
+  it('문 색·창 모양·꽃상자·현관·지붕 위 작은 것을 정한다', () => {
+    for (const l of october) {
+      expect(DOOR_COLORS).toContain(l.door)
+      expect(WINDOW_SHAPES).toContain(l.window)
+      expect(typeof l.flowerBox).toBe('boolean')
+      expect(PORCHES).toContain(l.porch)
+      expect(ROOF_TOPS).toContain(l.roofTop)
+    }
+  })
+
+  it('기분은 손길을 바꾸지 않는다', () => {
+    const touch = (x: Entry) => {
+      const l = houseLook(x)
+      return [l.door, l.window, l.flowerBox, l.porch, l.roofTop]
+    }
+    for (const d of ['2026-10-01', '2026-03-17', '2027-01-09']) {
+      const calm = touch(e(d, 'calm'))
+      for (const m of ['great', 'meh', 'blue', 'tired'] as const) expect(touch(e(d, m))).toEqual(calm)
+    }
+  })
+
+  it('한 달 안에서 고르게 퍼진다', () => {
+    for (const shape of WINDOW_SHAPES) expect(october.filter((l) => l.window === shape).length).toBeGreaterThanOrEqual(7)
+    for (const color of DOOR_COLORS) expect(october.filter((l) => l.door === color).length).toBeGreaterThanOrEqual(4)
+    for (const p of PORCHES) expect(october.filter((l) => l.porch === p).length).toBeGreaterThanOrEqual(5)
+    for (const t of ROOF_TOPS) expect(october.filter((l) => l.roofTop === t).length).toBeGreaterThanOrEqual(3)
+    const boxes = october.filter((l) => l.flowerBox).length
+    expect(boxes).toBeGreaterThanOrEqual(10)
+    expect(boxes).toBeLessThanOrEqual(21)
+  })
+
+  it('이웃한 날 집은 창 모양과 문 색이 다르다', () => {
+    for (const month of ['2026-02', '2026-10', '2027-05']) {
+      for (let d = 1; d < 28; d++) {
+        const a = houseLook(e(`${month}-${String(d).padStart(2, '0')}`))
+        const b = houseLook(e(`${month}-${String(d + 1).padStart(2, '0')}`))
+        expect(a.window).not.toBe(b.window)
+        expect(a.door).not.toBe(b.door)
+      }
+    }
   })
 
   it('글 길이는 집 모양에 영향을 주지 않는다', () => {
