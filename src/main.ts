@@ -5,7 +5,8 @@ import { dayKey } from './core/date'
 import { builtDays, editEntry, entryOn, eraseEntry, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
-import type { Dated, MoodId, SaveData } from './core/types'
+import type { Dated, Entry, MoodId, SaveData } from './core/types'
+import { memoryOf } from './core/memory'
 import { buildVillage } from './core/village'
 import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
@@ -194,7 +195,22 @@ const card = createWriteCard({
     return null
   },
   onOpen: (entry) => reader.open(entry),
+  onMemory: visitMemory,
 })
+
+/** "N일 전 오늘"의 집으로 날아가 그 집이 반짝이고, 도착하면 그날 글을 연다 */
+let memoryTimer = 0
+function visitMemory(entry: Entry) {
+  const lot = drawn?.village.blocks.flatMap((b) => b.lots).find((l) => l.date === entry.date)
+  clearTimeout(memoryTimer)
+  if (!lot) return reader.open(entry)
+  camera.glide(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)
+  const node = svg.querySelector(`[data-testid="house-${entry.date}"]`)
+  node?.classList.remove('remember')
+  void node?.getBoundingClientRect()
+  node?.classList.add('remember')
+  memoryTimer = window.setTimeout(() => reader.open(entry), calm ? 0 : SHOW.go + 150)
+}
 app.appendChild(card.root)
 
 const camera = createCamera(svg, (target, at) => {
@@ -415,7 +431,7 @@ function render(newDate?: string) {
     decors: decorsOnMap(village, today, save),
   })
   const todayEntry = entryOn(save, today)
-  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
+  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(days)

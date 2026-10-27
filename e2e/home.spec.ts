@@ -1156,3 +1156,58 @@ test('마을 수첩에서 꾸미기에 들어가 소품을 빈 자리에 놓고,
   await expect(page.getByTestId('decor-0')).toHaveAttribute('data-decor', 'pot')
   await expect(page.getByTestId('decorate')).toBeHidden()
 })
+
+test('한 달 전·100일 전·작년 오늘의 글이 있으면 카드 아래에 작게 보이고, 누르면 그 집으로 날아가 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  // 오늘 자리는 비었고, 한 달 전(9월 28일)과 100일 전(7월 20일)에 썼다
+  const entries = [...monthEntries('2026-07', [20]), ...monthEntries('2026-09', [27, 28]), ...monthEntries('2026-10', [26, 27])]
+  entries.find((e) => e.date === '2026-09-28')!.text = '가을 바람이 처음 차가웠던 날, 따뜻한 차를 마시며 한참 창밖을 보았다'
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // 드문 것(100일 전)을 먼저 보인다. 쓰는 칸과 함께 있어도 화면 안에 들어온다
+  const memory = page.getByTestId('memory')
+  await expect(memory).toContainText('📖 100일 전 오늘 · 7월 20일')
+  await expect(memory).toContainText('2026-07 20일의 한 줄')
+  await expect(memory).toBeInViewport()
+  await expect(page.getByTestId('write-submit')).toBeInViewport()
+  expect((await memory.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/memory-card.png' })
+
+  await memory.click()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-07 20일의 한 줄')
+  await expect(page.getByTestId('reader-date')).toHaveText('2026년 7월 20일 월요일')
+  // 그 집이 화면 안으로 왔다
+  await page.getByTestId('reader-close').click()
+  await expect(page.getByTestId('house-2026-07-20')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/memory-visit.png' })
+
+  // 100일 전 글을 지우면 다음으로 드문 한 달 전 글이 보인다. 긴 글은 한 줄로 줄인다
+  await page.getByTestId('house-2026-07-20').click()
+  await page.getByTestId('reader-erase').click()
+  await page.getByTestId('erase-confirm').click()
+  await expect(memory).toContainText('📖 한 달 전 오늘 · 9월 28일')
+  expect((await memory.boundingBox())!.height).toBeLessThan(70)
+
+  // 오늘을 써도 쪽지는 남는다. 저장에는 기록뿐이다
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('오늘도 한 줄')
+  await page.getByTestId('write-submit').click()
+  await page.clock.runFor(4000)
+  await expect(memory).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/memory-done.png' })
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'erased', 'version'])
+})
+
+test('돌아볼 지난 글이 없으면 쪽지를 보이지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 26, 27])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('write-card')).toBeVisible()
+  await expect(page.getByTestId('memory')).toHaveCount(0)
+})

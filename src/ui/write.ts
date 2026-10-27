@@ -1,12 +1,16 @@
 import { checkText, MAX_TEXT, type Day } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
+import type { Memory } from '../core/memory'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel } from './format'
 
 export interface WriteCard {
   root: HTMLElement
-  /** 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null) */
-  render(today: string, entry: Entry | undefined, yesterday: string | null): void
+  /**
+   * 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null).
+   * memory: 한 달 전·100일 전·작년 오늘의 글(없으면 null). 카드 아래에 작게 보인다
+   */
+  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null): void
 }
 
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
@@ -15,6 +19,8 @@ export function createWriteCard(handlers: {
   /** 실패하면 사용자에게 보일 이유를 돌려준다 */
   onSubmit(text: string, mood: MoodId, day: Day): string | null
   onOpen(entry: Entry): void
+  /** "N일 전 오늘"을 누르면 그 집으로 간다 */
+  onMemory(entry: Entry): void
 }): WriteCard {
   const root = document.createElement('section')
   root.className = 'card'
@@ -23,7 +29,12 @@ export function createWriteCard(handlers: {
   let day: Day = 'today'
   const mood: Record<Day, MoodId | null> = { today: null, yesterday: null }
   const draft: Record<Day, string> = { today: '', yesterday: '' }
-  let shown: { today: string; entry: Entry | undefined; yesterday: string | null } = { today: '', entry: undefined, yesterday: null }
+  let shown: { today: string; entry: Entry | undefined; yesterday: string | null; memory: Memory | null } = {
+    today: '',
+    entry: undefined,
+    yesterday: null,
+    memory: null,
+  }
 
   function renderForm(date: string, d: Day) {
     root.innerHTML = `
@@ -110,19 +121,35 @@ export function createWriteCard(handlers: {
     root.appendChild(b)
   }
 
+  /** "📖 한 달 전 오늘 · 9월 28일" + 그날 글. 누르면 그 집으로 날아간다 */
+  function renderMemory(m: Memory) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'memory'
+    b.dataset.testid = 'memory'
+    b.dataset.kind = m.kind
+    const [, mm, dd] = m.entry.date.split('-').map(Number)
+    b.innerHTML = `<span class="k">📖 ${m.label} · ${mm}월 ${dd}일</span><span class="t"></span>`
+    b.querySelector('.t')!.textContent = `${moodOf(m.entry.mood).emoji} ${m.entry.text}`
+    b.addEventListener('click', () => handlers.onMemory(m.entry))
+    root.appendChild(b)
+  }
+
   function draw() {
-    const { today, entry, yesterday } = shown
+    const { today, entry, yesterday, memory } = shown
     if (!yesterday) day = 'today'
     if (day === 'yesterday' && yesterday) renderForm(yesterday, 'yesterday')
     else if (entry) renderDone(today, entry)
     else renderForm(today, 'today')
+    // 어제 칸에 쓰는 중에는 그 한 줄에 마음을 두도록 지난 글을 숨긴다
+    if (memory && day === 'today') renderMemory(memory)
     if (yesterday) renderSwitch(yesterday)
   }
 
   return {
     root,
-    render(today, entry, yesterday) {
-      shown = { today, entry, yesterday }
+    render(today, entry, yesterday, memory = null) {
+      shown = { today, entry, yesterday, memory }
       draw()
     },
   }

@@ -338,6 +338,30 @@ button { font: inherit; color: inherit; }
   text-underline-offset: 3px;
   cursor: pointer;
 }
+/* "N일 전 오늘": 카드 아래 작은 쪽지. 글은 한 줄로 줄인다 */
+.memory {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 7px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  border: 1.5px dashed #e0cfb4;
+  border-radius: 16px;
+  background: #fffaf0;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.memory .k { font-size: 11px; color: var(--ink-soft); }
+.memory .t { max-width: 100%; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 지난 글의 집으로 날아가면 그 집이 살짝 뛰어오른다 */
+.house.remember { transform-box: fill-box; transform-origin: 50% 100%; animation: remember 0.6s ease-in-out 0.75s 2; }
+@keyframes remember { 50% { transform: translateY(-3px) scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { .house.remember { animation: none; } }
 
 .banner { margin: 0 12px 8px; padding: 10px 14px; border-radius: 14px; background: #ffe9e4; color: #b4544a; font-size: 13px; }
 
