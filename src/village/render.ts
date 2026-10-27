@@ -6,6 +6,7 @@ import type { DecorId } from '../core/decor'
 import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
+import { MAILBOX } from '../core/letter'
 import type { Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_TREES, blockScenery } from '../core/scenery'
@@ -1377,6 +1378,38 @@ const DECOR_ART: Record<DecorId, (g: Element, P: Place, c: Pt) => void> = {
   },
 }
 
+/** 우체통이 칸 안에 서는 자리(입구 돌길 왼쪽 가장자리. 가운데 길을 오가는 주민을 가리지 않게) */
+const MAILBOX_AT = { u: 0.22, v: 0.62 }
+
+/**
+ * 광장 입구의 마을 우체통. 꾸밈 소품 우체통 그림을 키워 기둥을 길게 세웠다.
+ * 기다리는 편지가 있으면 옆에 노란 깃발이 서고, 투입구에 편지가 살짝 보인다
+ */
+function drawMailbox(g: Element, waiting: boolean) {
+  const gx = PLAZA.gx + MAILBOX.col + MAILBOX_AT.u
+  const gy = PLAZA.gy + MAILBOX.row + MAILBOX_AT.v
+  const c = iso(gx, gy)
+  const box = el('g', { class: 'postbox', 'data-testid': 'mailbox', 'data-waiting': String(waiting) }, g)
+  // 손가락으로 누르기 넉넉한 투명 영역
+  el('rect', { x: c.x - 22, y: c.y - 56, width: 44, height: 60, rx: 12, fill: 'transparent', class: 'hit' }, box)
+  el('ellipse', { cx: c.x, cy: c.y + 1, rx: 10, ry: 4, fill: 'rgba(90,70,54,0.16)' }, box)
+  el('rect', { x: c.x - 2.2, y: c.y - 22, width: 4.4, height: 22, rx: 1.6, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, box)
+  el('path', { d: `M${c.x - 11} ${c.y - 20} v-13 a11 9 0 0 1 22 0 v13 z`, fill: '#f08a7e', stroke: LINE }, box)
+  el('path', { d: `M${c.x - 7.5} ${c.y - 37} a8 6 0 0 1 9 -3`, fill: 'none', stroke: '#f7b4aa', 'stroke-width': 2, 'stroke-linecap': 'round' }, box)
+  el('rect', { x: c.x - 6.5, y: c.y - 30, width: 13, height: 2.4, rx: 1.2, fill: '#9c4a42' }, box)
+  if (waiting) {
+    // 투입구에 걸린 편지 귀퉁이
+    el('rect', { x: c.x - 4, y: c.y - 33.5, width: 8, height: 4.6, rx: 0.8, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.6, class: 'peek' }, box)
+    el('path', { d: `M${c.x - 4} ${c.y - 33.5} l4 2.6 l4 -2.6`, fill: 'none', stroke: '#c9a27e', 'stroke-width': 0.6 }, box)
+    const flag = el('g', { class: 'post-flag', 'data-testid': 'mailbox-flag' }, box)
+    el('rect', { x: c.x + 10.5, y: c.y - 44, width: 1.8, height: 20, rx: 0.9, fill: '#a7805e' }, flag)
+    el('path', { d: `M${c.x + 12.3} ${c.y - 44} h8 a2 2 0 0 1 0 4 l-1.6 1.6 l1.6 1.6 a2 2 0 0 1 0 4 h-8 z`, fill: '#ffd56e', stroke: LINE, 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, flag)
+  }
+  // 앞판의 작은 편지 그림
+  el('rect', { x: c.x - 5, y: c.y - 25.5, width: 10, height: 6.5, rx: 1.2, fill: '#fffaf0', stroke: '#c96f64', 'stroke-width': 0.6 }, box)
+  el('path', { d: `M${c.x - 5} ${c.y - 25.5} l5 3.4 l5 -3.4`, fill: 'none', stroke: '#c96f64', 'stroke-width': 0.6 }, box)
+}
+
 /** 사용자가 놓은 꾸밈 소품 하나 */
 function drawDecor(g: Element, d: PlacedDecor & DecorSpot & { index: number }, picked: boolean) {
   const P: Place = (u, v, h = 0) => iso(d.gx + u, d.gy + v, h)
@@ -1497,6 +1530,8 @@ export interface DrawOptions {
   picked?: number
   /** 오늘 열리는 잔치(날짜로 계산). 광장에 깃발 줄과 장식을 세운다 */
   festival?: FestivalId
+  /** 광장 우체통. waiting: 아직 열리지 않은 편지가 있다(깃발이 선다) */
+  mailbox?: { waiting: boolean }
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -1529,6 +1564,10 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     items.push({ depth: s.gx + s.gy, draw: () => drawNextSign(things, landmark, lines) })
   }
   if (opt.festival) festivalItems(items, things, opt.festival)
+  if (opt.mailbox) {
+    const { waiting } = opt.mailbox
+    items.push({ depth: PLAZA.gx + MAILBOX.col + PLAZA.gy + MAILBOX.row + MAILBOX_AT.u + MAILBOX_AT.v - 0.5, draw: () => drawMailbox(things, waiting) })
+  }
   for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()

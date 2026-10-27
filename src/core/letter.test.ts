@@ -3,8 +3,9 @@ import { planImport, backupText } from './backup'
 import { buildingOf } from './building'
 import { unlockedDecors } from './decor'
 import { builtDays } from './entries'
-import { earnedLandmarks } from './landmark'
+import { LANDMARKS, PLAZA, earnedLandmarks } from './landmark'
 import {
+  MAILBOX,
   MAX_LETTER,
   arrivedLetters,
   eraseLetter,
@@ -15,7 +16,9 @@ import {
   waitingLetters,
   writeLetter,
 } from './letter'
+import { canPlace, decorSpots } from './placing'
 import { residentsOf } from './resident'
+import { PLAZA_TREES } from './scenery'
 import { stageOf } from './stage'
 import { parseSave } from './storage'
 import type { Letter, SaveData } from './types'
@@ -248,5 +251,19 @@ describe('편지 백업', () => {
     const r = planImport(save, backupText(save))
     if (!r.ok) throw new Error()
     expect(r.save.letters).toBeUndefined()
+  })
+})
+
+describe('광장 우체통 자리', () => {
+  it('광장 돌길 칸이라 명소·모서리 나무 자리가 아니고 소품을 놓을 수 없다', () => {
+    expect(MAILBOX.col).toBeGreaterThanOrEqual(0)
+    expect(MAILBOX.col).toBeLessThan(PLAZA.w)
+    expect(MAILBOX.row).toBeGreaterThanOrEqual(0)
+    expect(MAILBOX.row).toBeLessThan(PLAZA.h)
+    expect(LANDMARKS.some((l) => l.col === MAILBOX.col && l.row === MAILBOX.row)).toBe(false)
+    expect(PLAZA_TREES.some(([c, r]) => c === MAILBOX.col && r === MAILBOX.row)).toBe(false)
+    const village = buildVillage(save.entries, '2026-10-28')
+    expect(canPlace(village, '2026-10-28', save, { at: 'plaza', col: MAILBOX.col, row: MAILBOX.row })).toBe(false)
+    expect(decorSpots(village, '2026-10-28', save).some((s) => s.at === 'plaza' && s.col === MAILBOX.col && s.row === MAILBOX.row)).toBe(false)
   })
 })

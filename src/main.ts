@@ -8,6 +8,8 @@ import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { toggleTreasured } from './core/treasure'
+import { arrivedLetters, eraseLetter, markLetterRead, receivedLetters, waitingLetters, writeLetter } from './core/letter'
+import { createLetterBox } from './ui/letters'
 import { festivalCard, festivalOn, type Festival } from './core/festival'
 import { recapOf, yearRecapOf } from './core/recap'
 import { todayPrompt, yesterdayPrompt } from './core/prompt'
@@ -204,6 +206,48 @@ const settings = createSettings({
 })
 document.body.appendChild(settings.root)
 
+/** 저장하고 마을을 다시 그린다(우체통 깃발). 실패하면 이유 */
+function keepLetters(next: SaveData): string | null {
+  try {
+    writeSave(kv, next)
+  } catch {
+    return '저장하지 못했어요. 저장 공간을 확인해 주세요'
+  }
+  save = next
+  render()
+  return null
+}
+
+/** 광장 우체통을 누르면 여는 편지 창. 편지는 집·명소·단계와 무관하다 */
+const letterBox = createLetterBox({
+  lists() {
+    const now = Date.now()
+    return { today: dayKey(now), arrived: arrivedLetters(save, now), waiting: waitingLetters(save, now), received: receivedLetters(save, now), now }
+  },
+  onWrite: readOnly
+    ? null
+    : (text, wait) => {
+        const r = writeLetter(save, { text, wait }, Date.now())
+        if (!r.ok) return '편지를 다시 확인해 주세요'
+        return keepLetters(r.save)
+      },
+  onRead: readOnly
+    ? null
+    : (writtenAt) => {
+        const r = markLetterRead(save, writtenAt, Date.now())
+        if (!r.ok) return r.reason === 'sealed' ? '아직 열리지 않은 편지예요' : '편지를 찾지 못했어요'
+        return r.save === save ? null : keepLetters(r.save)
+      },
+  onErase: readOnly
+    ? null
+    : (writtenAt) => {
+        const r = eraseLetter(save, writtenAt)
+        if (!r.ok) return '편지를 찾지 못했어요'
+        return keepLetters(r.save)
+      },
+})
+document.body.appendChild(letterBox.root)
+
 const celebrateCard = createCelebration({ onVisit: visitLandmark })
 document.body.appendChild(celebrateCard.root)
 let celebrateTimer = 0
@@ -305,7 +349,8 @@ document.body.appendChild(calendar.root)
 
 const camera = createCamera(svg, (target, at) => {
   if (decorating) return decorTap(target, at)
-  const id = target.closest('.landmark')?.getAttribute('data-landmark')
+  if (target.closest('.postbox')) return letterBox.open()
+  const id =target.closest('.landmark')?.getAttribute('data-landmark')
   const landmark = LANDMARKS.find((l) => l.id === id)
   if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
   const rid = target.closest('.resident')?.getAttribute('data-resident')
@@ -417,7 +462,7 @@ function decorTap(target: Element, at: { x: number; y: number }) {
   }
   const { village, today } = drawn
   const tree = target.closest('.tree')?.getAttribute('data-cell')?.split(',').map(Number)
-  const place = target.closest('.house, .landmark') ? null : tree ? placeAt(village, tree[0], tree[1]) : placeUnder(at)
+  const place = target.closest('.house, .landmark, .postbox') ? null : tree ? placeAt(village, tree[0], tree[1]) : placeUnder(at)
   if (pick != null) {
     const id = pick
     applyPlace(place && placeDecor(save, village, today, id, place), `${decorObj(id)} 놓았어요`)
@@ -538,6 +583,7 @@ function render(newDate?: string) {
     walks: residentWalks(village, residentsOf(days)),
     decors: decorsOnMap(village, today, save),
     festival: festival?.id,
+    mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
   })
   const todayEntry = entryOn(save, today)
   const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }

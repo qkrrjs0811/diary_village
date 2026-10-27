@@ -4,6 +4,12 @@ import type { Letter, SaveData } from './types'
 /** 편지는 일기보다 조금 길게 쓸 수 있다. 길이는 아무 보상과도 무관하다 */
 export const MAX_LETTER = 200
 
+/**
+ * 광장 우체통이 서는 칸(광장 왼쪽 위가 0,0). 광장 입구 쪽 가운데 돌길이라 명소·소품 자리와 겹치지 않는다.
+ * 편지가 있든 없든 늘 서 있다(보상이 아니다)
+ */
+export const MAILBOX = { col: 3, row: 5 }
+
 /** 열리는 날 고르기: 한 달 뒤·100일 뒤·1년 뒤 */
 export type LetterWait = 'month' | 'days100' | 'year'
 

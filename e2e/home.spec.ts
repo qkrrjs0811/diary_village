@@ -2655,3 +2655,141 @@ test('기분 달력에 소중한 날 하트가 붙고, "소중한 날"에서 모
   expect(now.entries).toEqual(entries.map((e) => (e.date === '2026-10-05' ? plain([e])[0] : e)))
   expect(now.erased).toEqual(erased)
 })
+
+test('광장 우체통을 누르면 편지 창이 열려 미래의 나에게 편지를 부치고, 기다리는 편지는 열리는 날만 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [2, 5, 9, 14, 20, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const mailbox = page.getByTestId('mailbox')
+  await expect(mailbox).toHaveAttribute('data-waiting', 'false')
+  await expect(page.getByTestId('mailbox-flag')).toHaveCount(0)
+  await zoomToPlaza(page, 4)
+  await finishAnimations(page)
+  await expect(mailbox).toBeInViewport()
+  const hit = (await mailbox.boundingBox())!
+  expect(hit.width).toBeGreaterThanOrEqual(44)
+  expect(hit.height).toBeGreaterThanOrEqual(44)
+
+  // 누르면 편지 창. 아직 부친 편지가 없다
+  await mailbox.click()
+  await expect(page.getByTestId('letters')).toBeVisible()
+  await expect(page.getByTestId('letters-none')).toHaveText('아직 부친 편지가 없어요')
+  await expect(page.getByTestId('letter-send')).toBeDisabled()
+  await expect(page.getByTestId('letter-wait-month')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('letter-wait-month')).toContainText('11월 28일')
+  await expect(page.getByTestId('letter-wait-days100')).toContainText('2027년 2월 5일')
+  await expect(page.getByTestId('letter-wait-year')).toContainText('2027년 10월 28일')
+  for (const id of ['letter-wait-month', 'letter-wait-days100', 'letter-wait-year', 'letter-send', 'letters-close']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.x).toBeGreaterThanOrEqual(0)
+    expect(b.x + b.width).toBeLessThanOrEqual(390)
+  }
+  const text = '1년 뒤의 나에게\n오늘은 바다를 보고 왔어. 잘 지내고 있지?'
+  await page.getByTestId('letter-input').fill(text)
+  await page.getByTestId('letter-wait-year').click()
+  await expect(page.getByTestId('letter-wait-year')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('letter-wait-month')).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByTestId('letter-len')).toHaveText(`${[...text].length} / 200`)
+  await page.screenshot({ path: 'test-results/screens/letters-write.png' })
+
+  // 200자를 넘으면 부칠 수 없다
+  await page.getByTestId('letter-input').fill('가'.repeat(201))
+  await expect(page.getByTestId('letter-send')).toBeDisabled()
+  await expect(page.getByTestId('letter-msg')).toHaveText('200자까지 쓸 수 있어요')
+  await page.getByTestId('letter-input').fill(text)
+  await page.getByTestId('letter-send').click()
+  await expect(page.getByTestId('letters-msg')).toHaveText('📮 편지를 부쳤어요. 2027년 10월 28일에 열려요')
+  await expect(page.getByTestId('letter-input')).toHaveValue('')
+  // 기다리는 편지는 열리는 날만 보이고 글은 숨긴다
+  let saved = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  const writtenAt: number = saved.letters[0].writtenAt
+  expect(writtenAt).toBeGreaterThanOrEqual(Date.parse('2026-10-28T13:00:00+09:00'))
+  const row = page.getByTestId(`letter-${writtenAt}`)
+  await expect(row).toContainText('✉️ 2027년 10월 28일에 열려요')
+  await expect(row).toContainText('10월 28일에 썼어요')
+  await expect(page.getByTestId('letters')).not.toContainText('바다를 보고')
+  await expect(page.getByTestId('letters-none')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/letters-waiting.png' })
+
+  // 저장: 편지 한 통, 일기는 그대로
+  expect(saved.entries).toEqual(entries)
+  expect(saved.letters).toEqual([{ writtenOn: '2026-10-28', writtenAt, opensOn: '2027-10-28', text }])
+
+  // 창을 닫으면 우체통에 깃발이 선다. 집은 그대로
+  await page.getByTestId('letters-close').click()
+  await expect(page.getByTestId('letters')).toBeHidden()
+  await expect(mailbox).toHaveAttribute('data-waiting', 'true')
+  await expect(page.getByTestId('mailbox-flag')).toBeVisible()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 6채')
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/mailbox-flag.png' })
+
+  // 새로고침해도 남는다
+  await page.reload()
+  await expect(page.getByTestId('mailbox-flag')).toBeAttached()
+
+  // 지우기는 한 번 더 묻는다. 그만두면 남고, 지우면 사라진다
+  await zoomToPlaza(page, 4)
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await mailbox.click()
+  await finishAnimations(page)
+  await page.getByTestId(`letter-erase-${writtenAt}`).click()
+  await expect(page.getByTestId('letter-erase-note')).toHaveText('2027년 10월 28일에 열릴 편지예요. 읽지 않은 채로 지워져요. 지운 편지는 되돌릴 수 없어요.')
+  await page.screenshot({ path: 'test-results/screens/letters-erase.png' })
+  await page.getByTestId('letter-erase-cancel').click()
+  await expect(row).toBeVisible()
+  await page.getByTestId(`letter-erase-${writtenAt}`).click()
+  await page.getByTestId('letter-erase-confirm').click()
+  await expect(page.getByTestId('letters-msg')).toHaveText('🍂 편지를 지웠어요')
+  await expect(page.getByTestId('letters-none')).toBeVisible()
+  saved = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(saved).toEqual({ version: 1, entries })
+  await page.getByTestId('letters-close').click()
+  await expect(page.getByTestId('mailbox-flag')).toHaveCount(0)
+})
+
+test('열리는 날이 지난 편지는 우체통에서 열어 읽고, 받은 편지로 남아 다시 읽는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [2, 5, 9])
+  const arrived = { writtenOn: '2026-07-20', writtenAt: Date.parse('2026-07-20T22:00:00+09:00'), opensOn: '2026-10-28', text: '100일 뒤의 나야,\n여름엔 많이 지쳤었어. 지금은 괜찮지?' }
+  const read = { writtenOn: '2025-09-01', writtenAt: Date.parse('2025-09-01T22:00:00+09:00'), opensOn: '2025-10-01', text: '한 달 뒤의 나에게 <b>안녕</b>', readAt: Date.parse('2025-10-01T09:00:00+09:00') }
+  const waiting = { writtenOn: '2026-10-20', writtenAt: Date.parse('2026-10-20T22:00:00+09:00'), opensOn: '2026-11-20', text: '아직 열리면 안 되는 편지' }
+  const letters = [read, arrived, waiting]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, letters })])
+  await page.reload()
+  await expect(page.getByTestId('mailbox')).toHaveAttribute('data-waiting', 'true')
+  await zoomToPlaza(page, 4)
+  await finishAnimations(page)
+  // 깃발이 살랑여 상자가 흔들리니 멈추고 누른다
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.getByTestId('mailbox').click()
+  await finishAnimations(page)
+
+  // 도착한 편지는 글을 숨긴 채 "열어 보기", 기다리는 편지도 글을 숨긴다
+  await expect(page.getByTestId(`letter-${arrived.writtenAt}`)).toContainText('💌 100일 전의 내가 보낸 편지')
+  await expect(page.getByTestId('letters')).not.toContainText('여름엔')
+  await expect(page.getByTestId('letters')).not.toContainText('열리면 안 되는')
+  // 받은 편지는 글이 그대로(꺾쇠도 글자 그대로) 보인다
+  await expect(page.getByTestId(`letter-text-${read.writtenAt}`)).toHaveText(read.text)
+  await expect(page.getByTestId(`letter-${read.writtenAt}`)).toContainText('💌 422일 전의 내가')
+  const open = page.getByTestId(`letter-open-${arrived.writtenAt}`)
+  expect((await open.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/letters-arrived.png' })
+
+  await open.click()
+  await expect(page.getByTestId('letters-arrived')).toHaveCount(0)
+  await expect(page.getByTestId(`letter-text-${arrived.writtenAt}`)).toHaveText(arrived.text)
+  await expect(page.getByTestId('letters')).not.toContainText('열리면 안 되는')
+  await page.screenshot({ path: 'test-results/screens/letters-received.png' })
+  const saved = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(saved.entries).toEqual(entries)
+  expect(saved.letters[0]).toEqual(read)
+  expect(saved.letters[2]).toEqual(waiting)
+  expect(saved.letters[1]).toEqual({ ...arrived, readAt: saved.letters[1].readAt })
+  expect(saved.letters[1].readAt).toBeGreaterThanOrEqual(Date.parse('2026-10-28T13:00:00+09:00'))
+})

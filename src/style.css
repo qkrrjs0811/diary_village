@@ -111,6 +111,43 @@ button { font: inherit; color: inherit; }
 .sheet[data-testid='settings'] { max-height: 92vh; overflow-y: auto; }
 
 .sheet.book { max-height: 92vh; overflow-y: auto; }
+/* 편지 창(광장 우체통) */
+.sheet.letters { max-height: 92vh; overflow-y: auto; }
+.sheet .letter-input { display: block; height: auto; min-height: 84px; padding: 10px 14px; line-height: 1.5; resize: none; }
+.letter-waits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.letter-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: #fffaf0;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.letter-wait b { font-size: 14px; }
+.letter-wait small { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+.letter-wait[aria-pressed="true"] { border-color: var(--accent); background: #eaf6ee; }
+.letter-wait:disabled { opacity: 0.45; cursor: default; }
+.settings-btn.build { color: var(--accent-ink); background: var(--accent); }
+.settings-btn.build:disabled { background: #cfd8cf; opacity: 1; }
+.letter-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.letter-none { margin: 0; }
+.letter-row { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border: 1px solid rgba(90, 70, 54, 0.2); border-radius: 18px; background: #fffaf0; }
+.letter-row.waiting { border-style: dashed; }
+.letter-row.arrived { background: #fff3cf; }
+.letter-main { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.letter-when { font-size: 14px; word-break: keep-all; }
+.letter-from { font-size: 12px; color: var(--ink-soft); }
+.letter-text { margin: 6px 0 2px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.letter-actions { display: flex; flex: none; align-items: center; gap: 4px; align-self: flex-start; }
+.letter-erase { width: 44px; height: 44px; border: none; border-radius: 50%; background: none; font-size: 16px; cursor: pointer; }
+.letter-erase:active { background: var(--chip); }
+.letter-open { height: 44px; padding: 0 14px; border: none; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 700; cursor: pointer; }
 .book-stage { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 14px; border-radius: 18px; background: var(--chip); }
 .book-stage-icon { font-size: 32px; line-height: 1; }
 .book-stage b { font-size: 14px; }
@@ -607,6 +644,10 @@ button { font: inherit; color: inherit; }
 .treasure-flag .heart { transform-box: fill-box; transform-origin: 100% 40%; animation: flutter 2.8s ease-in-out infinite alternate; }
 @keyframes flutter { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
 @media (prefers-reduced-motion: reduce) { .treasure-flag .heart { animation: none; } }
+/* 광장 우체통: 기다리는 편지가 있으면 노란 깃발이 살랑인다 */
+.postbox { cursor: pointer; }
+.post-flag path { transform-box: fill-box; transform-origin: 0% 50%; animation: flutter 2.4s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .post-flag path { animation: none; } }
 .landmark { cursor: pointer; }
 .landmark.pop { transform-box: fill-box; transform-origin: 50% 100%; animation: pop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0s) both; }
 .blades { animation: spin 14s linear infinite; }
@@ -681,4 +722,4 @@ button { font: inherit; color: inherit; }
 .sheet-btn.build:disabled { background: #cfd8cf; }
 .sheet-btn.erase { color: #ffffff; background: #e39a8f; }
 .erase-text { opacity: 0.75; }
-.erase-note { margin: 0 0 4px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+.erase-note { margin: 0 0 4px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); word-break: keep-all; }
