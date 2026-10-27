@@ -935,7 +935,23 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(page.getByTestId('book-landmark-detail')).toHaveText('🪣 우물 · 한 줄을 7일 남겨 생겼어요')
   await page.getByTestId('book-garden').click()
   await expect(page.getByTestId('book-landmark-detail')).toHaveText('❔ 2일 더 쓰면 광장에 새 명소가 생겨요')
+  // 꾸밈 소품: 12일이면 다섯 개가 열렸다
+  await expect(page.getByTestId('book-decor-count')).toHaveText('5 / 12')
+  await expect(page.getByTestId('book-decor-mailbox')).toHaveAttribute('data-found', 'true')
+  await expect(page.getByTestId('book-decor-fence').locator('.book-name')).toHaveText('16일')
+  for (const id of ['book-decor-pot', 'book-decor-tent']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.width).toBeGreaterThanOrEqual(44)
+  }
+  await page.getByTestId('book-decor-bench').click()
+  await expect(page.getByTestId('book-decor-detail')).toHaveText('🪑 벤치 · 한 줄을 4일 남겨 열렸어요')
+  await page.getByTestId('book-decor-fence').click()
+  await expect(page.getByTestId('book-decor-detail')).toHaveText('❔ 4일 더 쓰면 새 소품이 열려요')
   await page.waitForTimeout(400)
+  await page.getByTestId('book-decors').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/book-decor.png' })
+  await page.getByTestId('book-stage').scrollIntoViewIfNeeded()
   // 수첩이 화면 안에 다 들어온다
   const sheet = (await book.boundingBox())!
   expect(sheet.y).toBeGreaterThanOrEqual(0)
@@ -966,4 +982,39 @@ test('빈 마을의 수첩은 모두 힌트 칸이다', async ({ page }) => {
   await expect(page.locator('[data-testid="book"] [data-found="true"]')).toHaveCount(0)
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/screens/book-empty.png' })
+})
+
+test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알려 준다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-10-24', 3)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-decor-count')).toHaveText('1 / 12')
+  await expect(page.getByTestId('book-decor-bench').locator('.book-name')).toHaveText('4일')
+  await page.getByTestId('book-close').click()
+
+  // 넷째 날을 쓰면 카페와 함께 벤치가 열렸다고 두 줄로 알려 준다
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
+  await page.getByTestId('write-submit').click()
+  const note = page.getByTestId('build-note')
+  await expect(note).toHaveText("☕ '커피'를 찾아 카페가 생겼어요\n🪑 꾸밈 소품 벤치가 열렸어요")
+  await page.clock.runFor(1500)
+  await finishAnimations(page)
+  const box = (await note.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  expect(box.height).toBeGreaterThan(40) // 두 줄
+  await page.screenshot({ path: 'test-results/screens/decor-note.png' })
+  await page.clock.runFor(6000)
+  await expect(note).toBeHidden()
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-decor-count')).toHaveText('2 / 12')
+  await expect(page.getByTestId('book-decor-bench').locator('.book-name')).toHaveText('벤치')
+  // 소품은 기록에서 계산한다(저장은 기록뿐)
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(['entries', 'version'])
 })

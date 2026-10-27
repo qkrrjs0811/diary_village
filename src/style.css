@@ -78,6 +78,7 @@ button { font: inherit; color: inherit; }
 .book-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
 .sheet.book .settings-group { padding: 12px; }
 .book-grid.seven { grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.book-grid.six { grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .book-cell {
   display: flex;
   flex-direction: column;
@@ -173,7 +174,9 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 4px 14px rgba(90, 70, 54, 0.12);
   font-size: 14px;
   font-weight: 600;
-  white-space: nowrap;
+  /* 지은 건물과 새로 열린 소품은 줄을 나눠 보인다 */
+  white-space: pre;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;

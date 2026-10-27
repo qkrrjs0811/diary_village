@@ -11,6 +11,7 @@ import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, t
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
+import { decorNote, reachedDecors } from './core/decor'
 import { createBook } from './ui/book'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
@@ -183,7 +184,9 @@ const card = createWriteCard({
     const before = builtDays(save)
     save = r.save
     render(r.entry.date)
-    showNote(buildingNote(buildingOf(r.entry)))
+    // 지은 건물과 새로 열린 꾸밈 소품을 한 알림에 줄을 나눠 보인다
+    const notes = [buildingNote(buildingOf(r.entry)), decorNote(reachedDecors(before, builtDays(save)))].filter(Boolean)
+    showNote(notes.length ? notes.join('\n') : null)
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
     return null
   },
