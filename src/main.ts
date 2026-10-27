@@ -8,6 +8,7 @@ import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
 import { LANDMARKS, celebration, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
 import { createSettings } from './ui/settings'
@@ -146,12 +147,21 @@ const camera = createCamera(svg, (target) => {
   const id = target.closest('.landmark')?.getAttribute('data-landmark')
   const landmark = LANDMARKS.find((l) => l.id === id)
   if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
+  const rid = target.closest('.resident')?.getAttribute('data-resident')
+  const resident = RESIDENTS.find((r) => r.id === rid)
+  if (resident) {
+    const tap = taps.get(resident.id) ?? 0
+    taps.set(resident.id, tap + 1)
+    return showNote(`${resident.name}: “${residentLine(resident, save.entries, dayKey(Date.now()), tap)}”`, 0)
+  }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
   if (entry) reader.open(entry)
 })
 
 let shownDay = ''
+/** 주민마다 누른 횟수(누를 때마다 다른 한마디). 저장하지 않는다 */
+const taps = new Map<string, number>()
 
 const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
@@ -178,6 +188,7 @@ function render(newDate?: string) {
     buildDelay: newDate && !calm ? SHOW.go : 0,
     landmarks: earnedLandmarks(save.entries),
     sign: nextSign(save.entries),
+    walks: residentWalks(village, residentsOf(save.entries)),
   })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))

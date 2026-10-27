@@ -4,6 +4,7 @@ import { BLOCK_H, BLOCK_W, ROAD, hash, houseLook, type Block, type Lot, type Vil
 import type { Entry } from '../core/types'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
+import type { Walk } from '../core/resident'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -651,6 +652,54 @@ function drawNextSign(g: Element, l: Landmark, lines: [string, string]) {
   t2.textContent = lines[1]
 }
 
+/** 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다 */
+function drawResident(g: Element, walk: Walk) {
+  const { resident: r, from, to } = walk
+  const a = iso(from.gx, from.gy)
+  const b = iso(to.gx, to.gy)
+  const dx = b.x - a.x
+  const seed = hash(r.id)
+  const face = dx >= 0 ? 1 : -1
+  const res = el('g', {
+    class: 'resident',
+    'data-testid': `resident-${r.id}`,
+    'data-resident': r.id,
+    style: `--dx:${dx.toFixed(1)}px;--dy:${(b.y - a.y).toFixed(1)}px;--dur:${9 + (seed % 5)}s;--lag:-${seed % 9}s;--f0:${face};--f1:${-face}`,
+  }, g)
+  const stroll = el('g', { class: 'stroll' }, res)
+  // 누르기 쉬운 넓은 투명 영역(가까이 보면 손가락보다 크다)
+  el('ellipse', { cx: a.x, cy: a.y - 8, rx: 13, ry: 12, fill: 'transparent', class: 'hit' }, stroll)
+  el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, stroll)
+  const turn = el('g', { class: 'face' }, stroll)
+  const body = el('g', { class: 'hop', style: `animation-delay:-${(seed % 7) / 10}s` }, turn)
+  const c = { x: a.x, y: a.y - 7.5 }
+  const ear = shade(r.color, -0.08)
+  if (r.ears === 'bunny') {
+    for (const s of [-1, 1]) {
+      el('ellipse', { cx: c.x + s * 3, cy: c.y - 9, rx: 1.9, ry: 4.6, fill: ear, stroke: LINE, 'stroke-width': 0.8, transform: `rotate(${s * 10} ${c.x + s * 3} ${c.y - 9})` }, body)
+      el('ellipse', { cx: c.x + s * 3, cy: c.y - 9, rx: 0.8, ry: 3, fill: '#ffb8c6', transform: `rotate(${s * 10} ${c.x + s * 3} ${c.y - 9})` }, body)
+    }
+  } else if (r.ears === 'bear') {
+    for (const s of [-1, 1]) el('circle', { cx: c.x + s * 4.6, cy: c.y - 5, r: 2.3, fill: ear, stroke: LINE, 'stroke-width': 0.8 }, body)
+  } else if (r.ears === 'cat') {
+    for (const s of [-1, 1]) el('path', { d: `M${c.x + s * 1.8} ${c.y - 6} l${s * 3} -4.5 l${s * 2} 5.5 z`, fill: ear, stroke: LINE, 'stroke-width': 0.8, 'stroke-linejoin': 'round' }, body)
+  }
+  // 발 두 개와 동그란 몸
+  for (const s of [-1, 1]) el('ellipse', { cx: c.x + s * 2.6, cy: a.y - 0.6, rx: 2, ry: 1.2, fill: shade(r.color, -0.15), stroke: LINE, 'stroke-width': 0.6 }, body)
+  el('circle', { cx: c.x, cy: c.y, r: 6.6, fill: r.color, stroke: LINE }, body)
+  el('ellipse', { cx: c.x - 2.2, cy: c.y - 2.8, rx: 2, ry: 1.3, fill: 'rgba(255,255,255,0.7)' }, body)
+  if (r.ears === 'leaf') {
+    el('path', { d: `M${c.x} ${c.y - 6.4} q-0.4 -2.6 0.6 -3.6`, fill: 'none', stroke: '#6bb879', 'stroke-width': 0.9 }, body)
+    el('path', { d: `M${c.x + 0.6} ${c.y - 9.8} q3.6 -1.8 5 0.6 q-3 2.2 -5 -0.6 z`, fill: '#9ed39b', stroke: LINE, 'stroke-width': 0.6 }, body)
+  } else if (r.ears === 'none') {
+    el('path', { d: `M${c.x - 1} ${c.y - 6.4} q1.6 -3.6 3.6 -1.4`, fill: 'none', stroke: shade(r.color, -0.3), 'stroke-width': 1, 'stroke-linecap': 'round' }, body)
+  }
+  // 얼굴은 걷는 쪽(오른쪽)을 본다
+  for (const ex of [0.6, 3.6]) el('circle', { cx: c.x + ex, cy: c.y - 0.4, r: 0.75, fill: '#5a4636' }, body)
+  el('path', { d: `M${c.x + 1.4} ${c.y + 1.6} q0.7 0.7 1.4 0`, fill: 'none', stroke: '#5a4636', 'stroke-width': 0.6, 'stroke-linecap': 'round' }, body)
+  for (const ex of [-1.2, 5]) el('ellipse', { cx: c.x + ex, cy: c.y + 1.3, rx: 1.3, ry: 0.8, fill: '#ffaab8', opacity: 0.8 }, body)
+}
+
 /** 짓는 순간의 반짝임과 작은 먼지. 집 위에 따로 그려 집과 함께 늘어나지 않게 한다 */
 function drawBuildFx(fx: Element, lot: Lot, H: number) {
   const { gx, gy } = lot
@@ -688,6 +737,8 @@ export interface DrawOptions {
   landmarks?: Landmark[]
   /** 다음 명소 팻말. 모두 얻었으면 없다 */
   sign?: { landmark: Landmark; lines: [string, string] } | null
+  /** 주민이 걷는 길(누적 날 수로 계산) */
+  walks?: Walk[]
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -717,6 +768,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     const s = landmarkSpot(landmark)
     items.push({ depth: s.gx + s.gy, draw: () => drawNextSign(things, landmark, lines) })
   }
+  for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
   for (const [col, row] of [[0, 0], [6, 0], [0, 5]]) {
     const gx = PLAZA.gx + col
     const gy = PLAZA.gy + row

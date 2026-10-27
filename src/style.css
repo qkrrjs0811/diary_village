@@ -263,6 +263,25 @@ button { font: inherit; color: inherit; }
 .celebrate-title { font-size: 19px; font-weight: 700; }
 .celebrate-body { margin: 10px 0 4px; font-size: 15px; line-height: 1.5; word-break: keep-all; }
 .celebrate-next { margin: 0 0 18px; font-size: 13px; color: var(--ink-soft); word-break: keep-all; }
+/* 주민: 한 칸 길을 천천히 오가며(끝에서 잠깐 쉬고 돌아선다) 통통 걷는다 */
+.resident { cursor: pointer; }
+.resident .stroll { animation: stroll var(--dur, 10s) ease-in-out var(--lag, 0s) infinite; }
+@keyframes stroll {
+  0%, 8% { transform: translate(0, 0); }
+  42%, 58% { transform: translate(var(--dx), var(--dy)); }
+  92%, 100% { transform: translate(0, 0); }
+}
+.resident .face { transform-box: fill-box; transform-origin: 50% 100%; transform: scaleX(var(--f0)); animation: face var(--dur, 10s) steps(1, end) var(--lag, 0s) infinite; }
+@keyframes face {
+  0% { transform: scaleX(var(--f0)); }
+  50% { transform: scaleX(var(--f1)); }
+  100% { transform: scaleX(var(--f1)); }
+}
+.resident .hop { animation: hop 0.5s ease-in-out infinite alternate; }
+@keyframes hop { to { transform: translateY(-1.6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .resident .stroll, .resident .face, .resident .hop { animation: none; }
+}
 .landmark { cursor: pointer; }
 .landmark.pop { transform-box: fill-box; transform-origin: 50% 100%; animation: pop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0s) both; }
 .blades { animation: spin 14s linear infinite; }

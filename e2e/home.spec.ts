@@ -585,3 +585,52 @@ test('365일을 쓴 마을에는 명소 7곳이 모두 서고, 가져오기로 �
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
   await page.screenshot({ path: 'test-results/screens/plaza-all.png' })
 })
+
+test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한마디 한다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  await expect(page.getByTestId('today-spot')).toBeVisible()
+  await expect(page.locator('.resident')).toHaveCount(0)
+
+  // 첫 한 줄을 쓰면 첫 주민이 오늘 구역 길에 온다
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('라떼 한 잔 마신 날')
+  await page.getByTestId('write-submit').click()
+  await expect(page.locator('.resident')).toHaveCount(1)
+  await page.clock.runFor(4000)
+  await finishAnimations(page)
+  const kong = page.getByTestId('resident-kong')
+  await expect(kong).toBeInViewport()
+  // 걷는 중이다
+  const walking = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'stroll' && a.playState === 'running'))
+  expect(walking).toBe(true)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/resident-first.png' })
+
+  // 누르면 짧은 한마디. 다시 누르면 다른 말
+  await kong.click({ force: true })
+  await expect(page.getByTestId('build-note')).toHaveText('콩이: “새로 생긴 카페에 가 봤어요!”')
+  const box = (await page.getByTestId('build-note').boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'test-results/screens/resident-talk.png' })
+  await kong.click({ force: true })
+  await expect(page.getByTestId('build-note')).not.toHaveText('콩이: “새로 생긴 카페에 가 봤어요!”')
+  await expect(page.getByTestId('build-note')).toContainText('콩이: “')
+
+  // 40일을 쓴 마을에는 주민 10명이 오늘 구역 길과 광장을 걷는다
+  const entries = dayEntries('2026-09-18', 40)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.locator('.resident')).toHaveCount(10)
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/residents-town.png' })
+  await zoomToPlaza(page, 3)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/residents-plaza.png' })
+
+  // 다시 열어도 주민은 그대로(마을은 기록에서 계산한다)
+  await page.reload()
+  await expect(page.locator('.resident')).toHaveCount(10)
+})
