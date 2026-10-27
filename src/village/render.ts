@@ -16,6 +16,8 @@ export const TW = 48
 export const TH = 24
 const FLOOR_H = 17
 const SLAB_DEPTH = 12
+/** 구역 이름표 팻말판 아래 끝이 땅에서 뜬 높이(뒤쪽 모서리 옆 집 지붕보다 높게) */
+const SIGN_LIFT = 62
 const LINE = 'rgba(90, 70, 54, 0.35)'
 /** 낮의 창문(맑은 유리). 저녁·밤에는 CSS가 .win에 불을 켠다 */
 const WIN = '#dcecee'
@@ -100,12 +102,16 @@ function drawSlab(g: Element, labels: Element, block: Block) {
     GRASS[season],
     { rx: 6 },
   )
-  // 구역 이름표: 길 위 왼쪽 위 모서리에 "10월"
-  const label = iso(x0 + 0.1, y0 + 0.1)
+  // 구역 이름표: 뒤쪽 모서리에 선 긴 팻말 "10월". 팻말판은 가장 높은 지붕(등대)보다 위에 떠서
+  // 집이 빽빽해도 지붕을 가리지 않고, 기둥은 땅과 함께 그려 집 뒤로 숨는다
+  const foot = iso(x0, y0)
+  const signTop = foot.y - SIGN_LIFT
+  el('rect', { x: foot.x - 1.5, y: signTop, width: 3, height: SIGN_LIFT, rx: 1.5, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, g)
+  el('ellipse', { cx: foot.x, cy: foot.y, rx: 4, ry: 2, fill: 'rgba(90,70,54,0.18)' }, g)
   const m = Number(block.month.slice(5, 7))
   const sign = el('g', { class: 'month-sign', 'data-testid': `month-${block.month}` }, labels)
-  el('rect', { x: label.x - 20, y: label.y - 4, width: 40, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
-  const t = el('text', { x: label.x, y: label.y + 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
+  el('rect', { x: foot.x - 20, y: signTop - 18, width: 40, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
+  const t = el('text', { x: foot.x, y: signTop - 5, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
   t.textContent = `${m}월`
 }
 
@@ -1476,7 +1482,8 @@ export function blockView(block: Block): { x: number; y: number; w: number; h: n
   const y0 = block.by * (BLOCK_H + ROAD) - ROAD / 2
   const left = iso(x0, y0 + BLOCK_H + ROAD).x
   const right = iso(x0 + BLOCK_W + ROAD, y0).x
-  const top = iso(x0, y0).y - 50
+  // 위쪽은 뒤쪽 모서리 팻말판까지 담는다
+  const top = iso(x0, y0).y - SIGN_LIFT - 18
   const bottom = iso(x0 + BLOCK_W + ROAD, y0 + BLOCK_H + ROAD).y + SLAB_DEPTH
   const pad = 14
   return { x: left - pad, y: top - pad, w: right - left + pad * 2, h: bottom - top + pad * 2 }

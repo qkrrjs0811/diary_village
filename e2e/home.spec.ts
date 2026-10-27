@@ -145,6 +145,20 @@ test('설정 창에서 소리를 끄면 다시 열어도 꺼져 있고, 집을 �
   expect(saved.entries).toHaveLength(1)
 })
 
+/** 이름표 상자가 어느 집 상자와도 겹치지 않는다 */
+async function expectSignClear(page: import('@playwright/test').Page, sign: string) {
+  const s = (await page.getByTestId(sign).boundingBox())!
+  const houses = await page.locator('[data-testid^="house-20"]').evaluateAll((list) =>
+    list.map((h) => {
+      const r = h.getBoundingClientRect()
+      return { id: h.getAttribute('data-testid'), x: r.x, y: r.y, w: r.width, h: r.height }
+    }),
+  )
+  expect(houses.length).toBeGreaterThan(0)
+  const hit = houses.filter((h) => h.x < s.x + s.width && s.x < h.x + h.w && h.y < s.y + s.height && s.y < h.y + h.h)
+  expect(hit.map((h) => h.id)).toEqual([])
+}
+
 test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
@@ -166,6 +180,9 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   expect(above).toBeGreaterThan(below)
   await expect(page.getByTestId('today-spot')).toBeInViewport()
   await expect(page.getByTestId('house-2026-10-26')).toBeInViewport()
+  // 구역 이름표는 화면 안에 보이고, 빽빽한 집 지붕을 가리지 않는다
+  await expect(page.getByTestId('month-2026-10')).toBeInViewport()
+  await expectSignClear(page, 'month-2026-10')
   await page.screenshot({ path: 'test-results/screens/home-month.png' })
 
   // 멀리 보고 끌어서 지난달 구역을 본다
@@ -179,6 +196,26 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   await expect(page.getByTestId('month-2026-09')).toBeInViewport()
   await expect(page.getByTestId('reader')).toBeHidden() // 끌기는 누름이 아니다
   await page.screenshot({ path: 'test-results/screens/home-drag.png' })
+})
+
+test('일요일에 시작해 날마다 쓴 달도 구역 이름표가 뒤쪽 첫 줄의 높은 등대를 가리지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-30T12:00:00+09:00') })
+  await page.goto('./')
+  // 2026년 11월 1일은 일요일이라 뒤쪽 모서리 첫 칸부터 집이 선다. 첫 줄은 모두 등대
+  const entries = monthEntries('2026-11', Array.from({ length: 30 }, (_, i) => i + 1)).map((e, i) => (i < 7 || i % 7 === 0 ? { ...e, text: `바닷가 ${e.text}` } : e))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 30채')
+  await expect(page.getByTestId('house-2026-11-01')).toHaveAttribute('data-building', 'lighthouse')
+  await expectSignClear(page, 'month-2026-11')
+  // 조금 멀리 봐서 이름표와 뒤쪽 집을 함께 찍는다
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(300)
+  await expect(page.getByTestId('month-2026-11')).toBeInViewport()
+  await expectSignClear(page, 'month-2026-11')
+  await page.screenshot({ path: 'test-results/screens/month-sign-dense.png' })
 })
 
 test('달 첫날에 열어도 이달 섬이 화면 가운데에 와서 빈 하늘이 한쪽으로 몰리지 않는다', async ({ page }) => {
