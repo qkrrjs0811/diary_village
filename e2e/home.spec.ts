@@ -1798,3 +1798,34 @@ test('잔치 날 처음 열면 잔치 카드가 한 번 뜨고, 누르면 축하
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([KEY])
 })
+
+test('집·건물 바로 앞 칸에는 나무 대신 꽃·풀이 나서 집을 가리지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-31T21:00:00+09:00') })
+  await page.goto('./')
+  const days = Array.from({ length: 31 }, (_, i) => i + 1)
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', days) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  await expect(page.getByTestId('house-2026-10-31')).toBeVisible()
+  await page.getByTestId('celebrate-close').click() // 10월 31일은 호박 축제
+
+  // 2026년 10월 1일은 목요일: d일의 칸은 (요일, 몇째 주)
+  const lots = new Set(days.map((d) => `${(3 + d) % 7},${Math.floor((3 + d) / 7)}`))
+  const cells = async (sel: string) =>
+    (await page.locator(sel).evaluateAll((els) => els.map((e) => e.getAttribute('data-cell') ?? ''))).map((c) => c.split(',').map(Number))
+  const trees = (await cells('.tree')).filter(([, gy]) => gy < 6) // 10월 구역(광장 위)
+  expect(trees.length).toBeGreaterThan(0)
+  for (const [gx, gy] of trees) {
+    for (const [c, r] of [[gx - 1, gy], [gx, gy - 1], [gx - 1, gy - 1]]) expect(lots.has(`${c},${r}`)).toBe(false)
+  }
+  // 여섯째 주 줄은 달력 밖이고 다섯째 주 집들 바로 앞이라 나무가 없고 꽃·풀이 난다
+  expect(trees.filter(([, gy]) => gy === 5)).toEqual([])
+  expect((await cells('.meadow')).filter(([, gy]) => gy === 5).length).toBeGreaterThan(0)
+
+  const house = (await page.getByTestId('house-2026-10-27').boundingBox())!
+  await page.mouse.move(house.x + house.width / 2, house.y + house.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -200)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/houses-front-clear.png' })
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})

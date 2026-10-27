@@ -8,6 +8,7 @@ import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import type { Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
+import { PLAZA_TREES, blockScenery } from '../core/scenery'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -122,7 +123,13 @@ function drawTree(g: Element, gx: number, gy: number, season: Season, seed: numb
   if (season === 'winter') el('ellipse', { cx: c.x, cy: c.y - 16 - size, rx: size * 0.7, ry: size * 0.35, fill: '#ffffff' }, tree)
 }
 
-function drawFlowers(g: Element, gx: number, gy: number, seed: number) {
+/** 작은 꽃과 풀 포기(빈 날, 집 바로 앞 칸) */
+function drawFlowers(parent: Element, gx: number, gy: number, seed: number) {
+  const g = el('g', { class: 'meadow', 'data-cell': `${gx},${gy}` }, parent)
+  for (const [u, v] of [[0.3, 0.7], [0.68, 0.38]]) {
+    const p = iso(gx + u, gy + v)
+    el('path', { d: `M${p.x - 3},${p.y} q1,-4 2,-5 M${p.x},${p.y} v-6 M${p.x + 3},${p.y} q-1,-4 -2,-5`, stroke: '#7fb36b', 'stroke-width': 1.2, 'stroke-linecap': 'round', fill: 'none' }, g)
+  }
   const colors = ['#ffffff', '#ffd6e2', '#fff1a8']
   for (let i = 0; i < 3; i++) {
     const u = 0.25 + ((seed >>> (i * 4)) % 6) / 10
@@ -1396,7 +1403,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   }
   // 빈 칸 표시는 그 칸의 나무보다 먼저(뒤에) 그려 땅에 깔린 것처럼 보인다
   for (const s of opt.spots ?? []) items.push({ depth: s.gx + s.gy - 0.5, draw: () => drawSpot(things, s) })
-  for (const [col, row] of [[0, 0], [6, 0], [0, 5]]) {
+  for (const [col, row] of PLAZA_TREES) {
     const gx = PLAZA.gx + col
     const gy = PLAZA.gy + row
     const seed = hash(`plaza:${col}:${row}`)
@@ -1404,34 +1411,27 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   }
   for (const block of village.blocks) {
     const season = seasonOf(block.month)
-    const days = new Map(block.lots.map((l) => [`${l.col},${l.row}`, l]))
-    for (let row = 0; row < BLOCK_H; row++) {
-      for (let col = 0; col < BLOCK_W; col++) {
-        const lot = days.get(`${col},${row}`)
-        const gx = block.bx * (BLOCK_W + ROAD) + col
-        const gy = block.by * (BLOCK_H + ROAD) + row
-        const seed = hash(`${block.month}:${col}:${row}`)
-        const depth = gx + gy
-        if (!lot) {
-          // 그달의 날이 아닌 칸은 나무숲
-          if (seed % 5 < 3 && !decorAt.has(`${gx},${gy}`)) items.push({ depth, draw: () => drawTree(things, gx, gy, season, seed) })
-          continue
-        }
-        if (lot.entry) {
-          const entry = lot.entry
-          const isNew = entry.date === opt.newDate
-          items.push({
-            depth,
-            draw: () => {
-              const H = drawHouse(things, lot, entry, isNew)
-              if (isNew) drawBuildFx(fx, lot, H)
-            },
-          })
-        } else if (lot.date === opt.today) {
-          items.push({ depth, draw: () => drawTodaySpot(things, gx, gy) })
-        } else if (lot.date < opt.today && seed % 3 === 0) {
-          items.push({ depth, draw: () => drawFlowers(ground, gx, gy, seed) })
-        }
+    // 그달의 날이 아닌 칸은 나무숲(집 바로 앞은 꽃·풀), 지난 빈 날은 가끔 꽃
+    for (const s of blockScenery(block, opt.today)) {
+      const { gx, gy, seed } = s
+      if (s.kind === 'flowers') items.push({ depth: gx + gy, draw: () => drawFlowers(ground, gx, gy, seed) })
+      // 소품을 놓은 숲 칸에는 나무를 그리지 않는다
+      else if (!decorAt.has(`${gx},${gy}`)) items.push({ depth: gx + gy, draw: () => drawTree(things, gx, gy, season, seed) })
+    }
+    for (const lot of block.lots) {
+      const depth = lot.gx + lot.gy
+      if (lot.entry) {
+        const entry = lot.entry
+        const isNew = entry.date === opt.newDate
+        items.push({
+          depth,
+          draw: () => {
+            const H = drawHouse(things, lot, entry, isNew)
+            if (isNew) drawBuildFx(fx, lot, H)
+          },
+        })
+      } else if (lot.date === opt.today) {
+        items.push({ depth, draw: () => drawTodaySpot(things, lot.gx, lot.gy) })
       }
     }
   }

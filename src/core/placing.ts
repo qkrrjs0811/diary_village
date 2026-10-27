@@ -2,6 +2,7 @@ import { addDays } from './date'
 import { isDecorId, unlockedDecors, type DecorId } from './decor'
 import { builtDays } from './entries'
 import { LANDMARKS, PLAZA } from './landmark'
+import { PLAZA_TREES } from './scenery'
 import type { PlacedDecor, SaveData } from './types'
 import { BLOCK_H, BLOCK_W, ROAD, type Village } from './village'
 
@@ -30,7 +31,7 @@ const sameSpot = (a: DecorPlace, b: DecorPlace) => a.at === b.at && a.col === b.
 function plazaFree(col: number, row: number): boolean {
   if (col === 3 || row === 2 || row === 3) return false
   if (LANDMARKS.some((l) => l.col === col && l.row === row)) return false
-  return ![[0, 0], [6, 0], [0, 5]].some(([c, r]) => c === col && r === row)
+  return !PLAZA_TREES.some(([c, r]) => c === col && r === row)
 }
 
 /**
