@@ -12,7 +12,7 @@ import { dateLabel } from './format'
 export function createBook(handlers: {
   /** 소품 칸 아래 "마을 꾸미기"로 꾸미기 모드에 들어간다. 저장을 못 쓰면 null */
   onDecorate: (() => void) | null
-  /** 단계 칸 아래 "기분 달력 보기"로 달력을 연다 */
+  /** 단계 칸 아래 "기분 달력 · 찾기"로 달력(위에 찾기 칸이 있다)을 연다 */
   onCalendar: () => void
 }) {
   const back = document.createElement('div')
@@ -40,7 +40,7 @@ export function createBook(handlers: {
         <span class="book-stage-icon" aria-hidden="true">${stage.icon}</span>
         <div><b></b><p></p></div>
       </div>
-      <button type="button" class="sheet-btn book-calendar" data-testid="book-calendar">📅 기분 달력 보기</button>
+      <button type="button" class="sheet-btn book-calendar" data-testid="book-calendar">📅 기분 달력 · 🔍 찾기</button>
       <div class="settings-group">
         <div class="settings-label">건물 도감 <span class="book-count" data-testid="book-count">${found} / ${items.length}</span></div>
         <div class="book-grid" data-testid="book-buildings">

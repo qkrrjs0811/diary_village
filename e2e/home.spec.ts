@@ -1275,3 +1275,84 @@ test('마을 수첩에서 기분 달력을 열어 달을 넘기고, 칠한 날�
   expect(Object.keys(saved).sort()).toEqual(['entries', 'erased', 'version'])
   expect(saved.entries).toHaveLength(entries.length)
 })
+
+test('기분 달력 위 찾기 칸에 말을 넣으면 그 말이 든 지난 한 줄을 찾고, 누르면 그 집으로 간다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  const say: Record<string, string> = {
+    '2026-09-03': '비 오는 날 Coffee 한 잔',
+    '2026-09-12': '바다를 보러 갔다',
+    '2026-10-05': '커피 마시고 산책했다',
+    '2026-10-20': '<b>새 커피집</b>에서 친구와 수다',
+  }
+  const entries = [...monthEntries('2026-09', [3, 12]), ...monthEntries('2026-10', [2, 5, 9, 20, 26])].map((e) => ({ ...e, text: say[e.date] ?? e.text }))
+  const erased = [{ date: '2026-10-10', erasedAt: Date.parse('2026-10-11T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-calendar')).toContainText('찾기')
+  await page.getByTestId('book-calendar').click()
+  const search = page.getByTestId('calendar-search')
+  await expect(search).toBeInViewport()
+  expect((await search.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(page.getByTestId('calendar-days')).toBeVisible()
+
+  // 커피를 찾으면 달력 대신 최근 날부터 찾은 한 줄이 보이고, 찾은 말이 칠해진다
+  await search.fill('커피')
+  await expect(page.getByTestId('calendar-days')).toHaveCount(0)
+  await expect(page.getByTestId('search-count')).toHaveText('"커피" · 한 줄 2개를 찾았어요')
+  const hits = page.getByTestId('search-hits').locator('.cal-hit')
+  await expect(hits).toHaveCount(2)
+  await expect(hits.nth(0)).toHaveAttribute('data-testid', 'hit-2026-10-20')
+  await expect(hits.nth(1)).toHaveAttribute('data-testid', 'hit-2026-10-05')
+  // 글 속 꺾쇠는 글자 그대로 보인다
+  await expect(page.getByTestId('hit-2026-10-20')).toContainText('<b>새 커피집</b>에서')
+  await expect(page.getByTestId('hit-2026-10-20').locator('mark')).toHaveText('커피')
+  await expect(page.getByTestId('hit-2026-10-20')).toContainText('2026년 10월 20일 화요일')
+  for (const id of ['hit-2026-10-20', 'hit-2026-10-05', 'calendar-search-clear', 'calendar-close']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/search.png' })
+
+  // 영어는 대소문자를 가리지 않고, 두 말은 모두 든 글만 찾는다
+  await search.fill('coffee 비')
+  await expect(hits).toHaveCount(1)
+  await expect(hits.nth(0)).toHaveAttribute('data-testid', 'hit-2026-09-03')
+  await expect(page.getByTestId('hit-2026-09-03').locator('mark')).toHaveText(['비', 'Coffee'])
+
+  // 없는 말이면 다정하게 알려 준다
+  await search.fill('등산')
+  await expect(hits).toHaveCount(0)
+  await expect(page.getByTestId('search-count')).toHaveText('"등산"이(가) 들어간 한 줄은 아직 없어요')
+  await page.screenshot({ path: 'test-results/screens/search-none.png' })
+
+  // 지우기 단추로 비우면 달력으로 돌아온다
+  await page.getByTestId('calendar-search-clear').click()
+  await expect(search).toHaveValue('')
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  await expect(page.getByTestId('calendar-search-clear')).toBeHidden()
+
+  // 찾은 한 줄을 누르면 창이 닫히고 그 집으로 가서 글을 연다
+  await search.fill('바다')
+  await page.getByTestId('hit-2026-09-12').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('바다를 보러 갔다')
+  await page.getByTestId('reader-close').click()
+  await expect(page.getByTestId('house-2026-09-12')).toBeInViewport()
+
+  // 다시 열면 찾기 칸은 비어 있고 달력이 보인다
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await expect(search).toHaveValue('')
+  await expect(page.getByTestId('calendar-days')).toBeVisible()
+
+  // 찾기는 저장에 아무것도 더하지 않는다
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'erased', 'version'])
+  expect(saved.entries).toEqual(entries)
+})
