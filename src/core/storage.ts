@@ -1,7 +1,7 @@
 import { isDate } from './date'
 import { isMoodId } from './mood'
 import { isVillageName } from './name'
-import type { Entry, SaveData } from './types'
+import type { Entry, Erased, SaveData } from './types'
 
 /**
  * grow_together 와 같은 사이트(github.io)라 localStorage 를 함께 쓴다.
@@ -42,6 +42,20 @@ export function parseSave(text: string): SaveData | null {
   if (new Set(entries.map((e) => e.date)).size !== entries.length) return null
   entries.sort((a, b) => a.date.localeCompare(b.date))
   const save: SaveData = { version: 1, entries }
+  // 지운 날이 이상하면 그 칸만 버린다. 날짜와 지운 시각만 읽는다(글이 있는 날·겹친 날은 뺀다)
+  if (Array.isArray(x.erased)) {
+    const seen = new Set(entries.map((e) => e.date))
+    const erased: Erased[] = []
+    for (const r of x.erased as unknown[]) {
+      if (typeof r !== 'object' || r === null) continue
+      const { date, erasedAt } = r as Record<string, unknown>
+      if (!isDate(date) || typeof erasedAt !== 'number' || !Number.isFinite(erasedAt) || seen.has(date)) continue
+      seen.add(date)
+      erased.push({ date, erasedAt })
+    }
+    erased.sort((a, b) => a.date.localeCompare(b.date))
+    if (erased.length) save.erased = erased
+  }
   // 이름이 이상하면 그 칸만 버린다(글은 지킨다)
   if (isVillageName(x.villageName)) save.villageName = x.villageName
   return save

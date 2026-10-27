@@ -9,6 +9,8 @@ import { dateLabel, fullDateLabel } from './format'
 export function createReader(handlers: {
   /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 고친 기록을 돌려준다 */
   onEdit: ((date: string, text: string, mood: MoodId) => { error: string } | { entry: Entry }) | null
+  /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 null 을 돌려준다 */
+  onErase: ((date: string) => string | null) | null
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -30,6 +32,7 @@ export function createReader(handlers: {
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
       <div class="sheet-buttons">
         ${handlers.onEdit ? '<button type="button" class="sheet-btn" data-testid="reader-edit">✏️ 고치기</button>' : ''}
+        ${handlers.onErase ? '<button type="button" class="sheet-btn" data-testid="reader-erase">🗑️ 지우기</button>' : ''}
         <button type="button" class="sheet-btn close" data-testid="reader-close">닫기</button>
       </div>`
     sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
@@ -49,6 +52,30 @@ export function createReader(handlers: {
     }
     sheet.querySelector('.close')!.addEventListener('click', close)
     sheet.querySelector('[data-testid="reader-edit"]')?.addEventListener('click', () => showEdit(entry))
+    sheet.querySelector('[data-testid="reader-erase"]')?.addEventListener('click', () => showErase(entry))
+  }
+
+  /** 지우기는 확인을 한 번 더 받는다(기획서 8번) */
+  function showErase(entry: Entry) {
+    sheet.innerHTML = `
+      <div class="reader-date" data-testid="reader-date"></div>
+      <div class="edit-title">이 날의 한 줄을 지울까요?</div>
+      <p class="reader-text erase-text" data-testid="erase-text"></p>
+      <p class="erase-note" data-testid="erase-note">지운 글은 되돌릴 수 없어요. 집은 빈 땅으로 돌아가지만, 명소와 마을 단계는 그대로예요.</p>
+      <div class="hint"><span class="msg err" data-testid="erase-msg"></span></div>
+      <div class="sheet-buttons">
+        <button type="button" class="sheet-btn" data-testid="erase-cancel">그만두기</button>
+        <button type="button" class="sheet-btn erase" data-testid="erase-confirm">지울게요</button>
+      </div>`
+    sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
+    sheet.querySelector('.erase-text')!.textContent = entry.text
+    sheet.querySelector('[data-testid="erase-cancel"]')!.addEventListener('click', () => showRead(entry))
+    sheet.querySelector('[data-testid="erase-confirm"]')!.addEventListener('click', () => {
+      if (!handlers.onErase) return
+      const error = handlers.onErase(entry.date)
+      if (error) sheet.querySelector('[data-testid="erase-msg"]')!.textContent = error
+      else close()
+    })
   }
 
   function showEdit(entry: Entry) {

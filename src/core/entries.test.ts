@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen, editEntry } from './entries'
+import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen, editEntry, eraseEntry, builtDays } from './entries'
+import { earnedLandmarks } from './landmark'
+import { stageOf } from './stage'
 import type { SaveData } from './types'
 
 const empty: SaveData = { version: 1, entries: [] }
@@ -118,5 +120,59 @@ describe('쓴 글 고치기', () => {
     if (!r.ok) return
     expect(r.changed).toBe(false)
     expect(r.entry).toEqual(written.entries[0])
+  })
+})
+
+describe('쓴 글 지우기', () => {
+  const written: SaveData = {
+    version: 1,
+    entries: [
+      { date: '2026-10-20', text: '지울 글', mood: 'blue', writtenAt: 100 },
+      { date: '2026-10-26', text: '남길 글', mood: 'calm', writtenAt: 200 },
+    ],
+  }
+
+  it('글은 남기지 않고 날짜와 지운 시각만 남긴다', () => {
+    const r = eraseEntry(written, '2026-10-20', now)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.save.entries).toEqual([written.entries[1]])
+    expect(r.save.erased).toEqual([{ date: '2026-10-20', erasedAt: now }])
+    expect(JSON.stringify(r.save)).not.toContain('지울 글')
+    // 원래 기록은 건드리지 않는다
+    expect(written.entries).toHaveLength(2)
+  })
+
+  it('쓰지 않은 날은 지울 수 없다', () => {
+    expect(eraseEntry(written, '2026-10-21', now)).toEqual({ ok: false, reason: 'missing' })
+  })
+
+  it('지운 날도 집을 지었던 날로 세어 명소·마을 단계를 빼앗지 않는다', () => {
+    const many: SaveData = {
+      version: 1,
+      entries: Array.from({ length: 10 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, text: '한 줄', mood: 'calm' as const, writtenAt: i })),
+    }
+    const r = eraseEntry(many, '2026-10-03', now)
+    if (!r.ok) throw new Error()
+    const days = builtDays(r.save)
+    expect(days).toHaveLength(10)
+    expect(earnedLandmarks(days).map((l) => l.id)).toEqual(['well'])
+    expect(stageOf(days).name).toBe('마을')
+  })
+
+  it('지운 날(오늘·어제)에 다시 쓰면 지운 표시는 사라지고 날 수는 그대로다', () => {
+    const today: SaveData = { version: 1, entries: [{ date: '2026-10-27', text: '오늘 글', mood: 'calm', writtenAt: 1 }] }
+    const erased = eraseEntry(today, '2026-10-27', now)
+    if (!erased.ok) throw new Error()
+    expect(erased.save.entries).toEqual([])
+    expect(builtDays(erased.save)).toHaveLength(1)
+    const again = writeEntry(erased.save, { text: '다시 쓴 글', mood: 'great' }, now + 1)
+    if (!again.ok) throw new Error()
+    expect(again.save.erased).toBeUndefined()
+    expect(builtDays(again.save)).toHaveLength(1)
+  })
+
+  it('지운 날이 없으면 기록 날짜만 센다', () => {
+    expect(builtDays(written).map((d) => d.date)).toEqual(['2026-10-20', '2026-10-26'])
   })
 })

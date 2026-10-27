@@ -1,7 +1,7 @@
 import { collectionOf, landmarkBook } from '../core/collection'
 import { writtenDays } from '../core/landmark'
 import { nextStage, stageOf } from '../core/stage'
-import type { Entry } from '../core/types'
+import type { Dated, Entry } from '../core/types'
 import { dateLabel } from './format'
 
 /**
@@ -19,13 +19,14 @@ export function createBook() {
     if (e.target === back) close()
   })
 
-  function show(entries: Entry[]) {
-    const days = writtenDays(entries)
-    const stage = stageOf(entries)
-    const next = nextStage(entries)
+  /** built: 집을 지었던 날(지운 날 포함). 단계·명소는 이 날 수로, 도감은 남은 글로 센다 */
+  function show(entries: Entry[], built: Dated[]) {
+    const days = writtenDays(built)
+    const stage = stageOf(built)
+    const next = nextStage(built)
     const items = collectionOf(entries)
     const found = items.filter((c) => c.found).length
-    const marks = landmarkBook(entries)
+    const marks = landmarkBook(built)
     sheet.innerHTML = `
       <div class="edit-title">📖 마을 수첩</div>
       <div class="book-stage" data-testid="book-stage">
@@ -93,8 +94,8 @@ export function createBook() {
 
   return {
     root: back,
-    open(entries: Entry[]) {
-      show(entries)
+    open(entries: Entry[], built: Dated[]) {
+      show(entries, built)
       back.hidden = false
     },
   }

@@ -302,6 +302,65 @@ test('읽기 창에서 쓴 글과 기분을 고친다', async ({ page }) => {
   await expect(page.getByTestId('reader-text')).toHaveText('다시 생각해 보니 조금 쓸쓸한 날')
 })
 
+test('읽기 창에서 쓴 글을 지우면 확인을 한 번 더 받고, 빈 땅이 되어도 명소·단계는 그대로다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [17, 18, 19, 20, 21, 22, 23, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, villageName: '노을 마을' })])
+  await page.reload()
+  await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
+  await expect(page.locator('[data-landmark="well"].landmark')).toHaveCount(1)
+  const gone = entries.find((e) => e.date === '2026-10-25')!
+
+  await page.getByTestId('house-2026-10-25').click()
+  const buttons = ['reader-edit', 'reader-erase', 'reader-close']
+  for (const id of buttons) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(390)
+  }
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-erase-button.png' })
+
+  // 한 번 더 묻고, 그만두면 글은 그대로다
+  await page.getByTestId('reader-erase').click()
+  await expect(page.getByTestId('erase-text')).toHaveText(gone.text)
+  await expect(page.getByTestId('erase-note')).toContainText('명소와 마을 단계는 그대로예요')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/erase-confirm.png' })
+  await page.getByTestId('erase-cancel').click()
+  await expect(page.getByTestId('reader-text')).toHaveText(gone.text)
+  let saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries).toHaveLength(10)
+
+  await page.getByTestId('reader-erase').click()
+  await page.getByTestId('erase-confirm').click()
+  await expect(page.getByTestId('reader')).toBeHidden()
+  await expect(page.getByTestId('build-note')).toHaveText('🌱 10월 25일 자리가 빈 땅으로 돌아갔어요')
+  await expect(page.getByTestId('house-2026-10-25')).toHaveCount(0)
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 9채')
+  // 지운 날도 집을 지었던 날로 센다
+  await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
+  await expect(page.locator('[data-landmark="well"].landmark')).toHaveCount(1)
+  await page.waitForTimeout(800)
+  await page.screenshot({ path: 'test-results/screens/erased.png' })
+
+  // 저장에는 글 없이 날짜와 지운 시각만 남고, 다른 글과 이름은 그대로다
+  saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries).toHaveLength(9)
+  expect(saved.erased).toEqual([{ date: '2026-10-25', erasedAt: expect.any(Number) }])
+  expect(JSON.stringify(saved)).not.toContain(gone.text)
+  expect(saved.villageName).toBe('노을 마을')
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-stage')).toContainText('10일')
+  await page.reload()
+  await expect(page.getByTestId('house-2026-10-25')).toHaveCount(0)
+  await expect(page.getByTestId('house-2026-10-24')).toBeVisible()
+  await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
+})
+
 test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽기 창에 건물 이름이 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

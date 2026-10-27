@@ -1,6 +1,6 @@
 import { BLOCK_H, BLOCK_W, ROAD } from './village'
 import { hasFinal } from './building'
-import type { Entry } from './types'
+import type { Dated } from './types'
 
 export type LandmarkId = 'well' | 'garden' | 'fountain' | 'bridge' | 'clockTower' | 'windmill' | 'bigTree'
 
@@ -37,23 +37,23 @@ export const LANDMARKS: Landmark[] = [
 export const PLAZA = { gx: 0, gy: BLOCK_H + ROAD, w: BLOCK_W, h: BLOCK_H }
 
 /** 지금까지 쓴 날 수(같은 날은 하루) */
-export function writtenDays(entries: Entry[]): number {
+export function writtenDays(entries: Dated[]): number {
   return new Set(entries.map((e) => e.date)).size
 }
 
-export function earnedLandmarks(entries: Entry[]): Landmark[] {
+export function earnedLandmarks(entries: Dated[]): Landmark[] {
   const n = writtenDays(entries)
   return LANDMARKS.filter((l) => l.days <= n)
 }
 
-export function nextLandmark(entries: Entry[]): { landmark: Landmark; left: number } | null {
+export function nextLandmark(entries: Dated[]): { landmark: Landmark; left: number } | null {
   const n = writtenDays(entries)
   const landmark = LANDMARKS.find((l) => l.days > n)
   return landmark ? { landmark, left: landmark.days - n } : null
 }
 
 /** before → after 로 바뀌며 새로 생긴 명소(축하 카드에 쓴다) */
-export function reachedLandmarks(before: Entry[], after: Entry[]): Landmark[] {
+export function reachedLandmarks(before: Dated[], after: Dated[]): Landmark[] {
   const from = writtenDays(before)
   const to = writtenDays(after)
   return LANDMARKS.filter((l) => l.days > from && l.days <= to)
@@ -67,14 +67,14 @@ export function landmarkSpot(l: Landmark): { gx: number; gy: number } {
 const ga = (word: string) => `${word}${hasFinal(word) ? '이' : '가'}`
 
 /** 아직 명소가 없는 자리에 세우는 팻말("7일 더 쓰면 / 우물이 생겨요"). 모두 얻었으면 null */
-export function nextSign(entries: Entry[]): { landmark: Landmark; lines: [string, string] } | null {
+export function nextSign(entries: Dated[]): { landmark: Landmark; lines: [string, string] } | null {
   const next = nextLandmark(entries)
   if (!next) return null
   return { landmark: next.landmark, lines: [`${next.left}일 더 쓰면`, `${ga(next.landmark.name)} 생겨요`] }
 }
 
 /** 명소가 생긴 순간의 축하 카드 문구. reached 는 비어 있지 않다 */
-export function celebration(reached: Landmark[], entries: Entry[]): { title: string; body: string; next: string | null } {
+export function celebration(reached: Landmark[], entries: Dated[]): { title: string; body: string; next: string | null } {
   const title = reached.length === 1 ? `${reached[0].icon} ${ga(reached[0].name)} 생겼어요!` : `🎉 명소 ${reached.length}곳이 생겼어요!`
   const body = `한 줄을 ${writtenDays(entries)}일 남겼어요. 광장에 ${ga(reached.map((l) => l.name).join(', '))} 섰어요.`
   const n = nextLandmark(entries)

@@ -49,3 +49,20 @@ describe('백업 가져오기', () => {
     expect(r).toMatchObject({ ok: true, added: 0, kept: 1 })
   })
 })
+
+describe('지운 날과 백업', () => {
+  it('지운 날도 백업에 담겨 다시 읽힌다', () => {
+    const s: SaveData = { version: 1, entries: [e('2026-10-02', '남은 줄')], erased: [{ date: '2026-10-01', erasedAt: 7 }] }
+    expect(parseSave(backupText(s))).toEqual(s)
+  })
+
+  it('백업의 지운 날은 날 수에 더하고, 폰에서 지운 날의 글이 백업에 있으면 그 글을 되살린다', () => {
+    const phone: SaveData = { version: 1, entries: [e('2026-10-03', '폰')], erased: [{ date: '2026-10-01', erasedAt: 7 }] }
+    const backup: SaveData = { version: 1, entries: [e('2026-10-01', '백업 글')], erased: [{ date: '2026-10-05', erasedAt: 8 }] }
+    const plan = planImport(phone, backupText(backup))
+    if (!plan.ok) throw new Error()
+    expect(plan.save.entries.map((x) => x.text)).toEqual(['백업 글', '폰'])
+    expect(plan.save.erased).toEqual([{ date: '2026-10-05', erasedAt: 8 }])
+    expect(plan.added).toBe(1)
+  })
+})

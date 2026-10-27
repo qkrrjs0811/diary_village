@@ -1,7 +1,7 @@
 import { buildingInfo, buildingOf, hasFinal } from './building'
 import { PLAZA, writtenDays } from './landmark'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
-import type { Entry } from './types'
+import type { Dated, Entry } from './types'
 
 export type Ears = 'none' | 'bunny' | 'bear' | 'cat' | 'leaf'
 
@@ -54,7 +54,7 @@ export const RESIDENTS: Resident[] = ROSTER.map(([id, name, days], i) => ({
   ears: EARS[i % EARS.length],
 }))
 
-export function residentsOf(entries: Entry[]): Resident[] {
+export function residentsOf(entries: Dated[]): Resident[] {
   const n = writtenDays(entries)
   return RESIDENTS.filter((r) => r.days <= n)
 }
@@ -116,7 +116,8 @@ export function residentWalks(village: Village, residents: Resident[]): Walk[] {
 }
 
 /** 주민을 누르면 하는 짧은 한마디. tap 은 지금까지 누른 횟수(0부터) */
-export function residentLine(r: Resident, entries: Entry[], today: string, tap: number): string {
+/** days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다 */
+export function residentLine(r: Resident, entries: Entry[], today: string, tap: number, days: Dated[] = entries): string {
   if (tap === 0) {
     const todays = entries.find((x) => x.date === today)
     if (!todays) return '오늘은 어떤 하루였어요?'
@@ -124,7 +125,7 @@ export function residentLine(r: Resident, entries: Entry[], today: string, tap: 
     return b ? `새로 생긴 ${buildingInfo(b.id).name}에 가 봤어요!` : '오늘 지은 집, 참 예뻐요.'
   }
   const lines = [
-    `한 줄이 ${writtenDays(entries)}일 쌓였어요.`,
+    `한 줄이 ${writtenDays(days)}일 쌓였어요.`,
     `저는 ${r.name}${hasFinal(r.name) ? '이에요' : '예요'}. 반가워요!`,
     '짧게 써도 충분해요.',
     '천천히 산책하는 중이에요.',

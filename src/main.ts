@@ -2,10 +2,10 @@ import './style.css'
 import { backupFileName, backupText, planImport } from './core/backup'
 import { buildingNote, buildingOf } from './core/building'
 import { dayKey } from './core/date'
-import { editEntry, entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
+import { builtDays, editEntry, entryOn, eraseEntry, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
-import type { MoodId, SaveData } from './core/types'
+import type { Dated, MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
 import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
@@ -14,6 +14,7 @@ import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resi
 import { createBook } from './ui/book'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
+import { dateLabel } from './ui/format'
 import { createSettings } from './ui/settings'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
@@ -85,6 +86,21 @@ const reader = createReader({
         render()
         return { entry: r.entry }
       },
+  onErase: readOnly
+    ? null
+    : (date) => {
+        const r = eraseEntry(save, date, Date.now())
+        if (!r.ok) return '이 날의 기록을 찾지 못했어요'
+        try {
+          writeSave(kv, r.save)
+        } catch {
+          return '저장하지 못했어요. 저장 공간을 확인해 주세요'
+        }
+        save = r.save
+        render()
+        showNote(`🌱 ${dateLabel(date).replace(/ \S+요일$/, '')} 자리가 빈 땅으로 돌아갔어요`, 0)
+        return null
+      },
 })
 document.body.appendChild(reader.root)
 
@@ -113,7 +129,7 @@ const settings = createSettings({
     } catch {
       return '저장하지 못했어요. 저장 공간을 확인해 주세요'
     }
-    const before = save.entries
+    const before = builtDays(save)
     save = plan.save
     render()
     celebrate(before, 0)
@@ -126,12 +142,13 @@ const celebrateCard = createCelebration({ onVisit: visitLandmark })
 document.body.appendChild(celebrateCard.root)
 let celebrateTimer = 0
 /** before → 지금 기록으로 명소가 생기거나 마을 단계가 올랐으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
-function celebrate(before: SaveData['entries'], wait: number) {
-  const landmarks = reachedLandmarks(before, save.entries)
-  const stages = reachedStages(before, save.entries)
+function celebrate(before: Dated[], wait: number) {
+  const days = builtDays(save)
+  const landmarks = reachedLandmarks(before, days)
+  const stages = reachedStages(before, days)
   if (landmarks.length === 0 && stages.length === 0) return
   clearTimeout(celebrateTimer)
-  const text = milestoneCard(landmarks, stages, save.entries)
+  const text = milestoneCard(landmarks, stages, days)
   celebrateTimer = window.setTimeout(() => celebrateCard.open(text), wait)
 }
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
@@ -151,7 +168,7 @@ app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', ()
 /** 머리줄 단계 이름표를 누르면 마을 수첩(단계·건물 도감·명소)이 열린다 */
 const book = createBook()
 document.body.appendChild(book.root)
-app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries))
+app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
 
 const card = createWriteCard({
   onSubmit(text: string, mood: MoodId, day: Day) {
@@ -163,7 +180,7 @@ const card = createWriteCard({
     } catch {
       return '저장하지 못했어요. 저장 공간을 확인해 주세요'
     }
-    const before = save.entries
+    const before = builtDays(save)
     save = r.save
     render(r.entry.date)
     showNote(buildingNote(buildingOf(r.entry)))
@@ -183,7 +200,7 @@ const camera = createCamera(svg, (target) => {
   if (resident) {
     const tap = taps.get(resident.id) ?? 0
     taps.set(resident.id, tap + 1)
-    return showNote(`${resident.name}: “${residentLine(resident, save.entries, dayKey(Date.now()), tap)}”`, 0)
+    return showNote(`${resident.name}: “${residentLine(resident, save.entries, dayKey(Date.now()), tap, builtDays(save))}”`, 0)
   }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
@@ -212,20 +229,22 @@ function showNote(text: string | null, delay = SHOW.go) {
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */
 function render(newDate?: string) {
   const today = dayKey(Date.now())
-  const village = buildVillage(save.entries, today)
+  // 지운 날은 빈 땅으로 돌아가지만 집을 지었던 날로 센다(명소·단계·주민을 빼앗지 않는다)
+  const days = builtDays(save)
+  const village = buildVillage(save.entries, today, (save.erased ?? []).map((x) => x.date))
   drawVillage(svg, village, {
     today,
     newDate,
     buildDelay: newDate && !calm ? SHOW.go : 0,
-    landmarks: earnedLandmarks(save.entries),
-    sign: nextSign(save.entries),
-    walks: residentWalks(village, residentsOf(save.entries)),
+    landmarks: earnedLandmarks(days),
+    sign: nextSign(days),
+    walks: residentWalks(village, residentsOf(days)),
   })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
-  app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(save.entries)
+  app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(days)
   app.querySelector('[data-testid="village-name"]')!.textContent = villageTitle(save)
   paintSky()
   const mood = moodOf(todayEntry?.mood ?? 'calm')

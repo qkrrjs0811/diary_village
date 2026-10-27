@@ -57,3 +57,32 @@ describe('고친 기록 저장', () => {
     expect(parseSave(JSON.stringify(odd))).toEqual({ version: 1, entries: [{ date: '2026-10-27', text: '안녕', mood: 'calm', writtenAt: 5 }] })
   })
 })
+
+describe('지운 날 읽기', () => {
+  const entry = { date: '2026-10-27', text: '안녕', mood: 'calm' as const, writtenAt: 5 }
+
+  it('지운 날(날짜·지운 시각)을 함께 저장하고 다시 읽는다', () => {
+    const save = { version: 1 as const, entries: [entry], erased: [{ date: '2026-10-20', erasedAt: 9 }] }
+    expect(parseSave(JSON.stringify(save))).toEqual(save)
+  })
+
+  it('지운 날 칸이 없는 이전 저장도 그대로 읽는다', () => {
+    expect(parseSave(JSON.stringify({ version: 1, entries: [entry] }))).toEqual({ version: 1, entries: [entry] })
+  })
+
+  it('지운 날 칸이 이상하면 그 칸만 버리고 글은 지킨다', () => {
+    expect(parseSave(JSON.stringify({ version: 1, entries: [entry], erased: 'x' }))).toEqual({ version: 1, entries: [entry] })
+    const odd = {
+      version: 1,
+      entries: [entry],
+      erased: [
+        { date: 'nope', erasedAt: 1 },
+        { date: '2026-10-20', erasedAt: 2, text: '글' },
+        { date: '2026-10-27', erasedAt: 3 },
+        { date: '2026-10-20', erasedAt: 4 },
+      ],
+    }
+    // 날짜가 틀린 칸·글이 있는 날·겹친 날은 빼고, 날짜와 지운 시각만 읽는다
+    expect(parseSave(JSON.stringify(odd))).toEqual({ version: 1, entries: [entry], erased: [{ date: '2026-10-20', erasedAt: 2 }] })
+  })
+})

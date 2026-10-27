@@ -44,11 +44,12 @@ function daysOfMonth(month: string): string[] {
 
 /**
  * 기록에서 마을을 계산한다. 기록이 있는 달(과 오늘이 있는 달)만 구역이 되고, 빈 날은 빈 땅으로 남는다.
- * today 를 주면 아직 아무것도 안 쓴 날에도 오늘 자리가 보인다
+ * today 를 주면 아직 아무것도 안 쓴 날에도 오늘 자리가 보인다.
+ * kept 는 지운 날이다. 빈 땅으로 돌아가지만 그 달 구역은 남겨 다른 구역 자리가 바뀌지 않게 한다
  */
-export function buildVillage(entries: Entry[], today?: string): Village {
+export function buildVillage(entries: Entry[], today?: string, kept: string[] = []): Village {
   const byDate = new Map(entries.map((e) => [e.date, e]))
-  const dates = today ? [...entries.map((e) => e.date), today] : entries.map((e) => e.date)
+  const dates = [...entries.map((e) => e.date), ...kept, ...(today ? [today] : [])]
   const months = [...new Set(dates.map(monthKey))].sort()
   const blocks = months.map((month, i): Block => {
     const { bx, by } = blockSpot(i)

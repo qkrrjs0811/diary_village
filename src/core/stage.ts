@@ -1,6 +1,6 @@
 import { hasFinal } from './building'
 import { celebration, writtenDays, type Landmark } from './landmark'
-import type { Entry } from './types'
+import type { Dated } from './types'
 
 export interface Stage {
   name: string
@@ -23,26 +23,26 @@ export const STAGES: Stage[] = [
   { name: '동화 나라', icon: '✨', days: 365 },
 ]
 
-export function stageOf(entries: Entry[]): Stage {
+export function stageOf(entries: Dated[]): Stage {
   const n = writtenDays(entries)
   return [...STAGES].reverse().find((s) => s.days <= n)!
 }
 
-export function nextStage(entries: Entry[]): { stage: Stage; left: number } | null {
+export function nextStage(entries: Dated[]): { stage: Stage; left: number } | null {
   const n = writtenDays(entries)
   const stage = STAGES.find((s) => s.days > n)
   return stage ? { stage, left: stage.days - n } : null
 }
 
 /** before → after 로 바뀌며 새로 오른 단계 */
-export function reachedStages(before: Entry[], after: Entry[]): Stage[] {
+export function reachedStages(before: Dated[], after: Dated[]): Stage[] {
   const from = writtenDays(before)
   const to = writtenDays(after)
   return STAGES.filter((s) => s.days > from && s.days <= to)
 }
 
 /** 머리줄에 보이는 지금 단계("🏡 작은 동네") */
-export function stageLabel(entries: Entry[]): string {
+export function stageLabel(entries: Dated[]): string {
   const s = stageOf(entries)
   return `${s.icon} ${s.name}`
 }
@@ -64,7 +64,7 @@ export interface MilestoneCard {
 }
 
 /** 명소가 생기거나 단계가 오른 순간의 축하 카드 문구. 둘 중 하나는 비어 있지 않다 */
-export function milestoneCard(landmarks: Landmark[], stages: Stage[], entries: Entry[]): MilestoneCard {
+export function milestoneCard(landmarks: Landmark[], stages: Stage[], entries: Dated[]): MilestoneCard {
   const visit = landmarks.length ? landmarks[landmarks.length - 1] : null
   const lm = landmarks.length ? celebration(landmarks, entries) : null
   if (stages.length === 0) return { ...lm!, icons: landmarks.map((l) => l.icon), visit }

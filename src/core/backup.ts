@@ -1,5 +1,5 @@
 import { parseSave } from './storage'
-import type { SaveData } from './types'
+import type { Erased, SaveData } from './types'
 
 /** 내려받는 백업 파일 이름. 날짜를 넣어 여러 번 받아도 헷갈리지 않게 */
 export const backupFileName = (today: string) => `diary-village-${today}.json`
@@ -32,6 +32,11 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   const fresh = backup.entries.filter((e) => !have.has(e.date))
   const entries = [...current.entries, ...fresh].sort((a, b) => a.date.localeCompare(b.date))
   const save: SaveData = { version: 1, entries }
+  // 지운 날은 두 쪽을 합쳐 날 수를 지킨다. 폰에서 지운 날의 글이 백업에 있으면 그 글이 되살아난다(사용자가 고른 파일이다)
+  const written = new Set(entries.map((e) => e.date))
+  const erased = new Map<string, Erased>()
+  for (const x of [...(current.erased ?? []), ...(backup.erased ?? [])]) if (!written.has(x.date) && !erased.has(x.date)) erased.set(x.date, x)
+  if (erased.size) save.erased = [...erased.values()].sort((a, b) => a.date.localeCompare(b.date))
   // 마을 이름도 폰에 있는 이름을 지키고, 폰에 이름이 없을 때만 백업 이름을 쓴다
   const villageName = current.villageName ?? backup.villageName
   if (villageName) save.villageName = villageName

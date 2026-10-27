@@ -391,3 +391,6 @@ button { font: inherit; color: inherit; }
 }
 .sheet-btn.build { color: var(--accent-ink); background: var(--accent); }
 .sheet-btn.build:disabled { background: #cfd8cf; }
+.sheet-btn.erase { color: #ffffff; background: #e39a8f; }
+.erase-text { opacity: 0.75; }
+.erase-note { margin: 0 0 4px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }

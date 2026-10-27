@@ -53,6 +53,14 @@ describe('마을 배치', () => {
   })
 })
 
+describe('지운 날과 구역', () => {
+  it('지운 날만 남은 달도 구역이 그대로 남아 다른 구역 자리가 바뀌지 않는다', () => {
+    const v = buildVillage([e('2026-10-05')], '2026-10-27', ['2026-09-03'])
+    expect(v.blocks.map((b) => b.month)).toEqual(['2026-09', '2026-10'])
+    expect(v.blocks[0].lots.every((l) => !l.entry)).toBe(true)
+  })
+})
+
 describe('집 모양', () => {
   it('지붕 색은 그날 기분의 색 중 하나', () => {
     expect(['#ff9f7a', '#ffc15e', '#ff8fa3']).toContain(houseLook(e('2026-10-01', 'great')).roof)

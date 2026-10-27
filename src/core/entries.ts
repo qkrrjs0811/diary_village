@@ -1,5 +1,5 @@
 import { addDays, dayKey } from './date'
-import type { Entry, MoodId, SaveData } from './types'
+import type { Dated, Entry, Erased, MoodId, SaveData } from './types'
 
 /** 짧게 써도 되는 게 핵심이라 길게 쓸 이유를 만들지 않는다. 글 길이는 마을에 영향을 주지 않는다 */
 export const MAX_TEXT = 100
@@ -35,7 +35,32 @@ export function writeEntry(save: SaveData, input: { text: string; mood: MoodId }
   if (entryOn(save, date)) return { ok: false, reason: 'already' }
   const entry: Entry = { date, text: checked.text, mood: input.mood, writtenAt: now }
   const entries = [...save.entries, entry].sort((a, b) => a.date.localeCompare(b.date))
-  return { ok: true, save: { ...save, entries }, entry }
+  // 지운 날에 다시 쓰면 지운 표시를 걷는다(날 수는 그대로다)
+  return { ok: true, save: withErased({ ...save, entries }, (save.erased ?? []).filter((x) => x.date !== date)), entry }
+}
+
+function withErased(save: SaveData, erased: Erased[]): SaveData {
+  const { erased: _, ...rest } = save
+  return erased.length ? { ...rest, erased } : rest
+}
+
+export type EraseResult = { ok: true; save: SaveData } | { ok: false; reason: 'missing' }
+
+/**
+ * 쓴 글을 지운다(기획서 8번). 확인은 화면에서 한 번 더 받는다.
+ * 글은 남기지 않고 날짜와 지운 시각만 남겨, 지운 날도 "집을 지었던 날"로 센다(명소·마을 단계를 빼앗지 않는다)
+ */
+export function eraseEntry(save: SaveData, date: string, now: number): EraseResult {
+  if (!entryOn(save, date)) return { ok: false, reason: 'missing' }
+  const entries = save.entries.filter((e) => e.date !== date)
+  const erased = [...(save.erased ?? []), { date, erasedAt: now }].sort((a, b) => a.date.localeCompare(b.date))
+  return { ok: true, save: { ...save, entries, erased } }
+}
+
+/** 집을 지었던 날(쓴 날 + 지운 날). 명소·마을 단계·주민은 이 날 수로 센다 */
+export function builtDays(save: SaveData): Dated[] {
+  const dates = new Set([...save.entries.map((e) => e.date), ...(save.erased ?? []).map((x) => x.date)])
+  return [...dates].sort().map((date) => ({ date }))
 }
 
 export type EditResult =

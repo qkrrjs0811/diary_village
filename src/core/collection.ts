@@ -1,6 +1,6 @@
 import { BUILDINGS, buildingOf, type Building, type BuildingId } from './building'
 import { LANDMARKS, writtenDays, type Landmark } from './landmark'
-import type { Entry } from './types'
+import type { Dated, Entry } from './types'
 
 /** 아직 못 만난 건물의 힌트. 건물 이름은 숨기고 어떤 날에 생기는지만 살짝 알려 준다 */
 export const HINTS: Record<BuildingId, string> = {
@@ -50,7 +50,7 @@ export function collectionCount(entries: Entry[]): { found: number; total: numbe
 }
 
 /** 수첩에 보이는 명소 목록. 못 얻은 명소는 몇 일 더 쓰면 생기는지 */
-export function landmarkBook(entries: Entry[]): { landmark: Landmark; earned: boolean; left: number }[] {
+export function landmarkBook(entries: Dated[]): { landmark: Landmark; earned: boolean; left: number }[] {
   const n = writtenDays(entries)
   return LANDMARKS.map((landmark) => ({ landmark, earned: landmark.days <= n, left: Math.max(0, landmark.days - n) }))
 }
