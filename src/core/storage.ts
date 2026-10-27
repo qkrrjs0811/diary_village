@@ -1,4 +1,5 @@
 import { isDate } from './date'
+import { readLetters } from './letter'
 import { isMoodId } from './mood'
 import { isVillageName } from './name'
 import { isPlacedDecor } from './placing'
@@ -69,6 +70,9 @@ export function parseSave(text: string): SaveData | null {
     }
     if (decor.length) save.decor = decor
   }
+  // 이상한 편지는 그 편지만 버린다(일기와 다른 편지는 지킨다)
+  const letters = readLetters(x.letters)
+  if (letters.length) save.letters = letters
   return save
 }
 

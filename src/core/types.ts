@@ -36,6 +36,21 @@ export interface SaveData {
   villageName?: string
   /** 사용자가 직접 놓은 꾸밈 소품 자리. 없으면 놓은 적이 없다. 이 칸이 없는 이전 저장도 그대로 읽는다 */
   decor?: PlacedDecor[]
+  /** 미래의 나에게 부친 편지(쓴 순서). 없으면 쓴 적이 없다. 일기가 아니라 마을 계산에 들어가지 않는다. 이 칸이 없는 이전 저장도 그대로 읽는다 */
+  letters?: Letter[]
+}
+
+/** 미래의 나에게 쓴 편지 하나. 쓴 시각(ms)이 편지를 가리키는 이름이다 */
+export interface Letter {
+  /** 쓴 날(YYYY-MM-DD) */
+  writtenOn: string
+  /** 쓴 시각(ms). 편지마다 다르다 */
+  writtenAt: number
+  /** 열리는 날(YYYY-MM-DD). 이 날부터 읽을 수 있다 */
+  opensOn: string
+  text: string
+  /** 처음 읽은 시각(ms). 아직 안 읽었으면 없다 */
+  readAt?: number
 }
 
 /**

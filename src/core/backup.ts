@@ -1,3 +1,4 @@
+import { mergeLetters } from './letter'
 import { parseSave } from './storage'
 import type { Erased, SaveData } from './types'
 
@@ -43,5 +44,8 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   // 놓은 소품도 폰에 놓은 것을 지키고, 폰에 하나도 없을 때만 백업의 자리를 쓴다(섞으면 칸이 겹친다)
   const decor = current.decor?.length ? current.decor : backup.decor
   if (decor?.length) save.decor = decor
+  // 편지는 사용자가 쓴 글이라 두 쪽을 합친다. 폰에 있는 편지(읽은 표시 포함)는 그대로 둔다
+  const letters = mergeLetters(current.letters ?? [], backup.letters ?? [])
+  if (letters.length) save.letters = letters
   return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length }
 }
