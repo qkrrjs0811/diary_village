@@ -1,6 +1,6 @@
 import { buildingInfo } from '../core/building'
 import { moodOf } from '../core/mood'
-import type { MonthRecap } from '../core/recap'
+import type { MonthRecap, YearRecap } from '../core/recap'
 import type { MoodId } from '../core/types'
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
@@ -24,9 +24,9 @@ export function softMood(mood: MoodId, k = 0.55): string {
   return `rgb(${mix(1)}, ${mix(3)}, ${mix(5)})`
 }
 
-/** "가장 많이 지은 건물 · ☕ 카페 2채". 건물이 없던 달은 보통 집 */
-export function recapLine(r: MonthRecap): string {
-  if (!r.top) return '🏡 아담한 보통 집들로 채운 달이에요'
+/** "가장 많이 지은 건물 · ☕ 카페 2채". 건물이 없던 달(해)은 보통 집 */
+export function recapLine(r: MonthRecap | YearRecap): string {
+  if (!r.top) return `🏡 아담한 보통 집들로 채운 ${'year' in r ? '해' : '달'}이에요`
   const b = buildingInfo(r.top.id)
   return `가장 많이 지은 건물 · ${b.icon} ${b.name} ${r.top.count}채`
 }

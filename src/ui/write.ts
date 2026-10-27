@@ -1,7 +1,7 @@
 import { checkText, MAX_TEXT, type Day } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
 import type { Memory } from '../core/memory'
-import type { MonthRecap } from '../core/recap'
+import type { MonthRecap, YearRecap } from '../core/recap'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel, recapLine, softMood } from './format'
 
@@ -10,13 +10,14 @@ export interface WriteCard {
   /**
    * 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null).
    * memory: 한 달 전·100일 전·작년 오늘의 글(없으면 null). 카드 아래에 작게 보인다.
-   * recap: 새 달 첫 주의 지난달 돌아보기(없으면 null). 있으면 memory 대신 보인다.
+   * recap: 새 달 첫 주의 지난달 돌아보기, 새해 첫 주에는 지난해 돌아보기(없으면 null). 있으면 memory 대신 보인다.
    * prompts: 오늘·어제 쓰기 칸 빈 글자 자리에 띄울 오늘의 물음(없으면 "오늘을 한 줄로 남겨요")
    */
-  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null, recap?: MonthRecap | null, prompts?: Prompts | null): void
+  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null, recap?: Recap | null, prompts?: Prompts | null): void
 }
 
 export type Prompts = Record<Day, string>
+export type Recap = MonthRecap | YearRecap
 
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
 
@@ -26,8 +27,8 @@ export function createWriteCard(handlers: {
   onOpen(entry: Entry): void
   /** "N일 전 오늘"을 누르면 그 집으로 간다 */
   onMemory(entry: Entry): void
-  /** 지난달 돌아보기를 누르면 그달 달력을 연다 */
-  onRecap(month: string): void
+  /** 지난달 돌아보기를 누르면 그달 달력을, 지난해 돌아보기를 누르면 그해 한 해 보기를 연다("2026-10" 또는 "2026") */
+  onRecap(at: string): void
 }): WriteCard {
   const root = document.createElement('section')
   root.className = 'card'
@@ -41,7 +42,7 @@ export function createWriteCard(handlers: {
     entry: Entry | undefined
     yesterday: string | null
     memory: Memory | null
-    recap: MonthRecap | null
+    recap: Recap | null
     prompts: Prompts | null
   } = {
     today: '',
@@ -153,18 +154,22 @@ export function createWriteCard(handlers: {
     root.appendChild(b)
   }
 
-  /** "🗓️ 9월 돌아보기 · 한 줄 20일" + 기분 색 띠 + 가장 많이 지은 건물. 누르면 그달 달력 */
-  function renderRecap(r: MonthRecap) {
+  /** "🗓️ 9월 돌아보기 · 한 줄 20일" + 기분 색 띠 + 가장 많이 지은 건물. 누르면 그달 달력(지난해면 한 해 보기) */
+  function renderRecap(r: Recap) {
     const b = document.createElement('button')
     b.type = 'button'
     b.className = 'memory recap'
     b.dataset.testid = 'recap'
-    b.dataset.month = r.month
-    const band = r.moods.map((x) => `<span style="flex:${x.count};background:${softMood(x.mood, 0.8)}"></span>`).join('')
+    const at = 'year' in r ? String(r.year) : r.month
+    b.dataset.at = at
+    // 지난해는 열두 달을 한 칸씩 칠하고, 쉬어 간 달은 띠 바탕색으로 둔다
+    const band = ('year' in r ? r.months.map((m) => ({ mood: m.mood, count: 1 })) : r.moods)
+      .map((x) => `<span style="flex:${x.count};background:${x.mood ? softMood(x.mood, 0.8) : 'transparent'}"></span>`)
+      .join('')
     b.innerHTML = `<span class="k">🗓️ ${r.label} 돌아보기 · 한 줄 ${r.written}일</span>
       <span class="recap-band" data-testid="recap-band" aria-hidden="true">${band}</span>
       <span class="t">${recapLine(r)}</span>`
-    b.addEventListener('click', () => handlers.onRecap(r.month))
+    b.addEventListener('click', () => handlers.onRecap(at))
     root.appendChild(b)
   }
 

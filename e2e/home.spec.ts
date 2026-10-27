@@ -1821,6 +1821,46 @@ test('새 달 첫 주에는 카드 아래에 지난달 기분 색 띠와 가장 
   expect(saved.entries).toEqual(entries)
 })
 
+test('새해 첫 주에는 지난달 대신 지난해 돌아보기 쪽지를 보이고, 누르면 달력 한 해 보기를 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2027-01-03T21:00:00+09:00') })
+  await page.goto('./')
+  // 2026년 3·10·12월에 썼다(카페 2채). 12월 돌아보기 대신 한 해 돌아보기가 보인다
+  const entries = [...monthEntries('2026-03', [14]), ...monthEntries('2026-10', [1, 20]), ...monthEntries('2026-12', [24, 31])]
+  entries[1].text = '커피 한 잔'
+  entries[3].text = '카페에서 쉬었다'
+  entries.forEach((e, i) => (e.mood = i < 2 ? 'great' : 'calm'))
+  entries.push(...monthEntries('2027-01', [1]))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const recap = page.getByTestId('recap')
+  await expect(recap).toContainText('🗓️ 2026년 돌아보기 · 한 줄 5일')
+  await expect(recap).toContainText('가장 많이 지은 건물 · ☕ 카페 2채')
+  await expect(recap).not.toContainText('12월 돌아보기')
+  await expect(page.getByTestId('recap-band').locator('span')).toHaveCount(12)
+  await expect(recap).toBeInViewport()
+  await expect(page.getByTestId('write-submit')).toBeInViewport()
+  expect((await recap.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/recap-year-card.png' })
+
+  // 누르면 달력이 2026년 한 해 보기로 열린다
+  await recap.click()
+  await expect(page.getByTestId('calendar-mode-year')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 5일')
+  await expect(page.getByTestId('calm-2026-12')).toHaveAttribute('data-mood', 'calm')
+  await page.getByTestId('calendar-close').click()
+
+  // 첫 주가 지나면 쪽지는 들어가고, 저장에는 기록뿐이다
+  await page.clock.setSystemTime(new Date('2027-01-08T21:00:00+09:00'))
+  await page.reload()
+  await expect(page.getByTestId('write-card')).toBeVisible()
+  await expect(recap).toHaveCount(0)
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'version'])
+  expect(saved.entries).toEqual(entries)
+})
+
 test('명소 축하·주민 누르기·소품 놓기에도 짧은 소리가 나고, 소리를 끄면 조용하다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.addInitScript(listenSound)
