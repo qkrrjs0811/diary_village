@@ -502,11 +502,11 @@ function render(newDate?: string) {
   const mood = moodOf(todayEntry?.mood ?? 'calm')
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'
   // 날이 바뀌었을 때만 오늘 구역으로 화면을 옮긴다(둘러보던 자리를 지킨다)
-  // 처음엔 오늘 자리를 가운데에 두고 집이 또렷이 보이게 가까이 본다
+  // 처음엔 오늘 자리 쪽을 집이 또렷이 보이게 가까이 보고, 그달 섬이 화면 가운데에 알맞게 오게 맞춘다
   if (shownDay !== today) {
     const block = village.blocks.find((b) => b.month === today.slice(0, 7))!
     const lot = block.lots.find((l) => l.date === today)!
-    if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)) camera.show(blockView(block))
+    if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT, blockView(block))) camera.show(blockView(block))
     shownDay = today
     if (festival) showFestival(festival)
   } else if (newDate && !calm) {

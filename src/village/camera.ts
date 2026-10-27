@@ -1,6 +1,6 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { SHOW, buildUnit, easeInOut, showView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { SHOW, buildUnit, easeInOut, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
 
@@ -117,12 +117,12 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       view = v
       apply()
     },
-    /** center 를 가운데에 두고 화면 1px = unit 으로 본다 */
-    focus(center: Pt, u: number) {
+    /** center 를 가운데에 두고 화면 1px = unit 으로 본다. area(섬)를 주면 섬이 화면에 알맞게 오도록 맞춘다 */
+    focus(center: Pt, u: number, area?: View) {
       const s = screen()
       if (!(s.w > 0 && s.h > 0)) return false
       stopShow()
-      view = viewAround(center, u, s)
+      view = area ? startView(center, u, s, area) : viewAround(center, u, s)
       apply()
       return true
     },

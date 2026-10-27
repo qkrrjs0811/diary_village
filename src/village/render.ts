@@ -89,7 +89,7 @@ function drawSlab(g: Element, labels: Element, block: Block) {
   // 앞쪽 두 옆면(흙)
   poly(g, [top[3], top[2], down(top[2]), down(top[3])], shade(SOIL, -0.12))
   poly(g, [top[2], top[1], down(top[1]), down(top[2])], SOIL)
-  poly(g, top, PATH)
+  poly(g, top, PATH, { 'data-testid': `slab-${block.month}` })
   const season = seasonOf(block.month)
   const gx0 = block.bx * (BLOCK_W + ROAD)
   const gy0 = block.by * (BLOCK_H + ROAD)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, showView, tweenView, unitOf, viewAround, zoomAt } from './view'
+import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, showView, startView, tweenView, unitOf, viewAround, zoomAt } from './view'
 
 const screen = { w: 360, h: 480 }
 
@@ -78,5 +78,34 @@ describe('짓는 연출 보기', () => {
   it('이미 더 가까이 보고 있었으면 멀어지지 않는다', () => {
     expect(buildUnit(0.6)).toBe(BUILD_UNIT)
     expect(buildUnit(0.35)).toBe(0.35)
+  })
+})
+
+describe('처음 열 때 보기', () => {
+  // 화면 360×480, 1px = 1 이면 보기도 360×480
+  it('구역(섬)이 보기보다 작은 쪽은 섬을 가운데에 둔다', () => {
+    const area = { x: 0, y: 0, w: 600, h: 200 }
+    const v = startView({ x: 100, y: 180 }, 1, screen, area)
+    expect(v.w).toBe(360)
+    expect(v.h).toBe(480)
+    expect(v.y + v.h / 2).toBe(100) // 섬 세로 가운데
+  })
+
+  it('섬이 보기보다 큰 쪽은 오늘 자리를 가운데 두되 섬 밖 빈 하늘이 생기지 않게 끝에 맞춘다', () => {
+    const area = { x: 0, y: 0, w: 600, h: 200 }
+    expect(startView({ x: 300, y: 100 }, 1, screen, area).x).toBe(120) // 가운데
+    expect(startView({ x: 50, y: 100 }, 1, screen, area).x).toBe(0) // 왼쪽 끝에 맞춤
+    expect(startView({ x: 580, y: 100 }, 1, screen, area).x).toBe(240) // 오른쪽 끝에 맞춤
+  })
+
+  it('오늘 자리는 늘 보기 안에 있다', () => {
+    const area = { x: -200, y: -50, w: 900, h: 700 }
+    for (const p of [{ x: -190, y: -40 }, { x: 690, y: 640 }, { x: 250, y: 300 }]) {
+      const v = startView(p, 1, screen, area)
+      expect(p.x).toBeGreaterThanOrEqual(v.x)
+      expect(p.x).toBeLessThanOrEqual(v.x + v.w)
+      expect(p.y).toBeGreaterThanOrEqual(v.y)
+      expect(p.y).toBeLessThanOrEqual(v.y + v.h)
+    }
   })
 })

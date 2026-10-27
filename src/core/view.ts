@@ -27,6 +27,17 @@ export function viewAround(center: Pt, unit: number, screen: Size): View {
   return { x: center.x - w / 2, y: center.y - h / 2, w, h }
 }
 
+/**
+ * 처음 열 때 보기: 오늘 자리(center)를 보되, 그달 구역(area, 섬)이 보기보다 작은 쪽은 섬을 가운데에 두고,
+ * 큰 쪽은 섬 끝 밖의 빈 하늘이 보이지 않게 끝에 맞춘다
+ */
+export function startView(center: Pt, unit: number, screen: Size, area: View): View {
+  const v = viewAround(center, unit, screen)
+  const fit = (at: number, size: number, from: number, span: number) =>
+    span <= size ? from + span / 2 - size / 2 : Math.min(from + span - size, Math.max(from, at))
+  return { ...v, x: fit(v.x, v.w, area.x, area.w), y: fit(v.y, v.h, area.y, area.h) }
+}
+
 /** anchor(viewBox 좌표)를 화면에서 제자리에 두고 factor 배로 넓게(>1) 또는 좁게(<1) 본다 */
 export function zoomAt(view: View, factor: number, anchor: Pt, screen: Size): View {
   if (!(screen.w > 0 && screen.h > 0)) return view

@@ -153,6 +153,17 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   await expect(page.getByTestId('house-count')).toHaveText(`🏠 ${entries.length}채`)
   await expect(page.getByTestId('month-2026-10')).toBeVisible()
   await expect(page.getByTestId('today-spot')).toBeVisible()
+  // 처음 보기: 이달 섬이 화면 세로 가운데에 오고(아래 빈 하늘이 넓지 않게), 오늘 자리가 보인다
+  const scene = (await page.getByTestId('village').boundingBox())!
+  const slab = (await page.getByTestId('slab-2026-10').boundingBox())!
+  const above = slab.y - scene.y
+  const below = scene.y + scene.height - (slab.y + slab.height)
+  // 위쪽은 이름표와 뒤쪽 집 지붕이 솟아 조금 더 남긴다
+  expect(below).toBeGreaterThanOrEqual(0)
+  expect(below).toBeLessThan(140)
+  expect(above).toBeGreaterThan(below)
+  await expect(page.getByTestId('today-spot')).toBeInViewport()
+  await expect(page.getByTestId('house-2026-10-26')).toBeInViewport()
   await page.screenshot({ path: 'test-results/screens/home-month.png' })
 
   // 멀리 보고 끌어서 지난달 구역을 본다
@@ -166,6 +177,23 @@ test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', as
   await expect(page.getByTestId('month-2026-09')).toBeInViewport()
   await expect(page.getByTestId('reader')).toBeHidden() // 끌기는 누름이 아니다
   await page.screenshot({ path: 'test-results/screens/home-drag.png' })
+})
+
+test('달 첫날에 열어도 이달 섬이 화면 가운데에 와서 빈 하늘이 한쪽으로 몰리지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-01T12:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 25, 31])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('today-spot')).toBeInViewport()
+  const scene = (await page.getByTestId('village').boundingBox())!
+  const slab = (await page.getByTestId('slab-2026-11').boundingBox())!
+  const above = slab.y - scene.y
+  const below = scene.y + scene.height - (slab.y + slab.height)
+  expect(above).toBeGreaterThanOrEqual(0)
+  expect(below).toBeGreaterThanOrEqual(0)
+  expect(below).toBeLessThan(140)
+  await page.screenshot({ path: 'test-results/screens/home-month-start.png' })
 })
 
 test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대·축소해도 누르기가 된다', async ({ page }) => {
