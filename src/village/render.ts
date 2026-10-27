@@ -407,6 +407,109 @@ function drawSchoolBits(house: Element, P: Place, a: number, b: number, H: numbe
   return top + 16
 }
 
+/** 텃밭: 낮은 흙밭에 고랑 세 줄과 새싹, 뒤쪽 토마토 지지대 둘, 기분 색 모자의 허수아비, 물뿌리개 */
+function drawFarm(house: Element, P: Place, hat: string, seed: number): number {
+  poly(house, [P(0.08, 0.08), P(0.92, 0.08), P(0.92, 0.92), P(0.08, 0.92)], '#d9b48e', { rx: 4 })
+  poly(house, [P(0.08, 0.92), P(0.92, 0.92), P(0.92, 0.92, -3), P(0.08, 0.92, -3)], '#c49c76')
+  poly(house, [P(0.92, 0.92), P(0.92, 0.08), P(0.92, 0.08, -3), P(0.92, 0.92, -3)], '#cfa682')
+  // 토마토 지지대(뒤쪽)
+  for (const u of [0.3, 0.62]) {
+    const p = P(u, 0.2)
+    el('rect', { x: p.x - 0.7, y: p.y - 18, width: 1.4, height: 18, fill: '#a7805e' }, house)
+    el('ellipse', { cx: p.x, cy: p.y - 10, rx: 4.5, ry: 5.5, fill: '#8fcf7e', stroke: LINE, 'stroke-width': 0.7 }, house)
+    ;[[-2, -12], [1.8, -9], [-0.6, -7]].forEach(([dx, dy]) => {
+      el('circle', { cx: p.x + dx, cy: p.y + dy, r: 1.5, fill: '#f28b7a', stroke: LINE, 'stroke-width': 0.4, class: 'farm-tomato' }, house)
+    })
+  }
+  // 고랑 세 줄과 새싹
+  const greens = ['#8fcf7e', '#a3d98a', '#7fc490']
+  for (const v of [0.42, 0.6, 0.78]) {
+    const r0 = P(0.16, v)
+    const r1 = P(0.84, v)
+    el('line', { x1: r0.x, y1: r0.y, x2: r1.x, y2: r1.y, stroke: '#b58a63', 'stroke-width': 2.6, 'stroke-linecap': 'round', class: 'farm-row' }, house)
+    for (const u of [0.24, 0.42, 0.6, 0.78]) {
+      const s = P(u, v)
+      const c = greens[(seed + Math.round(u * 10)) % 3]
+      el('path', { d: `M${s.x} ${s.y} q-3.4 -2 -3 -5 q2.6 0.6 3 5 z M${s.x} ${s.y} q3.4 -2 3 -5 q-2.6 0.6 -3 5 z`, fill: c, stroke: LINE, 'stroke-width': 0.5, class: 'farm-sprout' }, house)
+    }
+  }
+  // 물뿌리개(앞)
+  const w = P(0.3, 0.95)
+  el('rect', { x: w.x - 3, y: w.y - 5, width: 6, height: 5, rx: 1.2, fill: '#8fb8e8', stroke: LINE, 'stroke-width': 0.6 }, house)
+  el('path', { d: `M${w.x + 3} ${w.y - 3} l4 -3`, stroke: '#8fb8e8', 'stroke-width': 1.4, 'stroke-linecap': 'round' }, house)
+  // 허수아비(오른쪽 앞)
+  const k = P(0.84, 0.86)
+  el('ellipse', { cx: k.x, cy: k.y + 1, rx: 5, ry: 2, fill: 'rgba(90,70,54,0.14)' }, house)
+  el('rect', { x: k.x - 0.8, y: k.y - 22, width: 1.6, height: 22, fill: '#a7805e' }, house)
+  el('rect', { x: k.x - 8, y: k.y - 17, width: 16, height: 1.6, rx: 0.8, fill: '#a7805e' }, house)
+  el('path', { d: `M${k.x - 4.5} ${k.y - 17} h9 l-1.5 8 h-6 z`, fill: '#f2c46b', stroke: LINE, 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, house)
+  el('circle', { cx: k.x, cy: k.y - 21, r: 3.4, fill: '#fff1d6', stroke: LINE, 'stroke-width': 0.7, class: 'farm-scarecrow' }, house)
+  el('ellipse', { cx: k.x, cy: k.y - 23.5, rx: 6, ry: 1.6, fill: '#e8c98a', stroke: LINE, 'stroke-width': 0.6 }, house)
+  el('path', { d: `M${k.x - 3} ${k.y - 24} a3 2.6 0 0 1 6 0 z`, fill: hat, stroke: LINE, 'stroke-width': 0.6 }, house)
+  return 26
+}
+
+/** 기차역 꾸밈: 문 위 둥근 시계, 오른쪽 옆 철길과 작은 기차 한 칸. 기차는 기분 색 */
+function drawStationBits(house: Element, P: Place, a: number, b: number, H: number, car: string) {
+  const m = (a + b) / 2
+  // 문 위 시계
+  const c = P(m, b + 0.01, H - 3.5)
+  el('circle', { cx: c.x, cy: c.y, r: 3.4, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.8, class: 'station-clock' }, house)
+  el('path', { d: `M${c.x} ${c.y} v-2.2 M${c.x} ${c.y} h1.6`, stroke: '#7a604a', 'stroke-width': 0.8, 'stroke-linecap': 'round' }, house)
+  // 철길(오른쪽 옆, v 방향)
+  const tie = '#b58a63'
+  for (let i = 0; i < 7; i++) {
+    const v = 0.08 + i * 0.14
+    const t0 = P(0.86, v)
+    const t1 = P(1.0, v)
+    el('line', { x1: t0.x, y1: t0.y, x2: t1.x, y2: t1.y, stroke: tie, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, house)
+  }
+  for (const u of [0.89, 0.97]) {
+    const r0 = P(u, 0.04)
+    const r1 = P(u, 0.96)
+    el('line', { x1: r0.x, y1: r0.y, x2: r1.x, y2: r1.y, stroke: '#9a8a7a', 'stroke-width': 0.9, class: 'station-rail' }, house)
+  }
+  // 기차 한 칸(철길 뒤쪽, 창문을 가리지 않게)
+  const v0 = 0.1
+  const v1 = 0.36
+  const u = 0.93
+  const ch = 11
+  poly(house, [P(u, v1), P(u, v0), P(u, v0, ch), P(u, v1, ch)], car, { class: 'station-train' })
+  poly(house, [P(u, v1, ch), P(u, v0, ch), P(u, v0, ch + 2.5), P(u, v1, ch + 2.5)], shade(car, -0.18))
+  for (const v of [0.17, 0.29]) {
+    poly(house, [P(u, v + 0.04, 5), P(u, v - 0.04, 5), P(u, v - 0.04, 9), P(u, v + 0.04, 9)], WIN, { 'stroke-width': 0.5, ...win })
+  }
+  for (const v of [v0 + 0.05, v1 - 0.05]) {
+    const w = P(u, v)
+    el('circle', { cx: w.x, cy: w.y - 0.5, r: 1.8, fill: '#7a604a' }, house)
+  }
+}
+
+/** 미술관 꾸밈: 앞면 하얀 기둥 넷, 오른쪽 벽 액자 둘, 앞마당 이젤 위 그림 */
+function drawGalleryBits(house: Element, P: Place, a: number, b: number, H: number, roof: string, seed: number) {
+  // 앞 돌계단과 처마 띠, 그 사이 하얀 기둥(문 양옆)
+  const f = b + 0.05
+  poly(house, [P(a - 0.02, b), P(b + 0.02, b), P(b + 0.02, f + 0.03), P(a - 0.02, f + 0.03)], '#e9dcc6')
+  poly(house, [P(a - 0.02, f + 0.03), P(b + 0.02, f + 0.03), P(b + 0.02, f + 0.03, -2), P(a - 0.02, f + 0.03, -2)], '#d9c8ad')
+  for (const u of [a + 0.05, a + 0.17, b - 0.17, b - 0.05]) {
+    poly(house, [P(u - 0.03, f), P(u + 0.03, f), P(u + 0.03, f, H - 3), P(u - 0.03, f, H - 3)], '#fffdf7', { stroke: '#b9a58c', 'stroke-width': 0.8, class: 'gallery-column' })
+    poly(house, [P(u + 0.03, f), P(u + 0.03, f - 0.04), P(u + 0.03, f - 0.04, H - 3), P(u + 0.03, f, H - 3)], '#e6dccb', { stroke: '#b9a58c', 'stroke-width': 0.6 })
+  }
+  poly(house, [P(a - 0.03, f + 0.01, H - 3), P(b + 0.03, f + 0.01, H - 3), P(b + 0.03, f + 0.01, H + 1), P(a - 0.03, f + 0.01, H + 1)], shade(roof, 0.35), { 'stroke-width': 0.8 })
+  // 오른쪽 벽 액자
+  const paints = ['#ff9fb2', '#8fb8e8', '#ffd36e', '#9ed39b']
+  for (const [i, v] of [0.3, 0.7].entries()) {
+    poly(house, [P(b, v + 0.06, 5), P(b, v - 0.06, 5), P(b, v - 0.06, 12), P(b, v + 0.06, 12)], '#e3b878', { 'stroke-width': 0.6, class: 'gallery-frame' })
+    poly(house, [P(b, v + 0.04, 6.3), P(b, v - 0.04, 6.3), P(b, v - 0.04, 10.7), P(b, v + 0.04, 10.7)], paints[(seed + i) % paints.length], { stroke: 'none' })
+  }
+  // 이젤과 그림(앞마당)
+  const e = P(0.2, 0.97)
+  el('path', { d: `M${e.x - 4} ${e.y} L${e.x} ${e.y - 17} L${e.x + 4} ${e.y} M${e.x} ${e.y - 17} L${e.x + 1} ${e.y - 1}`, fill: 'none', stroke: '#a7805e', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, house)
+  el('rect', { x: e.x - 6, y: e.y - 16, width: 12, height: 9, rx: 1, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.8, class: 'gallery-easel' }, house)
+  el('path', { d: `M${e.x - 5} ${e.y - 8.5} q3 -4 5 -1.5 q2 -3 4.5 0.5`, fill: 'none', stroke: '#7bb88f', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, house)
+  el('circle', { cx: e.x + 2.6, cy: e.y - 13, r: 1.6, fill: roof }, house)
+}
+
 /** 그날 건물(글 단어로 정함) 또는 보통 집. 기분은 지붕 색만 바꾼다. 돌려주는 값은 연출을 띄울 높이 */
 function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   const look = houseLook(entry)
@@ -426,6 +529,7 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   if (kind === 'field') return drawField(house, P, look.roof)
   if (kind === 'lighthouse') return drawLighthouse(house, P, look.roof)
   if (kind === 'park') return drawPark(house, P, hash(entry.date))
+  if (kind === 'farm') return drawFarm(house, P, look.roof, hash(entry.date))
   el('ellipse', { cx: P(0.5, 0.5).x, cy: P(0.5, 0.5).y + 3, rx: 17, ry: 7, fill: 'rgba(90,70,54,0.14)' }, house)
   const seed = hash(entry.date)
 
@@ -461,17 +565,17 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   drawWalls(house, P, a, b, H, look.wall)
   drawDoorWindows(house, P, a, b, look.floors)
   const style: RoofStyle =
-    kind === 'cafe' || kind === 'flowerShop' || kind === 'bakery' || kind === 'restaurant' || kind === 'school'
+    kind === 'cafe' || kind === 'flowerShop' || kind === 'bakery' || kind === 'restaurant' || kind === 'school' || kind === 'station'
       ? 'gable'
       : kind === 'bookstore'
         ? 'hip'
-        : kind === 'cinema'
+        : kind === 'cinema' || kind === 'gallery'
           ? 'flat'
           : kind === 'musicHall'
             ? 'dome'
             : look.roofStyle
   if ((kind === 'bakery' || (!kind && look.chimney)) && style !== 'flat') drawChimney(house, P, H)
-  const top = drawRoof(house, P, a, b, H, style, look.roof, look.wall, kind !== 'cinema')
+  const top = drawRoof(house, P, a, b, H, style, look.roof, look.wall, kind !== 'cinema' && kind !== 'gallery')
   if (!kind) return H
 
   const icon = buildingInfo(kind).icon
@@ -528,6 +632,12 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   } else if (kind === 'school') {
     drawSign(house, P, b, icon)
     return drawSchoolBits(house, P, a, b, H, top, look.roof)
+  } else if (kind === 'station') {
+    drawStationBits(house, P, a, b, H, look.roof)
+    drawSign(house, P, b, icon)
+  } else if (kind === 'gallery') {
+    drawGalleryBits(house, P, a, b, H, look.roof, seed)
+    drawSign(house, P, b, icon)
   } else {
     // 아직 제 그림이 없는 건물은 보통 집 모양에 간판만 단다
     drawSign(house, P, b, icon)

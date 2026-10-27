@@ -509,6 +509,77 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   expect(stored.entries.find((e: { date: string }) => e.date === '2026-10-24').text).toBe('산책하다 커피 한 잔')
 })
 
+test('기차역·미술관·텃밭이 제 그림으로 서고, 읽기 창과 도감에 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const texts: [number, string, string][] = [
+    [24, '기차 타고 산으로 여행', 'station'],
+    [25, '미술관에서 전시를 봤다', 'gallery'],
+    [26, '텃밭에 상추 씨앗을 심었다', 'farm'],
+  ]
+  const entries = texts.map(([d, text], i) => ({
+    date: `2026-10-${d}`,
+    text,
+    mood: moods[i % moods.length],
+    writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`),
+  }))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  for (const [d, , kind] of texts) await expect(page.getByTestId(`house-2026-10-${d}`)).toHaveAttribute('data-building', kind)
+
+  await expect(page.getByTestId('house-2026-10-24').locator('.station-train')).toHaveCount(1)
+  await expect(page.getByTestId('house-2026-10-24').locator('.station-rail')).toHaveCount(2)
+  await expect(page.getByTestId('house-2026-10-24').locator('.station-clock')).toHaveCount(1)
+  await expect(page.getByTestId('house-2026-10-25').locator('.gallery-column')).toHaveCount(4)
+  await expect(page.getByTestId('house-2026-10-25').locator('.gallery-frame')).toHaveCount(2)
+  await expect(page.getByTestId('house-2026-10-25').locator('.gallery-easel')).toHaveCount(1)
+  await expect(page.getByTestId('house-2026-10-26').locator('.farm-row')).toHaveCount(3)
+  await expect(page.getByTestId('house-2026-10-26').locator('.farm-sprout')).toHaveCount(12)
+  await expect(page.getByTestId('house-2026-10-26').locator('.farm-scarecrow')).toHaveCount(1)
+
+  const mid = (await page.getByTestId('house-2026-10-25').boundingBox())!
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2)
+  for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -200)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/buildings-new-2.png' })
+  // 건물마다 가까이 본 사진(앞의 나무·주민을 잠시 가리고 건물만 본다)
+  await page.addStyleTag({ content: '.tree, .resident { visibility: hidden }' })
+  for (const [d, name] of [[24, 'station'], [25, 'gallery'], [26, 'farm']]) {
+    const house = page.getByTestId(`house-2026-10-${d}`)
+    const b = (await house.boundingBox())!
+    // 빈 하늘 쪽을 끌어서 그 건물을 화면 가운데로
+    const dx = 195 - (b.x + b.width / 2)
+    const dy = 330 - (b.y + b.height / 2)
+    const from = { x: dx < 0 ? 370 : 20, y: dy < 0 ? 560 : 120 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + dx, from.y + dy, { steps: 8 })
+    await page.mouse.up()
+    await house.screenshot({ path: `test-results/screens/building-${name}.png` })
+  }
+  await page.evaluate(() => document.querySelectorAll('style').forEach((s) => s.textContent?.includes('.tree, .resident') && s.remove()))
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.mouse.wheel(0, 1000)
+
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-building')).toHaveText("🌱 텃밭 · '텃밭'에서 생겼어요")
+  await page.getByTestId('reader-close').click()
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-count')).toHaveText('3 / 16')
+  for (const [id, name] of [['station', '기차역'], ['gallery', '미술관'], ['farm', '텃밭']]) {
+    await expect(page.getByTestId(`book-${id}`).locator('.book-name')).toHaveText(name)
+  }
+  // 도감 16칸이 수첩 안에서 잘리지 않는다
+  const grid = (await page.getByTestId('book-buildings').boundingBox())!
+  expect(grid.x).toBeGreaterThanOrEqual(0)
+  expect(grid.x + grid.width).toBeLessThanOrEqual(390)
+  await page.getByTestId('book-farm').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/book-new-buildings.png' })
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.entries.map((e: { text: string }) => e.text)).toEqual(entries.map((e) => e.text))
+})
+
 test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽기 창에 건물 이름이 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
