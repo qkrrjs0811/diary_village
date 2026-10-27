@@ -11,15 +11,26 @@ export function createCelebration(handlers: { onVisit(landmark: Landmark): void 
   back.hidden = true
   back.innerHTML = `<div class="sheet celebrate" data-testid="celebrate" role="dialog" aria-modal="true" aria-label="축하해요"></div>`
   const sheet = back.querySelector<HTMLElement>('.sheet')!
-  const close = () => (back.hidden = true)
+  /** 카드가 닫힌 뒤 할 일(잔치 카드 다음에 편지 도착 카드) */
+  let after: (() => void) | null = null
+  const close = () => {
+    back.hidden = true
+    const then = after
+    after = null
+    then?.()
+  }
   back.addEventListener('click', (e) => {
     if (e.target === back) close()
   })
 
   return {
     root: back,
-    /** done: 버튼 하나일 때 그 이름과, 누른 순간 할 일(잔치 카드는 누르는 손길 안에서 축하 가락을 울린다) */
-    open(text: MilestoneCard, done?: { label: string; onDone(): void }) {
+    /**
+     * done: 버튼 하나일 때 그 이름과, 누른 순간 할 일(잔치 카드는 누르는 손길 안에서 축하 가락을 울린다).
+     * then: 어떻게 닫히든 닫힌 뒤 할 일
+     */
+    open(text: MilestoneCard, done?: { label: string; onDone(): void }, then?: () => void) {
+      after = then ?? null
       const visit = text.visit
       // 단계만 올랐으면 보러 갈 곳이 없으니 버튼 하나만 둔다
       const buttons = visit

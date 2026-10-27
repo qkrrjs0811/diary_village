@@ -9,7 +9,7 @@ import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { toggleTreasured } from './core/treasure'
 import { arrivedLetters, eraseLetter, markLetterRead, receivedLetters, waitingLetters, writeLetter } from './core/letter'
-import { createLetterBox } from './ui/letters'
+import { createLetterArrival, createLetterBox } from './ui/letters'
 import { festivalCard, festivalOn, type Festival } from './core/festival'
 import { recapOf, yearRecapOf } from './core/recap'
 import { todayPrompt, yesterdayPrompt } from './core/prompt'
@@ -267,15 +267,39 @@ function celebrate(before: Dated[], wait: number) {
  * 잔치 날 앱을 열면(켜 둔 채 잔치 날이 되어도) 잔치 카드를 이번 열기에 한 번 띄운다. 본 표시는 저장하지 않는다.
  * 폰은 손길 없이 소리를 막으니 축하 가락은 "잔치 즐기기"를 누른 순간 울리고, 광장 잔치 장식으로 간다
  */
-function showFestival(f: Festival) {
-  celebrateCard.open(festivalCard(f), {
-    label: '🎉 잔치 즐기기',
-    onDone() {
-      sound.cue('celebrate')
-      // 큰 잔치 장식(광장 (5,2)) 언저리로 간다
-      camera.glide(iso(PLAZA.gx + 4.5, PLAZA.gy + 2.5, 26), 0.8)
+function showFestival(f: Festival, then: () => void) {
+  celebrateCard.open(
+    festivalCard(f),
+    {
+      label: '🎉 잔치 즐기기',
+      onDone() {
+        sound.cue('celebrate')
+        // 큰 잔치 장식(광장 (5,2)) 언저리로 간다
+        camera.glide(iso(PLAZA.gx + 4.5, PLAZA.gy + 2.5, 26), 0.8)
+      },
     },
-  })
+    then,
+  )
+}
+
+/** 앱을 열 때 찾아오는 편지 도착 카드. 읽음 표시는 열어 본 편지에만 저장한다 */
+const letterArrival = createLetterArrival({
+  onRead(writtenAt) {
+    const r = markLetterRead(save, writtenAt, Date.now())
+    if (!r.ok) return '편지를 찾지 못했어요'
+    return r.save === save ? null : keepLetters(r.save)
+  },
+  onOpen: () => sound.cue('celebrate'),
+})
+document.body.appendChild(letterArrival.root)
+/** 이번 열기에 이미 보인 편지("나중에"를 누른 편지는 날이 바뀌어도 다시 띄우지 않는다. 우체통에 그대로 있다) */
+const shownLetters = new Set<number>()
+function showArrivals() {
+  if (readOnly) return
+  const now = Date.now()
+  const fresh = arrivedLetters(save, now).filter((l) => !shownLetters.has(l.writtenAt))
+  for (const l of fresh) shownLetters.add(l.writtenAt)
+  letterArrival.open(fresh, now)
 }
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
 function visitLandmark(l: Landmark) {
@@ -602,7 +626,9 @@ function render(newDate?: string) {
     const lot = block.lots.find((l) => l.date === today)!
     if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT, blockView(block))) camera.show(blockView(block))
     shownDay = today
-    if (festival) showFestival(festival)
+    // 잔치 카드가 있으면 그 카드를 닫은 뒤 편지가 찾아온다
+    if (festival) showFestival(festival, showArrivals)
+    else showArrivals()
   } else if (newDate && !calm) {
     const lot = village.blocks.flatMap((b) => b.lots).find((l) => l.date === newDate)
     if (lot) camera.visit(iso(lot.gx + 0.5, lot.gy + 0.5, 22))

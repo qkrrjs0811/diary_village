@@ -1,4 +1,5 @@
-import { MAX_LETTER, checkLetter, letterAge, opensOnFor, type LetterWait } from '../core/letter'
+import { MAX_LETTER, arrivalCard, checkLetter, letterAge, letterDay, opensOnFor, type LetterWait } from '../core/letter'
+import { dayKey } from '../core/date'
 import type { Letter } from '../core/types'
 
 /** 편지 창이 보여 줄 편지들(지금 저장에서 계산) */
@@ -19,12 +20,6 @@ const WAITS: { id: LetterWait; label: string }[] = [
   { id: 'days100', label: '100일 뒤' },
   { id: 'year', label: '1년 뒤' },
 ]
-
-/** "11월 28일", 올해가 아니면 "2027년 10월 28일" */
-export function letterDay(date: string, today: string): string {
-  const [y, m, d] = date.split('-').map(Number)
-  return `${y === Number(today.slice(0, 4)) ? '' : `${y}년 `}${m}월 ${d}일`
-}
 
 /**
  * 광장 우체통을 누르면 여는 편지 창. 미래의 나에게 편지를 쓰고(열리는 날 고르기),
@@ -209,6 +204,85 @@ export function createLetterBox(handlers: {
     root: back,
     open() {
       showMain()
+      back.hidden = false
+    },
+  }
+}
+
+/**
+ * 열리는 날(또는 그 뒤) 앱을 열면 찾아오는 편지 도착 카드(축하 카드 모양). 여러 통이면 쓴 순서로 차례로 보인다.
+ * "열어 보기"를 누르면 글을 보이고 읽음 표시를 저장한다. "나중에"는 남은 편지를 우체통에 그대로 둔다
+ */
+export function createLetterArrival(handlers: {
+  /** 읽음 표시를 저장한다. 성공하면 null, 실패하면 이유 */
+  onRead(writtenAt: number): string | null
+  /** 편지를 연 순간(누르는 손길 안에서 소리를 낸다) */
+  onOpen(): void
+}) {
+  const back = document.createElement('div')
+  back.className = 'sheet-back celebrate-back'
+  back.hidden = true
+  back.innerHTML = `<div class="sheet celebrate letter-arrival" data-testid="letter-arrival" role="dialog" aria-modal="true" aria-label="편지가 왔어요"></div>`
+  const sheet = back.querySelector<HTMLElement>('.sheet')!
+  let queue: Letter[] = []
+  let now = 0
+  const close = () => {
+    back.hidden = true
+    queue = []
+  }
+
+  function showSealed() {
+    const l = queue[0]
+    const card = arrivalCard(l, now, queue.length - 1)
+    sheet.innerHTML = `
+      <div class="celebrate-icons" aria-hidden="true"><span>💌</span></div>
+      <div class="celebrate-title" data-testid="arrival-title"></div>
+      <p class="celebrate-body" data-testid="arrival-body"></p>
+      <p class="celebrate-next" data-testid="arrival-next"></p>
+      <div class="sheet-buttons">
+        <button type="button" class="sheet-btn" data-testid="arrival-later">나중에</button>
+        <button type="button" class="sheet-btn build" data-testid="arrival-open">💌 열어 보기</button>
+      </div>`
+    sheet.querySelector('[data-testid="arrival-title"]')!.textContent = card.title
+    sheet.querySelector('[data-testid="arrival-body"]')!.textContent = card.body
+    sheet.querySelector('[data-testid="arrival-next"]')!.textContent = card.next || '편지는 우체통에서 다시 읽을 수 있어요'
+    sheet.querySelector('[data-testid="arrival-later"]')!.addEventListener('click', close)
+    sheet.querySelector('[data-testid="arrival-open"]')!.addEventListener('click', () => {
+      handlers.onOpen()
+      showOpened(handlers.onRead(l.writtenAt))
+    })
+  }
+
+  function showOpened(error: string | null) {
+    const l = queue[0]
+    const left = queue.length - 1
+    sheet.innerHTML = `
+      <div class="celebrate-title" data-testid="arrival-title"></div>
+      <p class="letter-paper" data-testid="arrival-text"></p>
+      <p class="celebrate-next${error ? ' err' : ''}" data-testid="arrival-next"></p>
+      <div class="sheet-buttons">
+        <button type="button" class="sheet-btn build" data-testid="arrival-done"></button>
+      </div>`
+    sheet.querySelector('[data-testid="arrival-title"]')!.textContent = `💌 ${letterAge(l, now)}일 전의 나에게서`
+    sheet.querySelector('[data-testid="arrival-text"]')!.textContent = l.text
+    sheet.querySelector('[data-testid="arrival-next"]')!.textContent = error ?? `${letterDay(l.writtenOn, dayKey(now))}에 썼어요`
+    const done = sheet.querySelector<HTMLElement>('[data-testid="arrival-done"]')!
+    done.textContent = left > 0 ? `다음 편지 (${left}통 더)` : '고마워요'
+    done.addEventListener('click', () => {
+      queue = queue.slice(1)
+      if (queue.length) showSealed()
+      else close()
+    })
+  }
+
+  return {
+    root: back,
+    /** 도착한 편지들(쓴 순서). 비었으면 아무것도 하지 않는다 */
+    open(letters: Letter[], at: number) {
+      if (letters.length === 0) return
+      queue = [...letters]
+      now = at
+      showSealed()
       back.hidden = false
     },
   }

@@ -144,6 +144,23 @@ button { font: inherit; color: inherit; }
 .letter-when { font-size: 14px; word-break: keep-all; }
 .letter-from { font-size: 12px; color: var(--ink-soft); }
 .letter-text { margin: 6px 0 2px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.letter-paper {
+  max-height: 46vh;
+  margin: 14px 0 8px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  border: 1px solid rgba(90, 70, 54, 0.2);
+  border-radius: 18px;
+  /* 편지지 줄: 글줄 아래에 옅은 줄이 오게 안쪽 여백만큼 내린다 */
+  background: repeating-linear-gradient(#fffaf0 0 27px, #f1e6d2 27px 28px) 0 16px / 100% 100% local, #fffaf0;
+  font-size: 15px;
+  line-height: 28px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.letter-arrival .celebrate-next.err { color: #c0695e; }
 .letter-actions { display: flex; flex: none; align-items: center; gap: 4px; align-self: flex-start; }
 .letter-erase { width: 44px; height: 44px; border: none; border-radius: 50%; background: none; font-size: 16px; cursor: pointer; }
 .letter-erase:active { background: var(--chip); }

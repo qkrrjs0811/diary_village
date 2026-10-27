@@ -26,7 +26,7 @@ describe('백업 가져오기', () => {
   it('빈 폰에 가져오면 모든 기록이 들어온다', () => {
     const backup = save(e('2026-10-01', '가'), e('2026-10-02', '나'))
     const r = planImport(save(), backupText(backup))
-    expect(r).toEqual({ ok: true, save: backup, total: 2, added: 2, kept: 0 })
+    expect(r).toEqual({ ok: true, save: backup, total: 2, added: 2, kept: 0, lettersAdded: 0 })
   })
 
   it('폰에 있는 글은 지우지 않고 없는 날만 더한다', () => {

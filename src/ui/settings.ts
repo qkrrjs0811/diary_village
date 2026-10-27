@@ -138,13 +138,15 @@ export function createSettings(handlers: {
     if (plan.added > 0) lines.push(`그중 ${plan.added}일을 마을에 더해요.`)
     if (plan.kept > 0) lines.push(`이미 쓴 ${plan.kept}일은 지금 글을 그대로 둬요.`)
     if (plan.added === 0) lines.push('새로 더할 날은 없어요.')
+    if (plan.lettersAdded > 0) lines.push(`미래의 나에게 쓴 편지 ${plan.lettersAdded}통을 더해요.`)
+    const fresh = plan.added > 0 || plan.lettersAdded > 0
     sheet.innerHTML = `
       <div class="edit-title">📂 백업 가져오기</div>
       <p class="settings-help confirm" data-testid="import-summary"></p>
       <div class="settings-msg" data-testid="import-msg" role="status"></div>
       <div class="sheet-buttons">
         <button type="button" class="sheet-btn" data-testid="import-cancel">그만두기</button>
-        <button type="button" class="sheet-btn build" data-testid="import-ok" ${plan.added > 0 ? '' : 'disabled'}>가져오기</button>
+        <button type="button" class="sheet-btn build" data-testid="import-ok" ${fresh ? '' : 'disabled'}>가져오기</button>
       </div>`
     sheet.querySelector('.confirm')!.textContent = lines.join(' ')
     sheet.querySelector('[data-testid="import-cancel"]')!.addEventListener('click', () => showMain())
@@ -156,7 +158,7 @@ export function createSettings(handlers: {
         msg.classList.add('err')
         return
       }
-      showMain(`🏠 ${plan.added}일의 집을 다시 지었어요`)
+      showMain(plan.added > 0 ? `🏠 ${plan.added}일의 집을 다시 지었어요` : `💌 편지 ${plan.lettersAdded}통을 우체통에 넣었어요`)
     })
   }
 

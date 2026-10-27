@@ -7,9 +7,11 @@ import { LANDMARKS, PLAZA, earnedLandmarks } from './landmark'
 import {
   MAILBOX,
   MAX_LETTER,
+  arrivalCard,
   arrivedLetters,
   eraseLetter,
   letterAge,
+  letterDay,
   markLetterRead,
   opensOnFor,
   receivedLetters,
@@ -245,6 +247,15 @@ describe('편지 백업', () => {
     const r = planImport(phone, backupText(backup))
     if (!r.ok) throw new Error()
     expect(r.save.letters).toEqual([b, { ...a, readAt: 70 }])
+    // 날은 모두 폰에 있어도 새 편지가 있으면 가져올 거리가 있다
+    expect(r.added).toBe(0)
+    expect(r.lettersAdded).toBe(1)
+  })
+
+  it('폰에 이미 있는 편지만 있으면 새로 더할 편지는 없다', () => {
+    const r = planImport({ ...save, letters: [a] }, backupText({ ...save, letters: [a] }))
+    if (!r.ok) throw new Error()
+    expect(r.lettersAdded).toBe(0)
   })
 
   it('양쪽 다 편지가 없으면 칸을 만들지 않는다', () => {
@@ -265,5 +276,30 @@ describe('광장 우체통 자리', () => {
     const village = buildVillage(save.entries, '2026-10-28')
     expect(canPlace(village, '2026-10-28', save, { at: 'plaza', col: MAILBOX.col, row: MAILBOX.row })).toBe(false)
     expect(decorSpots(village, '2026-10-28', save).some((s) => s.at === 'plaza' && s.col === MAILBOX.col && s.row === MAILBOX.row)).toBe(false)
+  })
+})
+
+describe('편지 도착 카드', () => {
+  const letter: Letter = { writtenOn: '2026-07-20', writtenAt: at('2026-07-20T22:00:00'), opensOn: '2026-10-28', text: '여름의 나' }
+
+  it('날짜는 올해면 달·날만, 다른 해면 해를 붙인다', () => {
+    expect(letterDay('2026-11-28', '2026-10-28')).toBe('11월 28일')
+    expect(letterDay('2027-02-05', '2026-10-28')).toBe('2027년 2월 5일')
+  })
+
+  it('며칠 전의 내가 언제 보낸 편지인지 알려 주고, 남은 편지 수를 덧붙인다', () => {
+    expect(arrivalCard(letter, now, 0)).toEqual({
+      title: '100일 전의 내가 보낸 편지가 왔어요',
+      body: '7월 20일에 미래의 나에게 부친 편지예요.',
+      next: '',
+    })
+    expect(arrivalCard(letter, now, 2).next).toBe('편지가 2통 더 왔어요')
+  })
+
+  it('작년에 쓴 편지는 해를 붙이고, 열리는 날이 지나 열어도 오늘까지 날 수로 센다', () => {
+    const old: Letter = { writtenOn: '2025-10-28', writtenAt: at('2025-10-28T08:00:00'), opensOn: '2026-10-28', text: '1년 전' }
+    const card = arrivalCard(old, at('2026-10-30T09:00:00'), 0)
+    expect(card.title).toBe('367일 전의 내가 보낸 편지가 왔어요')
+    expect(card.body).toBe('2025년 10월 28일에 미래의 나에게 부친 편지예요.')
   })
 })

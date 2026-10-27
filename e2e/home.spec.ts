@@ -2762,6 +2762,9 @@ test('열리는 날이 지난 편지는 우체통에서 열어 읽고, 받은 �
   const letters = [read, arrived, waiting]
   await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, letters })])
   await page.reload()
+  // 앱을 열면 찾아오는 편지 카드는 "나중에"로 미뤄 두고 우체통에서 연다
+  await page.getByTestId('arrival-later').click()
+  await expect(page.getByTestId('letter-arrival')).toBeHidden()
   await expect(page.getByTestId('mailbox')).toHaveAttribute('data-waiting', 'true')
   await zoomToPlaza(page, 4)
   await finishAnimations(page)
@@ -2792,4 +2795,106 @@ test('열리는 날이 지난 편지는 우체통에서 열어 읽고, 받은 �
   expect(saved.letters[2]).toEqual(waiting)
   expect(saved.letters[1]).toEqual({ ...arrived, readAt: saved.letters[1].readAt })
   expect(saved.letters[1].readAt).toBeGreaterThanOrEqual(Date.parse('2026-10-28T13:00:00+09:00'))
+})
+
+test('열리는 날 앱을 열면 잔치 카드 다음에 편지가 차례로 찾아오고, 연 편지만 읽음으로 남는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  // 첫 집을 지은 지 1년: 마을 생일 잔치
+  const entries = [...monthEntries('2025-10', [28]), ...monthEntries('2026-10', [3, 9, 15])]
+  const year = { writtenOn: '2025-10-28', writtenAt: Date.parse('2025-10-28T22:00:00+09:00'), opensOn: '2026-10-28', text: '1년 뒤의 나에게.\n첫 집을 지은 날이야. 마을은 얼마나 컸어?' }
+  const summer = { writtenOn: '2026-07-20', writtenAt: Date.parse('2026-07-20T22:00:00+09:00'), opensOn: '2026-10-28', text: '여름의 내가 <b>안녕</b>' }
+  const waiting = { writtenOn: '2026-10-20', writtenAt: Date.parse('2026-10-20T22:00:00+09:00'), opensOn: '2026-11-20', text: '아직 열리면 안 되는 편지' }
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, letters: [year, summer, waiting] })])
+  await page.reload()
+  const arrival = page.getByTestId('letter-arrival')
+  const stored = async () => JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  const notes = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes.length)
+
+  // 잔치 카드가 먼저, 닫으면 편지가 찾아온다
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await expect(arrival).toBeHidden()
+  await page.getByTestId('celebrate-close').click()
+  await expect(arrival).toBeVisible()
+  await expect(page.getByTestId('arrival-title')).toHaveText('365일 전의 내가 보낸 편지가 왔어요')
+  await expect(page.getByTestId('arrival-body')).toHaveText('2025년 10월 28일에 미래의 나에게 부친 편지예요.')
+  await expect(page.getByTestId('arrival-next')).toHaveText('편지가 1통 더 왔어요')
+  // 열기 전에는 글이 보이지 않는다
+  await expect(arrival).not.toContainText('첫 집을')
+  for (const id of ['arrival-later', 'arrival-open']) {
+    const b = page.getByTestId(id)
+    expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await expect(b).toBeInViewport()
+  }
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/letter-arrival.png' })
+
+  // 열면 글과 축하 가락, 읽은 시각이 남는다
+  const before = await notes()
+  await page.getByTestId('arrival-open').click()
+  await expect(page.getByTestId('arrival-text')).toHaveText(year.text)
+  await expect(page.getByTestId('arrival-title')).toHaveText('💌 365일 전의 나에게서')
+  await expect(page.getByTestId('arrival-next')).toHaveText('2025년 10월 28일에 썼어요')
+  expect(await notes()).toBeGreaterThan(before)
+  const next = page.getByTestId('arrival-done')
+  await expect(next).toHaveText('다음 편지 (1통 더)')
+  expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/letter-arrival-open.png' })
+  let saved = await stored()
+  expect(saved.entries).toEqual(entries)
+  expect(saved.letters[0].readAt).toBeGreaterThanOrEqual(Date.parse('2026-10-28T13:00:00+09:00'))
+  expect(saved.letters[1]).toEqual(summer)
+
+  // 두 번째 편지는 "나중에": 우체통에 안 읽은 채 남는다
+  await next.click()
+  await expect(page.getByTestId('arrival-title')).toHaveText('100일 전의 내가 보낸 편지가 왔어요')
+  await expect(page.getByTestId('arrival-next')).toHaveText('편지는 우체통에서 다시 읽을 수 있어요')
+  await page.getByTestId('arrival-later').click()
+  await expect(arrival).toBeHidden()
+  saved = await stored()
+  expect(saved.letters[1]).toEqual(summer)
+  expect(saved.letters[2]).toEqual(waiting)
+
+  // 다시 열면 아직 안 읽은 편지만 찾아온다(잔치 카드는 이번 열기에 다시 한 번)
+  await page.reload()
+  await page.getByTestId('celebrate-close').click()
+  await expect(page.getByTestId('arrival-title')).toHaveText('100일 전의 내가 보낸 편지가 왔어요')
+  await page.getByTestId('arrival-open').click()
+  // 꺾쇠도 글자 그대로
+  await expect(page.getByTestId('arrival-text')).toHaveText(summer.text)
+  await expect(page.getByTestId('arrival-done')).toHaveText('고마워요')
+  await page.getByTestId('arrival-done').click()
+  await expect(arrival).toBeHidden()
+  saved = await stored()
+  expect(saved.letters[1].readAt).toBeGreaterThanOrEqual(Date.parse('2026-10-28T13:00:00+09:00'))
+
+  // 모두 읽었으면 다시 열어도 편지 카드가 없다
+  await page.reload()
+  await page.getByTestId('celebrate-close').click()
+  await page.waitForTimeout(300)
+  await expect(arrival).toBeHidden()
+
+  // 백업 내보내기에 편지(읽은 표시 포함)가 담기고, 가져오기는 폰의 편지를 지키며 새 편지만 더한다
+  await page.getByTestId('settings-open').click()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  const backup = JSON.parse(readFileSync(await download.path(), 'utf8'))
+  saved = await stored()
+  expect(backup.letters).toEqual(saved.letters)
+  expect(backup.letters).toHaveLength(3)
+  const extra = { writtenOn: '2026-09-01', writtenAt: Date.parse('2026-09-01T22:00:00+09:00'), opensOn: '2026-12-10', text: '백업에만 있는 편지' }
+  const file = { version: 1, entries, letters: [summer, extra] }
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-28.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) })
+  // 새로 더할 날이 없어도 백업에만 있는 편지는 가져온다
+  await expect(page.getByTestId('import-summary')).toContainText('미래의 나에게 쓴 편지 1통을 더해요.')
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('settings')).toContainText('💌 편지 1통을 우체통에 넣었어요')
+  await expect.poll(async () => (await stored()).letters.length).toBe(4)
+  saved = await stored()
+  expect(saved.entries).toEqual(entries)
+  // 폰에서 읽은 표시는 그대로, 백업에만 있던 편지는 더해진다
+  const byTime = (t: number) => saved.letters.find((l: { writtenAt: number }) => l.writtenAt === t)
+  expect(byTime(summer.writtenAt).readAt).toBeGreaterThan(0)
+  expect(byTime(extra.writtenAt)).toEqual(extra)
 })

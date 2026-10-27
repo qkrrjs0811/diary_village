@@ -77,7 +77,22 @@ export function letterAge(letter: Letter, now: number): number {
   return Math.round((ms(dayKey(now)) - ms(letter.writtenOn)) / 86_400_000)
 }
 
-export type LetterResult = { ok: true; save: SaveData } | { ok: false; reason: 'missing' | 'sealed' }
+/** "11월 28일", 올해가 아니면 "2027년 10월 28일" */
+export function letterDay(date: string, today: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return `${y === Number(today.slice(0, 4)) ? '' : `${y}년 `}${m}월 ${d}일`
+}
+
+/** 앱을 열 때 찾아오는 편지 카드의 말. left: 이 편지 뒤에 더 온 편지 수 */
+export function arrivalCard(letter: Letter, now: number, left: number): { title: string; body: string; next: string } {
+  return {
+    title: `${letterAge(letter, now)}일 전의 내가 보낸 편지가 왔어요`,
+    body: `${letterDay(letter.writtenOn, dayKey(now))}에 미래의 나에게 부친 편지예요.`,
+    next: left > 0 ? `편지가 ${left}통 더 왔어요` : '',
+  }
+}
+
+export type LetterResult ={ ok: true; save: SaveData } | { ok: false; reason: 'missing' | 'sealed' }
 
 /** 읽음 표시. 처음 읽은 시각만 남기고, 열리기 전 편지는 표시하지 않는다 */
 export function markLetterRead(save: SaveData, writtenAt: number, now: number): LetterResult {

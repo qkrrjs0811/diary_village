@@ -20,6 +20,8 @@ export type ImportPlan =
       added: number
       /** 폰에 이미 있어서 그대로 둔 날 수 */
       kept: number
+      /** 백업에만 있어 새로 더해지는 편지 수 */
+      lettersAdded: number
     }
 
 /**
@@ -47,5 +49,6 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   // 편지는 사용자가 쓴 글이라 두 쪽을 합친다. 폰에 있는 편지(읽은 표시 포함)는 그대로 둔다
   const letters = mergeLetters(current.letters ?? [], backup.letters ?? [])
   if (letters.length) save.letters = letters
-  return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length }
+  const lettersAdded = letters.length - (current.letters?.length ?? 0)
+  return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length, lettersAdded }
 }
