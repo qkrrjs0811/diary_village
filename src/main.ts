@@ -11,6 +11,7 @@ import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, t
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
+import { createBook } from './ui/book'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
 import { createSettings } from './ui/settings'
@@ -46,7 +47,7 @@ try {
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="stage" data-testid="village-stage"></span><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
+  <header class="top"><b data-testid="village-name">한 줄 마을</b><button type="button" class="stage-btn" data-testid="village-stage" aria-label="마을 수첩 열기"><span class="stage"></span></button><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
     <div class="sky sky-back" data-testid="sky" aria-hidden="true"></div>
@@ -147,6 +148,11 @@ function visitLandmark(l: Landmark) {
 }
 app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
 
+/** 머리줄 단계 이름표를 누르면 마을 수첩(단계·건물 도감·명소)이 열린다 */
+const book = createBook()
+document.body.appendChild(book.root)
+app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries))
+
 const card = createWriteCard({
   onSubmit(text: string, mood: MoodId, day: Day) {
     if (readOnly) return '지금은 쓸 수 없어요'
@@ -219,7 +225,7 @@ function render(newDate?: string) {
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
-  app.querySelector('[data-testid="village-stage"]')!.textContent = stageLabel(save.entries)
+  app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(save.entries)
   app.querySelector('[data-testid="village-name"]')!.textContent = villageTitle(save)
   paintSky()
   const mood = moodOf(todayEntry?.mood ?? 'calm')

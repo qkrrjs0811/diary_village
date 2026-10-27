@@ -836,3 +836,75 @@ test('지금 시각에 따라 낮·저녁·밤 하늘이 되고, 저녁·밤에�
   expect(await page.getByTestId('rain').locator('.drop').count()).toBeGreaterThanOrEqual(20)
   await shot('time-night-rain')
 })
+
+test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도감과 명소를 모아 본다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-10-10', 12)
+  entries[0].text = '아침에 커피를 마셨다'
+  entries[3].text = '라떼가 맛있었다'
+  entries[5].text = '고양이가 창가에 앉아 있었다'
+  entries[8].text = '바닷가를 걸었다'
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const badge = page.getByTestId('village-stage')
+  await expect(badge).toHaveText('🏘️ 마을')
+  expect((await badge.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await badge.click()
+  const book = page.getByTestId('book')
+  await expect(book).toBeVisible()
+  await expect(page.getByTestId('book-stage')).toContainText('마을 · 한 줄을 12일 남겼어요')
+  await expect(page.getByTestId('book-stage')).toContainText('18일 더 쓰면 🌳 큰 마을')
+  await expect(page.getByTestId('book-count')).toHaveText('3 / 10')
+  await expect(page.getByTestId('book-cafe')).toHaveAttribute('data-found', 'true')
+  await expect(page.getByTestId('book-cinema')).toHaveAttribute('data-found', 'false')
+  await expect(page.getByTestId('book-cinema').locator('.book-name')).toHaveText('???')
+
+  // 칸은 손가락으로 누르기 충분히 크다
+  for (const id of ['book-cafe', 'book-well', 'book-close']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.width).toBeGreaterThanOrEqual(44)
+  }
+
+  await page.getByTestId('book-cafe').click()
+  await expect(page.getByTestId('book-detail')).toHaveText("☕ 카페 · 2채 · 10월 10일에 '커피'에서 처음 생겼어요")
+  await page.getByTestId('book-cinema').click()
+  await expect(page.getByTestId('book-detail')).toHaveText('❔ 큰 화면 앞에 앉은 날에 생겨요')
+  await page.getByTestId('book-well').click()
+  await expect(page.getByTestId('book-landmark-detail')).toHaveText('🪣 우물 · 한 줄을 7일 남겨 생겼어요')
+  await page.getByTestId('book-garden').click()
+  await expect(page.getByTestId('book-landmark-detail')).toHaveText('❔ 2일 더 쓰면 광장에 새 명소가 생겨요')
+  await page.waitForTimeout(400)
+  // 수첩이 화면 안에 다 들어온다
+  const sheet = (await book.boundingBox())!
+  expect(sheet.y).toBeGreaterThanOrEqual(0)
+  expect(sheet.y + sheet.height).toBeLessThanOrEqual(845)
+  await page.screenshot({ path: 'test-results/screens/book.png' })
+
+  await page.getByTestId('book-close').click()
+  await expect(book).toBeHidden()
+
+  // 오늘 영화 이야기를 쓰면 도감에 영화관이 들어온다(저장은 기록뿐)
+  await page.getByTestId('write-input').fill('친구랑 영화를 봤다')
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-submit').click()
+  await page.clock.runFor(4000)
+  await badge.click()
+  await expect(page.getByTestId('book-count')).toHaveText('4 / 10')
+  await expect(page.getByTestId('book-cinema').locator('.book-name')).toHaveText('영화관')
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(['entries', 'version'])
+})
+
+test('빈 마을의 수첩은 모두 힌트 칸이다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-count')).toHaveText('0 / 10')
+  await expect(page.getByTestId('book-stage')).toContainText('10일 더 쓰면 🏘️ 마을')
+  await expect(page.locator('[data-testid="book"] [data-found="true"]')).toHaveCount(0)
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/book-empty.png' })
+})
