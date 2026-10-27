@@ -764,6 +764,27 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
   return H
 }
 
+/** 소중한 날로 표시한 집 마당(왼쪽 앞 모서리)의 작은 하트 깃발. 누르기는 집으로 통과한다 */
+function drawTreasureFlag(g: Element, lot: Lot, date: string) {
+  const base = iso(lot.gx + 0.08, lot.gy + 0.88)
+  const flag = el('g', { class: 'treasure-flag', 'data-testid': `treasure-${date}`, 'data-date': date }, g)
+  el('ellipse', { cx: base.x, cy: base.y, rx: 3, ry: 1.4, fill: 'rgba(90,70,54,0.18)' }, flag)
+  el('line', { x1: base.x, y1: base.y, x2: base.x, y2: base.y - 24, stroke: '#a7805e', 'stroke-width': 1.3, 'stroke-linecap': 'round' }, flag)
+  el('circle', { cx: base.x, cy: base.y - 24.5, r: 1.4, fill: '#ffd36b', stroke: LINE, 'stroke-width': 0.5 }, flag)
+  // 깃대 왼쪽에 매단 둥근 하트(바람에 살랑인다)
+  const cx = base.x - 5.6
+  const cy = base.y - 19.5
+  const s = 5.2
+  el('path', {
+    class: 'heart',
+    d: `M${cx} ${cy + s * 0.9} C${cx - s * 1.2} ${cy + s * 0.2} ${cx - s * 0.9} ${cy - s * 0.8} ${cx} ${cy - s * 0.25} C${cx + s * 0.9} ${cy - s * 0.8} ${cx + s * 1.2} ${cy + s * 0.2} ${cx} ${cy + s * 0.9} z`,
+    fill: '#ffaebf',
+    stroke: '#d98a9a',
+    'stroke-width': 0.7,
+    'stroke-linejoin': 'round',
+  }, flag)
+}
+
 /** 광장의 땅: 구역처럼 두툼한 판에 잔디, 가운데로 엇갈리는 돌길, 모서리 나무 */
 function drawPlazaGround(g: Element, labels: Element) {
   const { gx: px, gy: py, w, h } = PLAZA
@@ -1541,6 +1562,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
           depth,
           draw: () => {
             const H = drawHouse(things, lot, entry, isNew, smokes)
+            if (entry.treasured) drawTreasureFlag(things, lot, entry.date)
             if (isNew) drawBuildFx(fx, lot, H)
           },
         })

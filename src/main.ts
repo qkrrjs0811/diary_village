@@ -7,6 +7,7 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
+import { toggleTreasured } from './core/treasure'
 import { festivalCard, festivalOn, type Festival } from './core/festival'
 import { recapOf, yearRecapOf } from './core/recap'
 import { todayPrompt, yesterdayPrompt } from './core/prompt'
@@ -123,6 +124,22 @@ const reader = createReader({
     return { prev: near.prev ? entryOn(save, near.prev) ?? null : null, next: near.next ? entryOn(save, near.next) ?? null : null }
   },
   onTurn: turnTo,
+  onTreasure: readOnly
+    ? null
+    : (date) => {
+        const r = toggleTreasured(save, date)
+        if (!r.ok) return null
+        try {
+          writeSave(kv, r.save)
+        } catch {
+          showNote('저장하지 못했어요. 저장 공간을 확인해 주세요', 0)
+          return null
+        }
+        save = r.save
+        render()
+        veilFront(svg, date)
+        return entryOn(save, date) ?? null
+      },
 })
 document.body.appendChild(reader.root)
 

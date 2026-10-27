@@ -599,6 +599,11 @@ button { font: inherit; color: inherit; }
 .things .tree, .things .resident { transition: opacity 0.35s ease; }
 .things .veiled { opacity: 0.25; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .things .tree, .things .resident { transition: none; } }
+/* 소중한 날 하트 깃발: 누르기는 집으로 통과하고, 하트가 살랑인다 */
+.treasure-flag { pointer-events: none; }
+.treasure-flag .heart { transform-box: fill-box; transform-origin: 100% 40%; animation: flutter 2.8s ease-in-out infinite alternate; }
+@keyframes flutter { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) { .treasure-flag .heart { animation: none; } }
 .landmark { cursor: pointer; }
 .landmark.pop { transform-box: fill-box; transform-origin: 50% 100%; animation: pop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0s) both; }
 .blades { animation: spin 14s linear infinite; }
@@ -606,6 +611,20 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .celebrate-icons span, .landmark.pop, .blades { animation: none; }
 }
+.reader-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.treasure-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #e8c9cf;
+  border-radius: 999px;
+  background: #fff6f4;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.treasure-btn[aria-pressed="true"] { border-color: #f0cf7a; background: #fff3cf; }
 .reader-date { font-size: 13px; color: var(--ink-soft); }
 .reader-mood { margin-top: 6px; font-size: 14px; font-weight: 600; }
 .reader-building {

@@ -2475,3 +2475,88 @@ test('읽기 창을 옆으로 밀어 넘기고, 넘길 때 책장 소리, 처음
   await page.getByTestId('house-2026-10-20').dispatchEvent('click')
   await expect(edge).toHaveText('🌱 마을에 처음 지은 집이에요')
 })
+
+/** 소중한 날 표시를 뺀 기록(글·기분·쓴 시각) */
+const plain = (list: Entry[]) => list.map(({ treasured: _, ...e }) => e)
+
+test('읽기 창에서 소중한 날을 켜고 끄면, 그 집 마당에 하트 깃발이 서고 새로고침해도 남는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [2, 5, 9, 26]) as Entry[]
+  entries[2] = { ...entries[2], treasured: true }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const stored = async () => JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!).entries as Entry[]
+
+  // 표시한 날(9일)에만 깃발이 있다
+  await expect(page.locator('.treasure-flag')).toHaveCount(1)
+  await expect(page.getByTestId('treasure-2026-10-09')).toHaveCount(1)
+
+  // 26일 집을 열어 소중한 날로 표시한다
+  await page.getByTestId('house-2026-10-26').click()
+  const heart = page.getByTestId('reader-treasure')
+  await expect(heart).toHaveText('🤍 소중한 날')
+  await expect(heart).toHaveAttribute('aria-pressed', 'false')
+  const box = (await heart.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await heart.click()
+  await expect(heart).toHaveText('💛 소중한 날')
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  await expect(page.getByTestId('treasure-2026-10-26')).toHaveCount(1)
+  expect((await stored()).find((e) => e.date === '2026-10-26')).toEqual({ ...entries[3], treasured: true })
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-treasure.png' })
+
+  // 고치기를 그만둬도 표시는 그대로다
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-cancel').click()
+  await expect(heart).toHaveText('💛 소중한 날')
+
+  // 앞 날(9일)로 넘기면 그 날 표시가 보이고, 끄면 그 날만 풀린다
+  await page.getByTestId('reader-prev').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 9일의 한 줄')
+  await expect(heart).toHaveText('💛 소중한 날')
+  await heart.click()
+  await expect(heart).toHaveText('🤍 소중한 날')
+  await expect(page.getByTestId('treasure-2026-10-09')).toHaveCount(0)
+  expect((await stored()).find((e) => e.date === '2026-10-09')).toEqual(plain(entries)[2])
+  await page.getByTestId('reader-prev').click()
+  await expect(heart).toHaveText('🤍 소중한 날')
+  await page.getByTestId('reader-close').click()
+  await expect(page.locator('svg .veiled')).toHaveCount(0)
+
+  // 깃발은 누르기를 가로막지 않고, 표시해도 건물은 그대로다
+  const caught = await page.getByTestId('treasure-2026-10-26').evaluate((f) => {
+    const r = f.querySelector('.heart')!.getBoundingClientRect()
+    return !!document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('.treasure-flag')
+  })
+  expect(caught).toBe(false)
+  await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
+
+  // 새로고침해도 남는다
+  await page.reload()
+  await expect(page.locator('.treasure-flag')).toHaveCount(1)
+  await expect(page.getByTestId('treasure-2026-10-26')).toHaveCount(1)
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(heart).toHaveText('💛 소중한 날')
+  await page.getByTestId('reader-close').click()
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/treasure-flag-day.png' })
+  // 글·기분·쓴 시각은 그대로다
+  expect(plain(await stored())).toEqual(plain(entries))
+})
+
+test('밤에도 소중한 날 하트 깃발이 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:30:00+09:00') })
+  await page.goto('./')
+  const entries = (monthEntries('2026-10', [20, 22, 24, 25, 26]) as Entry[]).map((e, i): Entry => (i % 2 === 0 ? { ...e, treasured: true } : e))
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.locator('.treasure-flag')).toHaveCount(3)
+  await expect(page.getByTestId('treasure-2026-10-26')).toBeVisible()
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/treasure-flag-night.png' })
+})

@@ -28,6 +28,8 @@ export function createReader(handlers: {
   neighbors?: (date: string) => { prev: Entry | null; next: Entry | null }
   /** 앞뒤 날로 넘겨 다른 글을 보일 때(마을 보기를 그 집으로 옮긴다) */
   onTurn?: (entry: Entry) => void
+  /** 저장 못 하는 상태면 null. 소중한 날 표시를 켜고 끈 기록을, 실패하면 null 을 돌려준다 */
+  onTreasure?: ((date: string) => Entry | null) | null
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -67,8 +69,13 @@ export function createReader(handlers: {
     swipeTo = null
     const m = moodOf(entry.mood)
     sheet.innerHTML = `
-      <div class="reader-date" data-testid="reader-date"></div>
-      <div class="reader-mood" data-testid="reader-mood"></div>
+      <div class="reader-head">
+        <div>
+          <div class="reader-date" data-testid="reader-date"></div>
+          <div class="reader-mood" data-testid="reader-mood"></div>
+        </div>
+        ${handlers.onTreasure ? '<button type="button" class="treasure-btn" data-testid="reader-treasure"></button>' : ''}
+      </div>
       <div class="reader-building" data-testid="reader-building" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
@@ -91,6 +98,19 @@ export function createReader(handlers: {
       const line = sheet.querySelector<HTMLElement>('.reader-building')!
       line.textContent = `${b.icon} ${b.name} · '${found.word}'에서 생겼어요`
       line.hidden = false
+    }
+    const heart = sheet.querySelector<HTMLButtonElement>('[data-testid="reader-treasure"]')
+    if (heart) {
+      // 소중한 날은 내 손으로 고른 날이다. 켜도 꺼도 건물·명소·단계는 그대로다
+      const on = entry.treasured === true
+      heart.textContent = on ? '💛 소중한 날' : '🤍 소중한 날'
+      heart.setAttribute('aria-pressed', String(on))
+      heart.addEventListener('click', () => {
+        const next = handlers.onTreasure?.(entry.date)
+        if (!next) return
+        showRead(next)
+        sheet.querySelector<HTMLButtonElement>('[data-testid="reader-treasure"]')?.focus()
+      })
     }
     if (entry.editedAt != null) {
       const edited = sheet.querySelector<HTMLElement>('.reader-edited')!
