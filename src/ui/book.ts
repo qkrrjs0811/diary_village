@@ -12,6 +12,8 @@ import { dateLabel } from './format'
 export function createBook(handlers: {
   /** 소품 칸 아래 "마을 꾸미기"로 꾸미기 모드에 들어간다. 저장을 못 쓰면 null */
   onDecorate: (() => void) | null
+  /** 단계 칸 아래 "기분 달력 보기"로 달력을 연다 */
+  onCalendar: () => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -38,6 +40,7 @@ export function createBook(handlers: {
         <span class="book-stage-icon" aria-hidden="true">${stage.icon}</span>
         <div><b></b><p></p></div>
       </div>
+      <button type="button" class="sheet-btn book-calendar" data-testid="book-calendar">📅 기분 달력 보기</button>
       <div class="settings-group">
         <div class="settings-label">건물 도감 <span class="book-count" data-testid="book-count">${found} / ${items.length}</span></div>
         <div class="book-grid" data-testid="book-buildings">
@@ -84,6 +87,10 @@ export function createBook(handlers: {
     sheet.querySelector('.book-stage b')!.textContent = `${stage.name} · 한 줄을 ${days}일 남겼어요`
     sheet.querySelector('.book-stage p')!.textContent = next ? `${next.left}일 더 쓰면 ${next.stage.icon} ${next.stage.name}` : '가장 큰 마을이 되었어요'
     sheet.querySelector('.close')!.addEventListener('click', close)
+    sheet.querySelector('.book-calendar')!.addEventListener('click', () => {
+      close()
+      handlers.onCalendar()
+    })
     sheet.querySelector('.book-decorate')?.addEventListener('click', () => {
       close()
       handlers.onDecorate?.()

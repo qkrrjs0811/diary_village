@@ -271,6 +271,39 @@ button { font: inherit; color: inherit; }
 .decor-pick[aria-pressed="true"] { border-color: var(--accent); background: #eaf6ee; }
 .decorate-msg { min-height: 20px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; text-align: center; word-break: keep-all; color: var(--ink-soft); }
 .book-decorate { width: 100%; margin-top: 12px; }
+/* 기분 달력: 쓴 날은 그날 기분 색으로 칠한 둥근 칸 */
+.book-calendar { width: 100%; margin: -4px 0 14px; }
+.cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cal-move { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; background: #fffaf0; color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+.cal-move:disabled { opacity: 0.3; cursor: default; }
+.cal-title { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.cal-title b { font-size: 16px; }
+.cal-title span { font-size: 12px; color: var(--ink-soft); }
+.cal-band { display: flex; height: 8px; margin-bottom: 10px; border-radius: 999px; overflow: hidden; background: var(--chip); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-week { margin-bottom: 4px; font-size: 11px; text-align: center; color: var(--ink-soft); }
+.cal-week span:first-child { color: #d98c80; }
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 2px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffaf0;
+  color: inherit;
+  cursor: pointer;
+}
+.cal-day.written { border-color: rgba(90, 70, 54, 0.25); }
+.cal-day.erased { border-style: dashed; background: var(--chip); }
+.cal-day.future { opacity: 0.4; cursor: default; }
+.cal-day.today { box-shadow: 0 0 0 2px var(--accent); }
+.cal-num { font-size: 12px; font-weight: 600; }
+.cal-mark { height: 16px; font-size: 14px; line-height: 16px; }
 .scene.decorating .decor { cursor: grab; }
 .decor.lifted { opacity: 0.85; pointer-events: none; }
 .spot { animation: spot 1.6s ease-in-out infinite alternate; }

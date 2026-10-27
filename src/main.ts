@@ -15,6 +15,7 @@ import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resi
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
+import { createCalendar } from './ui/calendar'
 import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
@@ -171,7 +172,10 @@ function visitLandmark(l: Landmark) {
 app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
 
 /** 머리줄 단계 이름표를 누르면 마을 수첩(단계·건물 도감·명소)이 열린다 */
-const book = createBook({ onDecorate: readOnly ? null : () => setDecorating(true) })
+const book = createBook({
+  onDecorate: readOnly ? null : () => setDecorating(true),
+  onCalendar: () => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now())),
+})
 document.body.appendChild(book.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
 
@@ -212,6 +216,10 @@ function visitMemory(entry: Entry) {
   memoryTimer = window.setTimeout(() => reader.open(entry), calm ? 0 : SHOW.go + 150)
 }
 app.appendChild(card.root)
+
+/** 마을 수첩에서 여는 기분 달력. 쓴 날을 누르면 그 집으로 날아가 글을 연다 */
+const calendar = createCalendar({ onOpen: visitMemory })
+document.body.appendChild(calendar.root)
 
 const camera = createCamera(svg, (target, at) => {
   if (decorating) return decorTap(target, at)

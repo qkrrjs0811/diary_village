@@ -1211,3 +1211,67 @@ test('돌아볼 지난 글이 없으면 쪽지를 보이지 않는다', async ({
   await expect(page.getByTestId('write-card')).toBeVisible()
   await expect(page.getByTestId('memory')).toHaveCount(0)
 })
+
+test('마을 수첩에서 기분 달력을 열어 달을 넘기고, 칠한 날을 누르면 그 집으로 가서 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-08', [30, 31]), ...monthEntries('2026-10', [1, 2, 3, 5, 8, 9, 12, 15, 16, 20, 22, 26, 27])]
+  const erased = [{ date: '2026-10-10', erasedAt: Date.parse('2026-10-11T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+
+  await page.getByTestId('village-stage').click()
+  const open = page.getByTestId('book-calendar')
+  await expect(open).toBeInViewport()
+  expect((await open.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await open.click()
+  await expect(page.getByTestId('book')).toBeHidden()
+
+  // 이번 달: 쓴 날은 기분 색, 지운 날은 새싹, 오늘은 테두리, 아직 안 온 날은 누를 수 없다
+  const cal = page.getByTestId('calendar')
+  await expect(cal).toBeVisible()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 13일')
+  await expect(page.getByTestId('cal-2026-10-03')).toHaveAttribute('data-state', 'written')
+  await expect(page.getByTestId('cal-2026-10-03')).toHaveAttribute('data-mood', entries.find((e) => e.date === '2026-10-03')!.mood)
+  await expect(page.getByTestId('cal-2026-10-10')).toHaveAttribute('data-state', 'erased')
+  await expect(page.getByTestId('cal-2026-10-28')).toHaveClass(/today/)
+  await expect(page.getByTestId('cal-2026-10-29')).toBeDisabled()
+  await expect(page.getByTestId('calendar-next')).toBeDisabled()
+  await expect(page.getByTestId('calendar-band').locator('span')).not.toHaveCount(0)
+  // 칸·버튼이 손가락으로 누를 만하고, 창이 화면 안에 들어온다
+  for (const id of ['cal-2026-10-01', 'cal-2026-10-31', 'calendar-prev', 'calendar-close']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.width).toBeGreaterThanOrEqual(44)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.getByTestId('cal-2026-10-10').click()
+  await expect(page.getByTestId('calendar-detail')).toHaveText('🌱 10월 10일 · 지운 날이에요. 집을 지었던 날로 세어요')
+  await page.getByTestId('cal-2026-10-14').click()
+  await expect(page.getByTestId('calendar-detail')).toHaveText('🌿 10월 14일 · 쉬어 간 날이에요')
+  await page.screenshot({ path: 'test-results/screens/calendar.png' })
+
+  // 지난달은 쓴 날이 없고, 그 전 달(처음 지은 달)에서 더 넘길 수 없다
+  await page.getByTestId('calendar-prev').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 9월')
+  await expect(page.getByTestId('calendar-count')).toHaveText('아직 쓴 날이 없어요')
+  await page.getByTestId('calendar-prev').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 8월')
+  await expect(page.getByTestId('calendar-prev')).toBeDisabled()
+  await expect(page.getByTestId('cal-2026-08-31')).toHaveAttribute('data-state', 'written')
+  await page.screenshot({ path: 'test-results/screens/calendar-august.png' })
+
+  // 칠한 날을 누르면 달력이 닫히고 그 집으로 가서 글을 연다
+  await page.getByTestId('cal-2026-08-31').click()
+  await expect(cal).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-08 31일의 한 줄')
+  await page.getByTestId('reader-close').click()
+  await expect(page.getByTestId('house-2026-08-31')).toBeInViewport()
+
+  // 달력은 저장에 아무것도 더하지 않는다
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'erased', 'version'])
+  expect(saved.entries).toHaveLength(entries.length)
+})
