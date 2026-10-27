@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
+import { BUILDING_PROMPTS, PROMPTS, SEASON_PROMPTS, YESTERDAY_PROMPTS, todayPrompt, yesterdayPrompt } from '../src/core/prompt'
+import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
 const moods = ['great', 'calm', 'meh', 'blue', 'tired']
@@ -1948,4 +1950,50 @@ test('주민이 지난날 집 이야기를 들려주고, "보러 가기"를 누�
   await expect(note).toContainText('콩이: “')
   await expect(go).toHaveCount(0)
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
+test('쓰기 칸·어제 칸 빈 글자 자리에 오늘의 물음이 뜨고, 날이 바뀌면 물음도 바뀐다. 저장은 쓴 글 그대로다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T23:59:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const input = page.getByTestId('write-input')
+  const today = todayPrompt(entries as Entry[], '2026-10-27').text
+  await expect(input).toHaveAttribute('placeholder', today)
+
+  // 물음이 쓰기 칸 안에서 잘리지 않는다(모든 물음을 이 칸의 글꼴로 재어 본다)
+  const all = [...PROMPTS, ...Object.values(SEASON_PROMPTS).flat(), ...Object.values(BUILDING_PROMPTS), ...YESTERDAY_PROMPTS]
+  const over = await input.evaluate((el, texts) => {
+    const st = getComputedStyle(el)
+    const room = el.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight)
+    const ctx = document.createElement('canvas').getContext('2d')!
+    ctx.font = st.font
+    return texts.filter((t) => ctx.measureText(t).width > room)
+  }, all)
+  expect(over).toEqual([])
+  expect((await input.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/prompt-today.png' })
+
+  // 어제 칸에는 어제 물음
+  await page.getByTestId('write-yesterday').click()
+  await expect(input).toHaveAttribute('placeholder', yesterdayPrompt('2026-10-27'))
+  await page.screenshot({ path: 'test-results/screens/prompt-yesterday.png' })
+  await page.getByTestId('back-today').click()
+
+  // 자정을 넘기면 새 물음
+  await page.clock.runFor(90_000)
+  await expect(page.getByTestId('today-date')).toHaveText('10월 28일 수요일')
+  const next = todayPrompt(entries as Entry[], '2026-10-28').text
+  expect(next).not.toBe(today)
+  await expect(input).toHaveAttribute('placeholder', next)
+
+  // 물음은 글에 들어가지 않는다: 쓴 글 그대로 저장된다
+  await input.fill('귤을 까 먹었다')
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('today-line')).toContainText('귤을 까 먹었다')
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries).toHaveLength(4)
+  expect(saved.entries.find((e: Entry) => e.date === '2026-10-28').text).toBe('귤을 까 먹었다')
 })

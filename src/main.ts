@@ -9,6 +9,7 @@ import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { festivalCard, festivalOn, type Festival } from './core/festival'
 import { recapOf } from './core/recap'
+import { todayPrompt, yesterdayPrompt } from './core/prompt'
 import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
@@ -506,7 +507,8 @@ function render(newDate?: string) {
     festival: festival?.id,
   })
   const todayEntry = entryOn(save, today)
-  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), recapOf(save.entries, today))
+  const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }
+  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), recapOf(save.entries, today), prompts)
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(days)

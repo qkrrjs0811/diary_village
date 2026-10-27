@@ -10,10 +10,13 @@ export interface WriteCard {
   /**
    * 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null).
    * memory: 한 달 전·100일 전·작년 오늘의 글(없으면 null). 카드 아래에 작게 보인다.
-   * recap: 새 달 첫 주의 지난달 돌아보기(없으면 null). 있으면 memory 대신 보인다
+   * recap: 새 달 첫 주의 지난달 돌아보기(없으면 null). 있으면 memory 대신 보인다.
+   * prompts: 오늘·어제 쓰기 칸 빈 글자 자리에 띄울 오늘의 물음(없으면 "오늘을 한 줄로 남겨요")
    */
-  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null, recap?: MonthRecap | null): void
+  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null, recap?: MonthRecap | null, prompts?: Prompts | null): void
 }
+
+export type Prompts = Record<Day, string>
 
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
 
@@ -33,12 +36,20 @@ export function createWriteCard(handlers: {
   let day: Day = 'today'
   const mood: Record<Day, MoodId | null> = { today: null, yesterday: null }
   const draft: Record<Day, string> = { today: '', yesterday: '' }
-  let shown: { today: string; entry: Entry | undefined; yesterday: string | null; memory: Memory | null; recap: MonthRecap | null } = {
+  let shown: {
+    today: string
+    entry: Entry | undefined
+    yesterday: string | null
+    memory: Memory | null
+    recap: MonthRecap | null
+    prompts: Prompts | null
+  } = {
     today: '',
     entry: undefined,
     yesterday: null,
     memory: null,
     recap: null,
+    prompts: null,
   }
 
   function renderForm(date: string, d: Day) {
@@ -48,7 +59,7 @@ export function createWriteCard(handlers: {
         ${MOODS.map((m) => `<button type="button" class="mood" data-mood="${m.id}" data-testid="mood-${m.id}" aria-pressed="${m.id === mood[d]}"><span class="e">${m.emoji}</span><span class="l">${m.label}</span></button>`).join('')}
       </div>
       <div class="line-row">
-        <input class="line-input" data-testid="write-input" type="text" enterkeyhint="done" autocomplete="off" placeholder="${WORD[d]}을 한 줄로 남겨요" />
+        <input class="line-input" data-testid="write-input" type="text" enterkeyhint="done" autocomplete="off" aria-label="${WORD[d]}의 한 줄" />
         <button type="button" class="build" data-testid="write-submit">집 짓기</button>
       </div>
       <div class="hint"><span class="msg" data-testid="write-msg"></span><span class="len" data-testid="write-len"></span></div>`
@@ -56,6 +67,8 @@ export function createWriteCard(handlers: {
     const submit = root.querySelector<HTMLButtonElement>('.build')!
     const msg = root.querySelector<HTMLElement>('.msg')!
     const len = root.querySelector<HTMLElement>('.len')!
+    // 물음은 빈 글자 자리에만 띄운다(쓴 글에는 들어가지 않는다)
+    input.placeholder = shown.prompts?.[d] ?? `${WORD[d]}을 한 줄로 남겨요`
     input.value = draft[d]
 
     const update = () => {
@@ -169,8 +182,8 @@ export function createWriteCard(handlers: {
 
   return {
     root,
-    render(today, entry, yesterday, memory = null, recap = null) {
-      shown = { today, entry, yesterday, memory, recap }
+    render(today, entry, yesterday, memory = null, recap = null, prompts = null) {
+      shown = { today, entry, yesterday, memory, recap, prompts }
       draw()
     },
   }
