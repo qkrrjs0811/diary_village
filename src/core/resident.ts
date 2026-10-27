@@ -104,7 +104,10 @@ function plazaLanes(): Lane[] {
  * 주민마다 걷는 길을 정한다. 첫 주민은 가장 최근 구역(오늘 자리 근처), 다음은 광장,
  * 그다음은 오래된 구역 순으로 돌아가며 하나씩 고른다. 길이 모자라면 남는 주민은 빠진다
  */
-export function residentWalks(village: Village, residents: Resident[]): Walk[] {
+export function residentWalks(village: Village, residents: Resident[], guests: Guest[] = []): Walk[] {
+  // 손님이 된 주민은 오늘 집 앞에 있으니 걷지 않는다(같은 주민이 두 군데 보이지 않게)
+  const away = new Set(guests.map((g) => g.resident.id))
+  residents = residents.filter((r) => !away.has(r.id))
   const blocks = [...village.blocks].reverse()
   const queues = [blockLanes(blocks[0] ?? { month: '', bx: 0, by: 0, lots: [] }), plazaLanes(), ...blocks.slice(1).map(blockLanes)]
   const lanes: Lane[] = []
@@ -115,6 +118,89 @@ export function residentWalks(village: Village, residents: Resident[]): Walk[] {
     const depth = (from.gx + to.gx) / 2 + (from.gy + to.gy) / 2 - 0.25
     return { resident, from, to, depth }
   })
+}
+
+/** 손님 놀이: 오늘 건물 종류(보통 집은 'house') */
+export type GuestPlay = BuildingId | 'house'
+
+/** 손님이 들고 오는 놀이 소품 이름과 손님 한마디(건물 이름 뒤에 붙는다). 기분·글 길이는 보지 않는다 */
+export const GUEST_PLAYS: Record<GuestPlay, { prop: string; line: string }> = {
+  cafe: { prop: '찻잔', line: '커피 마시러 왔어요.' },
+  bookstore: { prop: '책', line: '책 읽으러 왔어요.' },
+  field: { prop: '공', line: '공 차러 왔어요.' },
+  catHouse: { prop: '털실', line: '털실 들고 놀러 왔어요.' },
+  dogHouse: { prop: '뼈다귀', line: '강아지랑 놀러 왔어요.' },
+  flowerShop: { prop: '화분', line: '꽃 구경하러 왔어요.' },
+  bakery: { prop: '빵 바구니', line: '빵 사러 왔어요.' },
+  lighthouse: { prop: '망원경', line: '바다 보러 왔어요.' },
+  musicHall: { prop: '악보', line: '노래 들으러 왔어요.' },
+  cinema: { prop: '팝콘', line: '영화 보러 왔어요.' },
+  restaurant: { prop: '숟가락', line: '밥 먹으러 왔어요.' },
+  park: { prop: '돗자리', line: '쉬러 왔어요.' },
+  school: { prop: '가방', line: '공부하러 왔어요.' },
+  station: { prop: '기차표', line: '기차 타러 왔어요.' },
+  gallery: { prop: '붓', line: '그림 보러 왔어요.' },
+  farm: { prop: '물뿌리개', line: '물 주러 왔어요.' },
+  house: { prop: '꽃다발', line: '꽃다발 들고 왔어요.' },
+}
+
+/** 오늘의 손님: 오늘 집 앞에 놀러 온(또는 오늘 자리 앞에서 기다리는) 주민 */
+export interface Guest {
+  resident: Resident
+  /** 오늘 집 칸 앞쪽 가장자리(마을 칸 좌표) */
+  spot: Spot
+  depth: number
+  date: string
+  /** 오늘을 아직 안 써서 오늘 자리 앞에서 기다린다 */
+  waiting: boolean
+  building: BuildingId | null
+  play: GuestPlay | null
+}
+
+/**
+ * 오늘의 손님. 오늘 집이 있으면 주민 한두 명(주민이 셋 이상이면 둘)이 그 집 앞에 놀러 오고,
+ * 없으면 한 명이 오늘 자리 앞에서 기다린다. 주민·날짜·오늘 건물로만 정하고 저장하지 않는다.
+ * 기분·글 길이는 보지 않는다. taken 은 소품이 놓인 칸이다. 그 칸과 다른 집 칸은 피하고, 자리가 없으면 오지 않는다
+ */
+export function todayGuests(
+  village: Village,
+  residents: Resident[],
+  entries: readonly Entry[],
+  today: string,
+  taken: readonly Spot[] = [],
+): Guest[] {
+  const lots = village.blocks.flatMap((b) => b.lots)
+  const lot = lots.find((l) => l.date === today)
+  if (!lot || residents.length === 0) return []
+  const cell = (s: Spot) => `${Math.floor(s.gx)},${Math.floor(s.gy)}`
+  const busy = new Set([...taken.map(cell), ...lots.filter((l) => l.entry && l.date !== today).map(cell)])
+  const inPlaza = (s: Spot) => s.gx >= PLAZA.gx && s.gx < PLAZA.gx + PLAZA.w && s.gy >= PLAZA.gy && s.gy < PLAZA.gy + PLAZA.h
+  // 집 앞 왼쪽·오른쪽 가장자리(문 앞 한가운데는 비워 둔다)
+  const spots = [
+    { gx: lot.gx + 0.3, gy: lot.gy + 1 },
+    { gx: lot.gx + 1, gy: lot.gy + 0.3 },
+  ].filter((s) => !busy.has(cell(s)) && !inPlaza(s))
+  const todays = entries.find((x) => x.date === today)
+  const b = todays ? buildingOf(todays) : null
+  const count = Math.min(todays ? (residents.length >= 3 ? 2 : 1) : 1, spots.length)
+  const order = [...residents].sort((x, y) => hash(`guest:${today}:${x.id}`) - hash(`guest:${today}:${y.id}`) || (x.id < y.id ? -1 : 1))
+  return order.slice(0, count).map((resident, i) => ({
+    resident,
+    spot: spots[i],
+    // 오늘 집보다 뒤에, 앞 칸 나무·꽃보다 먼저 그린다
+    depth: spots[i].gx + spots[i].gy - 0.75,
+    date: today,
+    waiting: !todays,
+    building: b?.id ?? null,
+    play: todays ? (b?.id ?? 'house') : null,
+  }))
+}
+
+/** 손님 한마디. 오늘 건물 이름만 말하고 글은 옮기지 않는다. 기다리는 말은 재촉하지 않는다 */
+export function guestLine(g: Guest): string {
+  if (g.waiting || !g.play) return '오늘 자리에서 기다리고 있어요.'
+  const { line } = GUEST_PLAYS[g.play]
+  return g.building ? `오늘 생긴 ${buildingInfo(g.building).name}에 ${line}` : `오늘 지은 집에 ${line}`
 }
 
 /** 주민 한마디. date 가 있으면 그날 집 이야기(말풍선에서 그 집을 보러 갈 수 있다) */

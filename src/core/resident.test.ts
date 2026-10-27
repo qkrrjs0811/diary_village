@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RESIDENTS, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk } from './resident'
+import { GUEST_PLAYS, RESIDENTS, guestLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { PLAZA } from './landmark'
@@ -186,5 +186,156 @@ describe('주민 이야기', () => {
     const fstory = storyTalk(r, fes, fday)!
     expect(residentLine(r, fes, fday, 1, fes, f)).toBe(festivalLine(f, r.id))
     expect(residentTalk(r, fes, fday, 2, fes, f)).toEqual(fstory)
+  })
+})
+
+describe('오늘의 손님', () => {
+  const today = '2026-10-14'
+  const past = days(40, '2026-09-01').filter((x) => x.date < today)
+  const lotOf = (village: ReturnType<typeof buildVillage>, date: string) =>
+    village.blocks.flatMap((b) => b.lots).find((l) => l.date === date)!
+  const cell = (s: { gx: number; gy: number }) => `${Math.floor(s.gx)},${Math.floor(s.gy)}`
+
+  it('오늘 집이 있으면 주민이 그 집 앞 길가에 놀러 오고, 인원은 주민 수로만 정한다', () => {
+    const one = [e(today, '라떼')]
+    const v1 = buildVillage(one, today)
+    const g1 = todayGuests(v1, residentsOf(one), one, today)
+    expect(g1).toHaveLength(1)
+    expect(g1[0].waiting).toBe(false)
+    expect(g1[0].resident.id).toBe(RESIDENTS[0].id)
+    const es = [...past, e(today, '라떼')]
+    const v = buildVillage(es, today)
+    const gs = todayGuests(v, residentsOf(es), es, today)
+    expect(gs).toHaveLength(2)
+    expect(new Set(gs.map((g) => g.resident.id)).size).toBe(2)
+    const lot = lotOf(v, today)
+    for (const g of gs) {
+      expect(g.date).toBe(today)
+      expect(g.building).toBe('cafe')
+      expect(g.play).toBe('cafe')
+      // 오늘 집 칸의 앞쪽(화면 아래쪽) 가장자리에 선다
+      expect(g.spot.gx).toBeGreaterThanOrEqual(lot.gx)
+      expect(g.spot.gx).toBeLessThanOrEqual(lot.gx + 1)
+      expect(g.spot.gy).toBeGreaterThanOrEqual(lot.gy)
+      expect(g.spot.gy).toBeLessThanOrEqual(lot.gy + 1)
+      expect(g.spot.gx === lot.gx + 1 || g.spot.gy === lot.gy + 1).toBe(true)
+      // 오늘 집보다 뒤에 그려 집 앞에 보인다
+      expect(g.depth).toBeGreaterThan(lot.gx + lot.gy)
+      expect(g.depth).toBeLessThan(lot.gx + lot.gy + 1)
+    }
+    expect(new Set(gs.map((g) => `${g.spot.gx},${g.spot.gy}`)).size).toBe(2)
+  })
+
+  it('기분·글 길이와 상관없이 같은 손님이 오고, 같은 날은 언제나 같다', () => {
+    const base = [...past, e(today)]
+    const v = buildVillage(base, today)
+    const rs = residentsOf(base)
+    const calm = todayGuests(v, rs, base, today)
+    for (const mood of ['great', 'meh', 'blue', 'tired'] as const) {
+      const es = [...past, { ...e(today, '아주 긴 하루'.repeat(20)), mood }]
+      const gs = todayGuests(buildVillage(es, today), residentsOf(es), es, today)
+      expect(gs.map((g) => [g.resident.id, g.spot, g.waiting])).toEqual(calm.map((g) => [g.resident.id, g.spot, g.waiting]))
+    }
+    expect(todayGuests(v, rs, [...base].reverse(), today)).toEqual(calm)
+    // 날이 바뀌면 다른 주민도 온다
+    const who = new Set<string>()
+    for (let i = 0; i < 10; i++) {
+      const t = addDays(today, i)
+      const es = [...past, e(t)]
+      for (const g of todayGuests(buildVillage(es, t), rs, es, t)) who.add(g.resident.id)
+    }
+    expect(who.size).toBeGreaterThan(2)
+  })
+
+  it('오늘을 아직 안 썼으면 주민 한 명이 오늘 자리 앞에서 기다린다(어제 쓴 집에는 오지 않는다)', () => {
+    const es = [...past, e(addDays(today, -1), '커피')]
+    const v = buildVillage(es, today)
+    const gs = todayGuests(v, residentsOf(es), es, today)
+    expect(gs).toHaveLength(1)
+    expect(gs[0].waiting).toBe(true)
+    expect(gs[0].play).toBeNull()
+    expect(gs[0].building).toBeNull()
+    const lot = lotOf(v, today)
+    expect(gs[0].spot.gx === lot.gx + 1 || gs[0].spot.gy === lot.gy + 1).toBe(true)
+    // 주민이 없으면 손님도 없다
+    expect(todayGuests(buildVillage([], today), [], [], today)).toEqual([])
+  })
+
+  it('보통 집 앞엔 꽃다발, 건물 16종마다 다른 놀이를 한다', () => {
+    const house = [e(today)]
+    expect(todayGuests(buildVillage(house, today), residentsOf(house), house, today)[0].play).toBe('house')
+    const plays = new Set<string>()
+    for (const b of BUILDINGS) {
+      const word = b.words.find((w) => findBuilding(w)?.id === b.id)!
+      const es = [e(today, word)]
+      const g = todayGuests(buildVillage(es, today), residentsOf(es), es, today)[0]
+      expect(g.play).toBe(b.id)
+      expect(GUEST_PLAYS[b.id].prop.length).toBeGreaterThan(0)
+      plays.add(GUEST_PLAYS[b.id].prop)
+    }
+    plays.add(GUEST_PLAYS.house.prop)
+    expect(plays.size).toBe(BUILDINGS.length + 1)
+  })
+
+  it('손님이 된 주민은 길을 걷지 않아 두 군데에 보이지 않는다', () => {
+    const es = [...past, e(today)]
+    const v = buildVillage(es, today)
+    const rs = residentsOf(es)
+    const gs = todayGuests(v, rs, es, today)
+    const walks = residentWalks(v, rs, gs)
+    const guestIds = new Set(gs.map((g) => g.resident.id))
+    for (const w of walks) expect(guestIds.has(w.resident.id)).toBe(false)
+    expect(walks.length + gs.length).toBe(rs.length)
+  })
+
+  it('손님 자리는 다른 집·광장·놓은 소품 칸에 들어가지 않는다', () => {
+    for (const t of ['2026-10-31', '2026-10-30', '2026-10-25', '2026-11-01', today]) {
+      const es = [...days(60, '2026-08-20').filter((x) => x.date < t), e(t)]
+      const v = buildVillage(es, t)
+      const rs = residentsOf(es)
+      const lot = lotOf(v, t)
+      const front = [
+        { gx: lot.gx, gy: lot.gy + 1 },
+        { gx: lot.gx + 1, gy: lot.gy },
+      ]
+      const houses = new Set(v.blocks.flatMap((b) => b.lots.filter((l) => l.entry && l.date !== t).map((l) => cell(l))))
+      for (const g of todayGuests(v, rs, es, t)) {
+        expect(houses.has(cell(g.spot))).toBe(false)
+        const inPlaza = g.spot.gx >= PLAZA.gx && g.spot.gx < PLAZA.gx + PLAZA.w && g.spot.gy >= PLAZA.gy && g.spot.gy < PLAZA.gy + PLAZA.h
+        expect(inPlaza).toBe(false)
+      }
+      // 앞 칸에 소품이 있으면 그 쪽은 피한다
+      for (const taken of [[front[0]], [front[1]]]) {
+        const gs = todayGuests(v, rs, es, t, taken)
+        expect(gs.length).toBeGreaterThanOrEqual(1)
+        for (const g of gs) expect(cell(g.spot)).not.toBe(cell(taken[0]))
+      }
+      // 앞 두 칸이 모두 막히면 손님은 오지 않는다(소품을 가리지 않게)
+      expect(todayGuests(v, rs, es, t, front)).toEqual([])
+    }
+  })
+
+  it('손님 한마디는 오늘 건물 이름만 말하고 글은 옮기지 않으며, 기다리는 말은 재촉하지 않는다', () => {
+    const es = [e(today, '라떼 비밀일기')]
+    const line = guestLine(todayGuests(buildVillage(es, today), residentsOf(es), es, today)[0])
+    expect(line).toContain('카페')
+    expect(line).not.toContain('비밀일기')
+    expect(line).not.toContain('라떼')
+    const house = [e(today, '비밀일기')]
+    expect(guestLine(todayGuests(buildVillage(house, today), residentsOf(house), house, today)[0])).not.toContain('비밀일기')
+    const lines = new Set(
+      BUILDINGS.map((b) => {
+        const word = b.words.find((w) => findBuilding(w)?.id === b.id)!
+        const x = [e(today, word)]
+        const l = guestLine(todayGuests(buildVillage(x, today), residentsOf(x), x, today)[0])
+        expect(l).toContain(b.name)
+        expect(l.length).toBeLessThanOrEqual(30)
+        return l
+      }),
+    )
+    expect(lines.size).toBe(BUILDINGS.length)
+    const wait = guestLine(todayGuests(buildVillage(past, today), residentsOf(past), past, today)[0])
+    expect(wait).toBe('오늘 자리에서 기다리고 있어요.')
+    expect(wait).not.toMatch(/빨리|얼른|왜|아직도|안 썼/)
   })
 })
