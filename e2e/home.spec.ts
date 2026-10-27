@@ -3221,3 +3221,36 @@ test('집을 눌러 읽으면 그날의 방이 보이고, 앞뒤로 넘기거나
   await page.clock.runFor(1500)
   await page.screenshot({ path: 'test-results/screens/reader-room-winter.png' })
 })
+
+test('건물 16종의 방에는 저마다 대표 가구가 그림으로 놓이고, 방은 창 안에 다 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const words = ['커피', '책', '운동', '고양이', '강아지', '꽃', '빵', '바다', '음악', '영화', '김밥', '산책', '공부', '기차', '그림', '텃밭']
+  const entries = monthEntries('2026-10', words.map((_, i) => i + 1)).map((e, i) => ({ ...e, text: `${words[i]} 생각이 난 하루` })) as Entry[]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const room = page.getByTestId('reader-room')
+  await page.getByTestId('house-2026-10-01').dispatchEvent('click')
+  const seen = new Set<string>()
+  for (const [i, entry] of entries.entries()) {
+    if (i > 0) await page.getByTestId('reader-next').click()
+    await expect(page.getByTestId('reader-text')).toHaveText(entry.text)
+    const sig = roomOf(entry).items[0]
+    await expect(room.locator('.room-furn').first()).toHaveAttribute('data-furn', sig)
+    seen.add(sig)
+    // 대표 가구는 받침대 위 표시가 아니라 그린 그림이다(방 안에 글자가 없다)
+    await expect(room.locator('text')).toHaveCount(0)
+    await page.waitForTimeout(350)
+    const rb = (await room.boundingBox())!
+    expect(rb.x).toBeGreaterThanOrEqual(0)
+    expect(rb.x + rb.width).toBeLessThanOrEqual(390)
+    // 대표 가구는 방 그림 밖으로 삐져나오지 않는다
+    const fb = (await room.locator('.room-furn').first().boundingBox())!
+    expect(fb.y).toBeGreaterThanOrEqual(rb.y)
+    expect(fb.x).toBeGreaterThanOrEqual(rb.x)
+    await room.screenshot({ path: `test-results/screens/room-${sig}.png` })
+  }
+  expect(seen.size).toBe(16)
+  await page.screenshot({ path: 'test-results/screens/reader-room-farm.png' })
+})
