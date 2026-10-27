@@ -483,6 +483,9 @@ const FLAG_COLORS: Record<FestivalId, string[]> = {
   newYear: ['#f28b82', '#fffaf0', '#ffd36e'],
   pumpkin: ['#f6a35b', '#b99ad6', '#ffd36e'],
   christmas: ['#ef8f86', '#8cc79a', '#fffaf0'],
+  // 색동
+  seollal: ['#f28b82', '#ffd36e', '#8cc79a', '#9fd3ec', '#c9a8e0'],
+  chuseok: ['#ffd36e', '#f6a35b', '#fffaf0', '#c9a8e0'],
 }
 const POLE_H = 30
 
@@ -618,6 +621,61 @@ const FESTIVAL_ART: Record<FestivalId, { main: (g: Element, c: Pt) => void; side
     side: (g, c) => {
       drawGift(g, { x: c.x - 5, y: c.y }, '#ef8f86')
       drawGift(g, { x: c.x + 5, y: c.y + 2 }, '#9fd3ec', 0.8)
+    },
+  },
+  seollal: {
+    main: (g, c) => {
+      // 말뚝에 맨 방패연이 바람에 살랑인다
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 6, ry: 2.2, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('rect', { x: c.x - 1.3, y: c.y - 6, width: 2.6, height: 6.5, rx: 1, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.5 }, g)
+      const k = { x: c.x + 10, y: c.y - 46 }
+      el('path', { d: `M${c.x} ${c.y - 5} Q${c.x - 6} ${c.y - 26} ${k.x} ${k.y + 10}`, fill: 'none', stroke: '#a7805e', 'stroke-width': 0.6 }, g)
+      const kite = el('g', { class: 'kite' }, g)
+      for (const [dx, color] of [[-5, '#f28b82'], [0, '#8cc79a'], [5, '#9fd3ec']] as const) {
+        el('path', { d: `M${k.x + dx * 0.6} ${k.y + 10} q${dx} 6 0 11 q${-dx} 5 ${dx * 0.6} 10`, fill: 'none', stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, kite)
+      }
+      el('rect', { x: k.x - 8, y: k.y - 10, width: 16, height: 20, rx: 2, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.7 }, kite)
+      el('path', { d: `M${k.x - 8} ${k.y - 10} L${k.x + 8} ${k.y + 10} M${k.x + 8} ${k.y - 10} L${k.x - 8} ${k.y + 10} M${k.x} ${k.y - 10} V${k.y + 10}`, stroke: '#d8c4ad', 'stroke-width': 0.5 }, kite)
+      el('path', { d: `M${k.x - 4.5} ${k.y - 10} a4.5 4 0 0 0 9 0 z`, fill: '#f28b82', stroke: LINE, 'stroke-width': 0.5 }, kite)
+      el('circle', { cx: k.x, cy: k.y + 1, r: 3.6, fill: '#cdeaf5', stroke: LINE, 'stroke-width': 0.6 }, kite)
+    },
+    side: (g, c) => {
+      // 소반 위 떡국 한 그릇
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 12, ry: 4, fill: 'rgba(90,70,54,0.14)' }, g)
+      for (const dx of [-7, 7]) el('rect', { x: c.x + dx - 1, y: c.y - 6, width: 2, height: 6, fill: '#a7805e' }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 6, rx: 11, ry: 4, fill: '#c49a74', stroke: LINE, 'stroke-width': 0.6 }, g)
+      el('path', { d: `M${c.x - 6} ${c.y - 10} a6 4.5 0 0 0 12 0 z`, fill: '#9fd3ec', stroke: LINE, 'stroke-width': 0.6 }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 10, rx: 6, ry: 1.8, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.5 }, g)
+      for (const [dx, color] of [[-2.5, '#ffd36e'], [0.5, '#8cc79a'], [2.8, '#fffaf0']] as const) {
+        el('ellipse', { cx: c.x + dx, cy: c.y - 10.2, rx: 1.2, ry: 0.6, fill: color, stroke: '#d8c4ad', 'stroke-width': 0.3 }, g)
+      }
+      for (const dx of [-2, 2]) el('path', { d: `M${c.x + dx} ${c.y - 13} q-1.5 -2.5 0 -5 q1.5 -2.5 0 -5`, fill: 'none', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 0.8, 'stroke-linecap': 'round', class: 'steam' }, g)
+    },
+  },
+  chuseok: {
+    main: (g, c) => {
+      // 장대에 건 둥근 보름달 등
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 8, ry: 2.8, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('rect', { x: c.x - 1.2, y: c.y - 30, width: 2.4, height: 30, rx: 1.2, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.5 }, g)
+      const m = { x: c.x, y: c.y - 42 }
+      el('circle', { cx: m.x, cy: m.y, r: 15, fill: 'rgba(255,233,163,0.45)', class: 'lantern-glow' }, g)
+      el('circle', { cx: m.x, cy: m.y, r: 11, fill: '#ffe9a3', stroke: LINE, 'stroke-width': 0.7 }, g)
+      for (const [dx, dy, r] of [[-4, -3, 2.2], [3.5, 2, 1.6], [-1, 5, 1.2], [4.5, -4.5, 1]]) {
+        el('circle', { cx: m.x + dx, cy: m.y + dy, r, fill: '#f6dc8a' }, g)
+      }
+      el('ellipse', { cx: m.x - 5.5, cy: m.y - 5.5, rx: 2, ry: 1.2, fill: 'rgba(255,255,255,0.7)' }, g)
+      el('path', { d: `M${m.x} ${m.y + 11} v4`, stroke: '#f28b82', 'stroke-width': 1.4, 'stroke-linecap': 'round' }, g)
+      el('path', { d: `M${m.x - 1.6} ${m.y + 15} h3.2 l-0.6 4 h-2 z`, fill: '#f28b82', stroke: LINE, 'stroke-width': 0.4 }, g)
+    },
+    side: (g, c) => {
+      // 솔잎 위 알록달록 송편 한 접시
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 12, ry: 4, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 2, rx: 11, ry: 4.2, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.6 }, g)
+      for (const dx of [-6, -3, 0, 3]) el('path', { d: `M${c.x + dx} ${c.y - 1} l3 -3`, stroke: '#8cb87a', 'stroke-width': 0.6 }, g)
+      const cakes = [[-5, -2.5, '#fffaf0'], [0, -3.5, '#f6c1cc'], [5, -2.5, '#b7e3a1'], [-2.5, -0.5, '#ffe9a3'], [2.5, -0.5, '#fffaf0']] as const
+      for (const [dx, dy, color] of cakes) {
+        el('path', { d: `M${c.x + dx - 3} ${c.y + dy} a3 2.6 0 0 1 6 0 z`, fill: color, stroke: LINE, 'stroke-width': 0.5 }, g)
+      }
     },
   },
 }

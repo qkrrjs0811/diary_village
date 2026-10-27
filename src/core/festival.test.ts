@@ -42,6 +42,39 @@ describe('마을 잔치', () => {
   })
 })
 
+describe('음력 설·추석', () => {
+  it('설은 정해 둔 날짜 표의 설날 앞뒤 사흘이다', () => {
+    expect(festivalOn([], '2026-02-16')!.id).toBe('seollal')
+    expect(festivalOn([], '2026-02-17')).toEqual({ id: 'seollal', name: '설 잔치', icon: '🪁' })
+    expect(festivalOn([], '2026-02-18')!.id).toBe('seollal')
+    expect(festivalOn([], '2026-02-15')).toBeNull()
+    expect(festivalOn([], '2026-02-19')).toBeNull()
+    // 해마다 날짜가 다르다(한국 시간 기준 표)
+    expect(festivalOn([], '2027-02-07')!.id).toBe('seollal')
+    expect(festivalOn([], '2028-01-27')!.id).toBe('seollal')
+    expect(festivalOn([], '2035-02-08')!.id).toBe('seollal')
+    expect(festivalOn([], '2027-02-17')).toBeNull()
+  })
+
+  it('추석은 정해 둔 날짜 표의 추석 앞뒤 사흘이고, 달을 넘어도 된다', () => {
+    expect(festivalOn([], '2026-09-24')!.id).toBe('chuseok')
+    expect(festivalOn([], '2026-09-25')).toEqual({ id: 'chuseok', name: '추석 잔치', icon: '🌕' })
+    expect(festivalOn([], '2026-09-26')!.id).toBe('chuseok')
+    expect(festivalOn([], '2026-09-27')).toBeNull()
+    expect(festivalOn([], '2031-09-30')!.id).toBe('chuseok')
+    expect(festivalOn([], '2031-10-02')!.id).toBe('chuseok')
+    expect(festivalOn([], '2028-10-03')!.id).toBe('chuseok')
+    expect(festivalOn([], '2035-09-16')!.id).toBe('chuseok')
+  })
+
+  it('표 밖의 해에는 설·추석이 없고, 겹치면 마을 생일이 먼저다', () => {
+    expect(festivalOn([], '2025-10-06')).toBeNull()
+    expect(festivalOn([], '2036-01-28')).toBeNull()
+    expect(festivalOn(d('2025-09-25'), '2026-09-25')!.id).toBe('birthday')
+    expect(festivalOn(d('2025-09-25'), '2026-09-24')!.id).toBe('chuseok')
+  })
+})
+
 describe('잔치 카드와 주민 한마디', () => {
   it('잔치 카드: 잔치 그림·이름, 마을 생일은 몇 해째인지 말한다', () => {
     const b = festivalCard(festivalOn(d('2025-10-28'), '2026-10-28')!)
@@ -50,7 +83,7 @@ describe('잔치 카드와 주민 한마디', () => {
     expect(b.icons[0]).toBe('🎂')
     expect(b.visit).toBeNull()
     expect(festivalCard(festivalOn(d('2023-10-28'), '2026-10-28')!).body).toContain('3년')
-    for (const day of ['2027-01-01', '2026-10-31', '2026-12-25']) {
+    for (const day of ['2027-01-01', '2026-10-31', '2026-12-25', '2026-02-17', '2026-09-25']) {
       const f = festivalOn([], day)!
       const c = festivalCard(f)
       expect(c.title.startsWith(f.icon)).toBe(true)
@@ -68,7 +101,7 @@ describe('잔치 카드와 주민 한마디', () => {
 
   it('주민 잔치 한마디: 잔치마다 다르고, 같은 주민은 늘 같은 말, 짧다', () => {
     const ids = ['kong', 'momo', 'bori', 'dubu']
-    const fs = [festivalOn(d('2025-10-28'), '2026-10-28')!, festivalOn([], '2027-01-01')!, festivalOn([], '2026-10-31')!, festivalOn([], '2026-12-24')!]
+    const fs = [festivalOn(d('2025-10-28'), '2026-10-28')!, festivalOn([], '2027-01-01')!, festivalOn([], '2026-10-31')!, festivalOn([], '2026-12-24')!, festivalOn([], '2026-02-17')!, festivalOn([], '2026-09-25')!]
     for (const f of fs) {
       const lines = new Set(ids.map((id) => festivalLine(f, id)))
       expect(lines.size).toBeGreaterThanOrEqual(2)

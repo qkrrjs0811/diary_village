@@ -1606,6 +1606,11 @@ test('잔치 날에는 광장에 깃발 줄과 잔치 장식이 서고, 여느 �
   await visit('2026-10-31T13:00:00+09:00', 'pumpkin', 'festival-pumpkin')
   await visit('2026-12-24T13:00:00+09:00', 'christmas', 'festival-christmas')
   await visit('2027-01-01T13:00:00+09:00', 'newYear', 'festival-newyear')
+  // 음력 설·추석은 날짜 표로, 앞뒤 하루까지 사흘
+  await visit('2027-02-06T13:00:00+09:00', 'seollal', 'festival-seollal')
+  await visit('2027-02-09T13:00:00+09:00', null)
+  await visit('2027-09-16T20:00:00+09:00', 'chuseok', 'festival-chuseok')
+  await visit('2027-09-17T13:00:00+09:00', null)
   // 잔치 장식은 계산만 한다: 저장은 처음 기록 그대로
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([KEY])
