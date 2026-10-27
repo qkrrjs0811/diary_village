@@ -22,6 +22,7 @@ import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
 import { dateLabel } from './ui/format'
 import { createSettings } from './ui/settings'
+import { createSound } from './ui/sound'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
@@ -52,6 +53,9 @@ try {
 } catch {
   readOnly = true
 }
+
+/** 집이 올라오는 순간의 소리와 떨림(⚙️ 설정에서 끈다) */
+const sound = createSound(kv)
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -193,6 +197,7 @@ const card = createWriteCard({
     const before = builtDays(save)
     save = r.save
     render(r.entry.date)
+    sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
     // 지은 건물과 새로 열린 꾸밈 소품을 한 알림에 줄을 나눠 보인다
     const notes = [buildingNote(buildingOf(r.entry)), decorNote(reachedDecors(before, builtDays(save)))].filter(Boolean)
     showNote(notes.length ? notes.join('\n') : null)

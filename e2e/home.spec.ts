@@ -51,6 +51,51 @@ test('처음 열면 오늘 자리가 비어 있고, 한 줄을 쓰면 집이 생
   expect(saved.entries).toHaveLength(1)
 })
 
+test('집이 쑥 올라오는 순간 그날 기분의 실로폰 소리가 울리고 폰이 짧게 떤다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  // 소리·떨림을 가로채 기록한다(실제로 울리지 않는다)
+  await page.addInitScript(() => {
+    const w = window as unknown as { notes: number[]; buzz: unknown[]; AudioContext: unknown }
+    w.notes = []
+    w.buzz = []
+    const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} })
+    w.AudioContext = class {
+      state = 'running'
+      currentTime = 0
+      destination = {}
+      resume() {
+        return Promise.resolve()
+      }
+      createGain() {
+        return { gain: param(), connect: (x: unknown) => x }
+      }
+      createOscillator() {
+        const frequency = param()
+        return { type: '', frequency, connect: (x: unknown) => x, start: () => w.notes.push(frequency.value), stop() {} }
+      }
+    }
+    Object.defineProperty(navigator, 'vibrate', { value: (p: unknown) => (w.buzz.push(p), true) })
+  })
+  await page.goto('./')
+  await page.getByTestId('write-input').fill('비가 와서 창밖만 봤다')
+  await page.getByTestId('mood-blue').click()
+  await page.clock.pauseAt(new Date('2026-10-27T21:01:00+09:00'))
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  // 떨림은 집이 올라오는 순간(다가간 뒤)에 온다
+  expect(await page.evaluate(() => (window as unknown as { buzz: unknown[] }).buzz)).toEqual([])
+  await page.clock.runFor(1000)
+  expect(await page.evaluate(() => (window as unknown as { buzz: unknown[] }).buzz)).toEqual([[30, 40, 50]])
+  // 네 음, 음마다 바탕음과 옅은 배음. 울적한 날은 A 단조 오음(A4~A5)
+  const notes = await page.evaluate(() => (window as unknown as { notes: number[] }).notes)
+  expect(notes).toHaveLength(8)
+  const base = notes.filter((_, i) => i % 2 === 0)
+  for (const f of base) expect([440, 523.25, 587.33, 659.26, 783.99, 880]).toContain(f)
+  // 저장은 기록뿐이고 소리 설정은 아직 없다(처음엔 켜짐)
+  const keys = await page.evaluate(() => Object.keys(localStorage).sort())
+  expect(keys).toEqual(['diary-village:save'])
+})
+
 test('하루 한 줄씩 쌓인 한 달은 집이 가득한 구역이 된다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

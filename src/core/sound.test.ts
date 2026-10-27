@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest'
+import { BUZZ, SOUND_KEY, buildTune, soundOn, setSound } from './sound'
+import { MOODS } from './mood'
+import type { KV } from './storage'
+
+const memory = (init: Record<string, string> = {}): KV & { m: Map<string, string> } => {
+  const m = new Map(Object.entries(init))
+  return { m, getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v) }
+}
+
+describe('짓는 소리', () => {
+  it('기분마다 음 높이만 다르고 음 수·길이·크기는 같다', () => {
+    const tunes = MOODS.map((m) => buildTune(m.id, '2026-10-28'))
+    const shape = (t: ReturnType<typeof buildTune>) => t.map((n) => [n.at, n.dur, n.gain])
+    for (const t of tunes) {
+      expect(t.length).toBe(4)
+      expect(shape(t)).toEqual(shape(tunes[0]))
+    }
+    // 기분마다 쓰는 음이 다르다(좋고 나쁨이 아니라 음계가 다르다)
+    const sets = tunes.map((t) => t.map((n) => n.freq).sort().join(','))
+    expect(new Set(sets).size).toBe(MOODS.length)
+  })
+
+  it('울적한 날도 귀에 편한 높이의 맑은 소리다', () => {
+    for (const m of MOODS) {
+      for (const date of ['2026-10-01', '2026-10-02', '2026-12-31']) {
+        for (const n of buildTune(m.id, date)) {
+          expect(n.freq).toBeGreaterThan(250)
+          expect(n.freq).toBeLessThan(1100)
+        }
+      }
+    }
+  })
+
+  it('같은 날은 같은 가락, 날이 바뀌면 가락이 살짝 달라진다', () => {
+    expect(buildTune('calm', '2026-10-28')).toEqual(buildTune('calm', '2026-10-28'))
+    const days = Array.from({ length: 10 }, (_, i) => `2026-10-${String(i + 10)}`)
+    const tunes = new Set(days.map((d) => buildTune('calm', d).map((n) => n.freq).join(',')))
+    expect(tunes.size).toBeGreaterThan(1)
+  })
+
+  it('짧게 떨린다', () => {
+    const total = BUZZ.reduce((a, b) => a + b, 0)
+    expect(total).toBeGreaterThan(0)
+    expect(total).toBeLessThanOrEqual(150)
+  })
+})
+
+describe('소리 켜기 설정', () => {
+  it('같은 사이트의 다른 앱과 겹치지 않는 키를 쓴다', () => {
+    expect(SOUND_KEY.startsWith('diary-village:')).toBe(true)
+  })
+
+  it('처음이거나 못 읽으면 켜져 있다', () => {
+    expect(soundOn(memory())).toBe(true)
+    expect(soundOn(memory({ [SOUND_KEY]: '이상한 값' }))).toBe(true)
+    const broken: KV = {
+      getItem: () => {
+        throw new Error('막힘')
+      },
+      setItem: () => {},
+    }
+    expect(soundOn(broken)).toBe(true)
+  })
+
+  it('끄고 켠 것을 기억한다', () => {
+    const kv = memory()
+    setSound(kv, false)
+    expect(soundOn(kv)).toBe(false)
+    setSound(kv, true)
+    expect(soundOn(kv)).toBe(true)
+    expect([...kv.m.keys()]).toEqual([SOUND_KEY])
+  })
+})
