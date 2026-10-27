@@ -1162,6 +1162,86 @@ test('밤에도 오늘의 손님이 오늘 집 앞에 보인다', async ({ page 
   await page.screenshot({ path: 'test-results/screens/guest-night.png' })
 })
 
+test('오늘의 손님: 짓는 연출 뒤 통통 뛰어 오고, 고치면 놀이 소품이 바뀌고, 지우면 다시 기다린다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 6, 9, 12, 15])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  // 처음 열 때 기다리는 손님은 뛰어 오지 않는다
+  await expect(page.locator('.guest.waiting')).toHaveCount(1)
+  await expect(page.locator('.guest.arrive')).toHaveCount(0)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('갓 구운 빵 냄새가 좋았다')
+  await page.getByTestId('write-submit').click()
+  const guests = page.locator('.guest')
+  await expect(guests).toHaveCount(2)
+  await expect(page.locator('.guest.arrive')).toHaveCount(2)
+  // 짓는 연출 뒤에 시작해 바깥 길에서 오는 길이다
+  const come = await page.evaluate(() =>
+    document.getAnimations().filter((a) => (a as CSSAnimation).animationName === 'guest-come').map((a) => Number(a.effect!.getComputedTiming().delay)),
+  )
+  expect(come).toHaveLength(2)
+  for (const d of come) expect(d).toBeGreaterThanOrEqual(800 + 700)
+  // 오는 중간 모습
+  await page.evaluate(() => {
+    for (const a of document.getAnimations()) {
+      a.pause()
+      if ((a as CSSAnimation).animationName === 'guest-come') a.currentTime = Number(a.effect!.getComputedTiming().delay) + 450
+      else a.currentTime = 2400
+    }
+  })
+  const house = (await page.getByTestId('house-2026-10-20').boundingBox())!
+  const mid = (await guests.first().locator('.hit').boundingBox())!
+  await page.screenshot({ path: 'test-results/screens/guest-arrive.png', clip: { x: house.x - 70, y: house.y - 10, width: house.width + 140, height: house.height + 70 } })
+  await finishAnimations(page)
+  const end = (await guests.first().locator('.hit').boundingBox())!
+  expect(Math.hypot(mid.x - end.x, mid.y - end.y)).toBeGreaterThan(3)
+  await expect(page.locator('.guest [data-testid="prop-bakery"]')).toHaveCount(2)
+
+  // 고치기로 책방이 되면 손님 소품도 책으로 바뀐다(다시 뛰어 오지는 않는다)
+  await page.getByTestId('house-2026-10-20').click()
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-input').fill('퇴근길에 책 한 권')
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('house-2026-10-20')).toHaveAttribute('data-building', 'bookstore')
+  await expect(page.locator('.guest [data-testid="prop-bookstore"]')).toHaveCount(2)
+  await expect(page.locator('.guest [data-testid="prop-bakery"]')).toHaveCount(0)
+  await expect(page.locator('.guest.arrive')).toHaveCount(0)
+  await page.getByTestId('reader-close').click()
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  const box = (await page.getByTestId('house-2026-10-20').boundingBox())!
+  await page.screenshot({ path: 'test-results/screens/guest-edited.png', clip: { x: box.x - 40, y: box.y - 10, width: box.width + 80, height: box.height + 40 } })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 지우면 오늘 자리로 돌아가 한 명이 다시 기다린다
+  await page.getByTestId('house-2026-10-20').click()
+  await page.getByTestId('reader-erase').click()
+  await page.getByTestId('erase-confirm').click()
+  await expect(page.getByTestId('house-2026-10-20')).toHaveCount(0)
+  await expect(guests).toHaveCount(1)
+  await expect(page.locator('.guest.waiting')).toHaveCount(1)
+  await expect(page.locator('.guest .prop')).toHaveCount(0)
+})
+
+test('움직임 줄이기면 오늘의 손님이 뛰어 오지 않고 바로 그 자리에 있다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 6, 9, 12, 15])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('갓 구운 빵 냄새가 좋았다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.locator('.guest')).toHaveCount(2)
+  const running = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'guest-come'))
+  expect(running).toBe(false)
+  await expect(page.locator('.guest').first()).toBeVisible()
+})
+
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
   // 낮 하늘(저녁·밤은 아래 테스트)
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })

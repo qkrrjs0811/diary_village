@@ -1654,17 +1654,23 @@ const PROP_ART: Record<GuestPlay, (g: Element, x: number, y: number) => void> = 
   },
 }
 
-/** 오늘의 손님 하나. 집 앞 가장자리에 서서 살짝 들썩이고, 집 쪽을 보며 옆에 놀이 소품을 둔다 */
-function drawGuest(g: Element, guest: Guest) {
+/**
+ * 오늘의 손님 하나. 집 앞 가장자리에 서서 살짝 들썩이고, 집 쪽을 보며 옆에 놀이 소품을 둔다.
+ * arrive: 방금 지은 오늘 집이면 짓는 연출 뒤 바깥 길에서 통통 뛰어 그 자리로 온다
+ */
+function drawGuest(g: Element, guest: Guest, arrive = false) {
   const { resident: r, spot } = guest
   const a = iso(spot.gx, spot.gy)
   // 왼쪽 앞 자리(gx 가 칸 가운데)면 오른쪽(집 문)을 보고, 오른쪽 앞 자리면 왼쪽을 본다
   const side = spot.gx % 1 !== 0 ? -1 : 1
+  // 오는 길: 서 있는 가장자리에서 집 바깥쪽으로 한 칸 반 떨어진 곳에서 출발한다
+  const from = side === -1 ? iso(spot.gx, spot.gy + 1.5) : iso(spot.gx + 1.5, spot.gy)
   const node = el('g', {
-    class: guest.waiting ? 'guest waiting' : 'guest',
+    class: ['guest', guest.waiting && 'waiting', arrive && 'arrive'].filter(Boolean).join(' '),
     'data-testid': `guest-${r.id}`,
     'data-guest': r.id,
     'data-play': guest.play ?? '',
+    ...(arrive ? { style: `--hx:${(from.x - a.x).toFixed(1)}px;--hy:${(from.y - a.y).toFixed(1)}px;--lag:${(hash(r.id) % 3) * 120}ms` } : {}),
   }, g)
   // 누르기 쉬운 넓은 투명 영역(처음 보기에서도 44px 넘게)
   el('ellipse', { cx: a.x, cy: a.y - 8, rx: 16, ry: 15, fill: 'transparent', class: 'hit' }, node)
@@ -1785,7 +1791,9 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     items.push({ depth: PLAZA.gx + MAILBOX.col + PLAZA.gy + MAILBOX.row + MAILBOX_AT.u + MAILBOX_AT.v - 0.5, draw: () => drawMailbox(things, waiting) })
   }
   for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
-  for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu) })
+  // 오늘 집을 방금 지었으면 손님이 짓는 연출 뒤에 놀러 온다
+  const arrive = !!opt.newDate && opt.newDate === opt.today
+  for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu, arrive && !gu.waiting) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()
   for (const d of opt.decors ?? []) {

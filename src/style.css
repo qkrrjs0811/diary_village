@@ -672,8 +672,20 @@ button { font: inherit; color: inherit; }
 @keyframes bob { to { transform: translateY(-1.8px); } }
 .guest .wait-bubble { animation: wait-bubble 2.4s ease-in-out infinite alternate; }
 @keyframes wait-bubble { from { opacity: 0.55; } }
+/* 오늘 집을 지으면 짓는 연출(--delay 뒤 0.7s) 뒤에 손님이 바깥 길에서 통통 세 번 뛰어 온다 */
+.guest.arrive { animation: guest-come 1.2s ease-out calc(var(--delay, 0s) + 0.75s + var(--lag, 0s)) both; }
+@keyframes guest-come {
+  0% { transform: translate(var(--hx), var(--hy)); opacity: 0; }
+  12% { opacity: 1; }
+  22% { transform: translate(calc(var(--hx) * 0.8), calc(var(--hy) * 0.8 - 5px)); }
+  37% { transform: translate(calc(var(--hx) * 0.6), calc(var(--hy) * 0.6)); }
+  55% { transform: translate(calc(var(--hx) * 0.38), calc(var(--hy) * 0.38 - 5px)); }
+  72% { transform: translate(calc(var(--hx) * 0.16), calc(var(--hy) * 0.16)); }
+  86% { transform: translate(0, -3px); }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .guest .bob, .guest .wait-bubble { animation: none; }
+  .guest .bob, .guest .wait-bubble, .guest.arrive { animation: none; }
 }
 /* 집을 지어 다가갈 때·집을 읽을 때 그 집 앞을 가리는 나무·주민을 잠깐 옅게 한다 */
 .things .tree, .things .resident { transition: opacity 0.35s ease; }
