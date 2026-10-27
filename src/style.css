@@ -405,6 +405,10 @@ button { font: inherit; color: inherit; }
 }
 .memory .k { font-size: 11px; color: var(--ink-soft); }
 .memory .t { max-width: 100%; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 한 달 돌아보기: 새 달 첫 주에 지난달 기분 색 띠와 가장 많이 지은 건물 */
+.recap { gap: 4px; padding: 8px 14px; }
+.recap-band { display: flex; width: 100%; height: 7px; border-radius: 999px; overflow: hidden; background: var(--chip); }
+.cal-recap { margin: -4px 0 10px; font-size: 12px; text-align: center; color: var(--ink-soft); word-break: keep-all; }
 /* 지난 글의 집으로 날아가면 그 집이 살짝 뛰어오른다 */
 .house.remember { transform-box: fill-box; transform-origin: 50% 100%; animation: remember 0.6s ease-in-out 0.75s 2; }
 @keyframes remember { 50% { transform: translateY(-3px) scale(1.04); } }

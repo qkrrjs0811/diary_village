@@ -2,17 +2,11 @@ import { calendarMonth, calendarRange, shiftMonth } from '../core/calendar'
 import { monthKey } from '../core/date'
 import { moodOf } from '../core/mood'
 import { searchEntries } from '../core/search'
-import type { Entry, MoodId } from '../core/types'
-import { dateLabel } from './format'
+import { monthRecap } from '../core/recap'
+import type { Entry } from '../core/types'
+import { dateLabel, recapLine, softMood as soft } from './format'
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
-
-/** 기분 지붕 색을 흰색과 섞은 옅은 칸 색 */
-function soft(mood: MoodId, k = 0.55): string {
-  const hex = moodOf(mood).roofs[0]
-  const mix = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * k + 255 * (1 - k))
-  return `rgb(${mix(1)}, ${mix(3)}, ${mix(5)})`
-}
 
 /**
  * 마을 수첩에서 여는 기분 색 달력. 쓴 날은 그날 기분 색으로 칠하고, 누르면 그 집으로 가서 글을 연다.
@@ -68,6 +62,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       <div class="cal-band" data-testid="calendar-band" aria-hidden="true">
         ${m.moods.map((x) => `<span style="flex:${x.count};background:${soft(x.mood, 0.8)}"></span>`).join('')}
       </div>
+      ${m.written ? `<div class="cal-recap" data-testid="calendar-recap">${recapLine(monthRecap(entries, month))}</div>` : ''}
       <div class="cal-grid cal-week" aria-hidden="true">${WEEK.map((w) => `<span>${w}</span>`).join('')}</div>
       <div class="cal-grid" data-testid="calendar-days">
         ${m.weeks
@@ -146,12 +141,12 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
 
   return {
     root: back,
-    /** 처음 열면 찾기 칸을 비우고 이번 달을 보인다 */
-    open(list: Entry[], erasedDates: string[], now: string) {
+    /** 처음 열면 찾기 칸을 비우고 이번 달(at을 주면 그달)을 보인다 */
+    open(list: Entry[], erasedDates: string[], now: string, at?: string) {
       entries = list
       erased = erasedDates
       today = now
-      month = monthKey(now)
+      month = at ?? monthKey(now)
       input.value = ''
       render()
       back.hidden = false

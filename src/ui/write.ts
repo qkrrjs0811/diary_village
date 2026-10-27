@@ -1,16 +1,18 @@
 import { checkText, MAX_TEXT, type Day } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
 import type { Memory } from '../core/memory'
+import type { MonthRecap } from '../core/recap'
 import type { Entry, MoodId } from '../core/types'
-import { dateLabel } from './format'
+import { dateLabel, recapLine, softMood } from './format'
 
 export interface WriteCard {
   root: HTMLElement
   /**
    * 오늘 쓴 글이 있으면 보여 주고, 없으면 쓰는 칸을 보여 준다. yesterday: 아직 쓰지 않은 어제 날짜(없으면 null).
-   * memory: 한 달 전·100일 전·작년 오늘의 글(없으면 null). 카드 아래에 작게 보인다
+   * memory: 한 달 전·100일 전·작년 오늘의 글(없으면 null). 카드 아래에 작게 보인다.
+   * recap: 새 달 첫 주의 지난달 돌아보기(없으면 null). 있으면 memory 대신 보인다
    */
-  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null): void
+  render(today: string, entry: Entry | undefined, yesterday: string | null, memory?: Memory | null, recap?: MonthRecap | null): void
 }
 
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
@@ -21,6 +23,8 @@ export function createWriteCard(handlers: {
   onOpen(entry: Entry): void
   /** "N일 전 오늘"을 누르면 그 집으로 간다 */
   onMemory(entry: Entry): void
+  /** 지난달 돌아보기를 누르면 그달 달력을 연다 */
+  onRecap(month: string): void
 }): WriteCard {
   const root = document.createElement('section')
   root.className = 'card'
@@ -29,11 +33,12 @@ export function createWriteCard(handlers: {
   let day: Day = 'today'
   const mood: Record<Day, MoodId | null> = { today: null, yesterday: null }
   const draft: Record<Day, string> = { today: '', yesterday: '' }
-  let shown: { today: string; entry: Entry | undefined; yesterday: string | null; memory: Memory | null } = {
+  let shown: { today: string; entry: Entry | undefined; yesterday: string | null; memory: Memory | null; recap: MonthRecap | null } = {
     today: '',
     entry: undefined,
     yesterday: null,
     memory: null,
+    recap: null,
   }
 
   function renderForm(date: string, d: Day) {
@@ -135,21 +140,37 @@ export function createWriteCard(handlers: {
     root.appendChild(b)
   }
 
+  /** "🗓️ 9월 돌아보기 · 한 줄 20일" + 기분 색 띠 + 가장 많이 지은 건물. 누르면 그달 달력 */
+  function renderRecap(r: MonthRecap) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'memory recap'
+    b.dataset.testid = 'recap'
+    b.dataset.month = r.month
+    const band = r.moods.map((x) => `<span style="flex:${x.count};background:${softMood(x.mood, 0.8)}"></span>`).join('')
+    b.innerHTML = `<span class="k">🗓️ ${r.label} 돌아보기 · 한 줄 ${r.written}일</span>
+      <span class="recap-band" data-testid="recap-band" aria-hidden="true">${band}</span>
+      <span class="t">${recapLine(r)}</span>`
+    b.addEventListener('click', () => handlers.onRecap(r.month))
+    root.appendChild(b)
+  }
+
   function draw() {
-    const { today, entry, yesterday, memory } = shown
+    const { today, entry, yesterday, memory, recap } = shown
     if (!yesterday) day = 'today'
     if (day === 'yesterday' && yesterday) renderForm(yesterday, 'yesterday')
     else if (entry) renderDone(today, entry)
     else renderForm(today, 'today')
     // 어제 칸에 쓰는 중에는 그 한 줄에 마음을 두도록 지난 글을 숨긴다
-    if (memory && day === 'today') renderMemory(memory)
+    if (recap && day === 'today') renderRecap(recap)
+    else if (memory && day === 'today') renderMemory(memory)
     if (yesterday) renderSwitch(yesterday)
   }
 
   return {
     root,
-    render(today, entry, yesterday, memory = null) {
-      shown = { today, entry, yesterday, memory }
+    render(today, entry, yesterday, memory = null, recap = null) {
+      shown = { today, entry, yesterday, memory, recap }
       draw()
     },
   }

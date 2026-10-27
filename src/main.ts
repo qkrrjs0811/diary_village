@@ -7,6 +7,7 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
+import { recapOf } from './core/recap'
 import { buildVillage } from './core/village'
 import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
@@ -200,6 +201,7 @@ const card = createWriteCard({
   },
   onOpen: (entry) => reader.open(entry),
   onMemory: visitMemory,
+  onRecap: (month) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), month),
 })
 
 /** "N일 전 오늘"의 집으로 날아가 그 집이 반짝이고, 도착하면 그날 글을 연다 */
@@ -439,7 +441,7 @@ function render(newDate?: string) {
     decors: decorsOnMap(village, today, save),
   })
   const todayEntry = entryOn(save, today)
-  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today))
+  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), recapOf(save.entries, today))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(days)

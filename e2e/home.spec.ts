@@ -1356,3 +1356,45 @@ test('기분 달력 위 찾기 칸에 말을 넣으면 그 말이 든 지난 한
   expect(Object.keys(saved).sort()).toEqual(['entries', 'erased', 'version'])
   expect(saved.entries).toEqual(entries)
 })
+
+test('새 달 첫 주에는 카드 아래에 지난달 기분 색 띠와 가장 많이 지은 건물을 보이고, 누르면 그달 달력을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-03T21:00:00+09:00') })
+  await page.goto('./')
+  // 10월에 다섯 날을 썼다(카페 3채, 책방 1채). 10월 3일은 한 달 전 오늘이지만 돌아보기가 먼저 보인다
+  const entries = monthEntries('2026-10', [3, 8, 15, 22, 30])
+  const words = ['커피 한 잔', '책을 읽었다', '라떼가 달았다', '그냥 조용한 하루', '카페에서 쉬었다']
+  entries.forEach((e, i) => (e.text = words[i]))
+  entries.push(...monthEntries('2026-11', [1]))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const recap = page.getByTestId('recap')
+  await expect(recap).toContainText('🗓️ 10월 돌아보기 · 한 줄 5일')
+  await expect(recap).toContainText('가장 많이 지은 건물 · ☕ 카페 3채')
+  await expect(page.getByTestId('memory')).toHaveCount(0)
+  await expect(page.getByTestId('recap-band').locator('span')).not.toHaveCount(0)
+  await expect(recap).toBeInViewport()
+  await expect(page.getByTestId('write-submit')).toBeInViewport()
+  expect((await recap.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/recap-card.png' })
+
+  // 누르면 10월 달력이 열리고, 달력에도 가장 많이 지은 건물이 보인다
+  await recap.click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  await expect(page.getByTestId('calendar-recap')).toHaveText('가장 많이 지은 건물 · ☕ 카페 3채')
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/recap-calendar.png' })
+  // 11월은 아직 보통 집뿐이다
+  await page.getByTestId('calendar-next').click()
+  await expect(page.getByTestId('calendar-recap')).toHaveText('🏡 아담한 보통 집들로 채운 달이에요')
+  await page.getByTestId('calendar-close').click()
+
+  // 첫 주가 지나면 돌아보기는 들어가고, 저장에는 기록뿐이다
+  await page.clock.setSystemTime(new Date('2026-11-08T21:00:00+09:00'))
+  await page.reload()
+  await expect(page.getByTestId('write-card')).toBeVisible()
+  await expect(recap).toHaveCount(0)
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'version'])
+  expect(saved.entries).toEqual(entries)
+})
