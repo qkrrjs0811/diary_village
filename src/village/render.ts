@@ -136,7 +136,7 @@ function drawTodaySpot(g: Element, gx: number, gy: number) {
 /** 집 한 채. 기분 색 지붕, 날짜로 정한 층·지붕 모양·굴뚝 */
 function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   const look = houseLook(entry)
-  const house = el('g', { class: isNew ? 'house pop' : 'house', 'data-testid': `house-${entry.date}`, 'data-date': entry.date }, g)
+  const house = el('g', { class: isNew ? 'house pop' : 'house', 'data-testid': `house-${entry.date}`, 'data-date': entry.date, 'data-mood': entry.mood }, g)
   const { gx, gy } = lot
   const u0 = 0.2
   const u1 = 0.8

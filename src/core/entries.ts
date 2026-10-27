@@ -37,3 +37,19 @@ export function writeEntry(save: SaveData, input: { text: string; mood: MoodId }
   const entries = [...save.entries, entry].sort((a, b) => a.date.localeCompare(b.date))
   return { ok: true, save: { ...save, entries }, entry }
 }
+
+export type EditResult =
+  | { ok: true; save: SaveData; entry: Entry; changed: boolean }
+  | { ok: false; reason: 'empty' | 'long' | 'missing' }
+
+/** 이미 쓴 날의 글과 기분을 고친다. 날짜와 처음 쓴 시각은 그대로 두고 고친 시각을 남긴다 */
+export function editEntry(save: SaveData, date: string, input: { text: string; mood: MoodId }, now: number): EditResult {
+  const old = entryOn(save, date)
+  if (!old) return { ok: false, reason: 'missing' }
+  const checked = checkText(input.text)
+  if (!checked.ok) return checked
+  if (checked.text === old.text && input.mood === old.mood) return { ok: true, save, entry: old, changed: false }
+  const entry: Entry = { ...old, text: checked.text, mood: input.mood, editedAt: now }
+  const entries = save.entries.map((e) => (e.date === date ? entry : e))
+  return { ok: true, save: { ...save, entries }, entry, changed: true }
+}

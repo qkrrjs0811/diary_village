@@ -204,8 +204,13 @@ button { font: inherit; color: inherit; }
 .reader-date { font-size: 13px; color: var(--ink-soft); }
 .reader-mood { margin-top: 6px; font-size: 14px; font-weight: 600; }
 .reader-text { margin: 14px 0 18px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
-.close {
-  width: 100%;
+.reader-edited { margin: -10px 0 16px; font-size: 12px; color: var(--ink-soft); }
+.edit-title { margin: 4px 0 12px; font-size: 16px; font-weight: 700; }
+.sheet .line-input { width: 100%; }
+.sheet .hint { margin-bottom: 12px; }
+.sheet-buttons { display: flex; gap: 8px; }
+.sheet-btn {
+  flex: 1;
   height: 48px;
   border: none;
   border-radius: 16px;
@@ -213,3 +218,5 @@ button { font: inherit; color: inherit; }
   font-weight: 700;
   cursor: pointer;
 }
+.sheet-btn.build { color: var(--accent-ink); background: var(--accent); }
+.sheet-btn.build:disabled { background: #cfd8cf; }

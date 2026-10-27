@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen } from './entries'
+import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen, editEntry } from './entries'
 import type { SaveData } from './types'
 
 const empty: SaveData = { version: 1, entries: [] }
@@ -74,5 +74,49 @@ describe('어제 한 줄 쓰기', () => {
     expect(yesterdayOpen(empty, nov1)).toBe('2026-10-31')
     const r = writeEntry(empty, { text: '자정 넘어 쓰는 핼러윈', mood: 'great' }, nov1, 'yesterday')
     expect(r.ok && r.entry.date).toBe('2026-10-31')
+  })
+})
+
+describe('쓴 글 고치기', () => {
+  const written: SaveData = {
+    version: 1,
+    entries: [
+      { date: '2026-10-20', text: '처음 쓴 글', mood: 'blue', writtenAt: 100 },
+      { date: '2026-10-26', text: '어제 글', mood: 'calm', writtenAt: 200 },
+    ],
+  }
+
+  it('글과 기분을 바꾸고, 처음 쓴 시각은 그대로 두고 고친 시각을 남긴다', () => {
+    const r = editEntry(written, '2026-10-20', { text: '  다시 보니 좋은 날 ', mood: 'great' }, now)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.changed).toBe(true)
+    expect(r.entry).toEqual({ date: '2026-10-20', text: '다시 보니 좋은 날', mood: 'great', writtenAt: 100, editedAt: now })
+    expect(r.save.entries).toHaveLength(2)
+    expect(entryOn(r.save, '2026-10-26')).toEqual(written.entries[1])
+    // 원래 기록은 건드리지 않는다
+    expect(written.entries[0].text).toBe('처음 쓴 글')
+  })
+
+  it('오래전 날도 고칠 수 있다', () => {
+    const r = editEntry(written, '2026-10-26', { text: '어제 글', mood: 'tired' }, now)
+    expect(r.ok && r.entry.mood).toBe('tired')
+  })
+
+  it('빈 글이나 너무 긴 글로는 고치지 않는다(원래 글을 지킨다)', () => {
+    expect(editEntry(written, '2026-10-20', { text: '  ', mood: 'calm' }, now)).toEqual({ ok: false, reason: 'empty' })
+    expect(editEntry(written, '2026-10-20', { text: '가'.repeat(MAX_TEXT + 1), mood: 'calm' }, now)).toEqual({ ok: false, reason: 'long' })
+  })
+
+  it('쓰지 않은 날은 고칠 수 없다', () => {
+    expect(editEntry(written, '2026-10-21', { text: '새 글', mood: 'calm' }, now)).toEqual({ ok: false, reason: 'missing' })
+  })
+
+  it('바뀐 게 없으면 고친 시각을 남기지 않는다', () => {
+    const r = editEntry(written, '2026-10-20', { text: '처음 쓴 글 ', mood: 'blue' }, now)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.changed).toBe(false)
+    expect(r.entry).toEqual(written.entries[0])
   })
 })

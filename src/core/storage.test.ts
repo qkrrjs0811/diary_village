@@ -38,3 +38,22 @@ describe('저장', () => {
     expect(() => loadSave(memory({ [SAVE_KEY]: '{broken' }))).toThrow()
   })
 })
+
+describe('고친 기록 저장', () => {
+  it('고친 시각을 저장하고 다시 읽는다', () => {
+    const kv = memory()
+    const save = { version: 1 as const, entries: [{ date: '2026-10-27', text: '고친 글', mood: 'calm' as const, writtenAt: 5, editedAt: 9 }] }
+    writeSave(kv, save)
+    expect(loadSave(kv)).toEqual(save)
+  })
+
+  it('고친 시각이 없는 이전 기록도 그대로 읽는다', () => {
+    const old = { version: 1, entries: [{ date: '2026-10-27', text: '안녕', mood: 'calm', writtenAt: 5 }] }
+    expect(parseSave(JSON.stringify(old))).toEqual(old)
+  })
+
+  it('고친 시각이 이상해도 글은 버리지 않는다', () => {
+    const odd = { version: 1, entries: [{ date: '2026-10-27', text: '안녕', mood: 'calm', writtenAt: 5, editedAt: 'x' }] }
+    expect(parseSave(JSON.stringify(odd))).toEqual({ version: 1, entries: [{ date: '2026-10-27', text: '안녕', mood: 'calm', writtenAt: 5 }] })
+  })
+})

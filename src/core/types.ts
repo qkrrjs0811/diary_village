@@ -8,6 +8,8 @@ export interface Entry {
   mood: MoodId
   /** 처음 쓴 시각(ms) */
   writtenAt: number
+  /** 마지막으로 고친 시각(ms). 고친 적 없으면 없다. 이 칸이 없는 이전 기록도 그대로 읽는다 */
+  editedAt?: number
 }
 
 export interface SaveData {

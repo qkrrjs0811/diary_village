@@ -255,6 +255,51 @@ test('오늘을 먼저 써도 어제 칸은 남아 있고, 그보다 전 날은 
   await expect(page.getByTestId('house-count')).toHaveText('🏠 2채')
 })
 
+test('읽기 창에서 쓴 글과 기분을 고친다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const before = entries.find((e) => e.date === '2026-10-26')!
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-edited')).toBeHidden()
+  await page.screenshot({ path: 'test-results/screens/reader-edit-button.png' })
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('edit-input')).toHaveValue(before.text)
+  await expect(page.getByTestId(`edit-mood-${before.mood}`)).toHaveAttribute('aria-pressed', 'true')
+
+  // 비우면 고칠 수 없고, 그만두면 원래 글 그대로다
+  await page.getByTestId('edit-input').fill('  ')
+  await expect(page.getByTestId('edit-save')).toBeDisabled()
+  await expect(page.getByTestId('edit-msg')).toHaveText('한 줄을 남겨 주세요')
+  await page.getByTestId('edit-cancel').click()
+  await expect(page.getByTestId('reader-text')).toHaveText(before.text)
+
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-mood-blue').click()
+  await page.getByTestId('edit-input').fill('다시 생각해 보니 조금 쓸쓸한 날')
+  await page.screenshot({ path: 'test-results/screens/reader-edit.png' })
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('다시 생각해 보니 조금 쓸쓸한 날')
+  await expect(page.getByTestId('reader-mood')).toContainText('🌧️')
+  await expect(page.getByTestId('reader-edited')).toHaveText('✏️ 10월 27일에 고쳤어요')
+  await page.screenshot({ path: 'test-results/screens/reader-edited.png' })
+  await page.getByTestId('reader-close').click()
+
+  // 마을의 그 집 색이 바뀌고, 집 수는 그대로다. 다시 열어도 남아 있다
+  await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-mood', 'blue')
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 5채')
+  await page.reload()
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  const y = saved.entries.find((e: { date: string }) => e.date === '2026-10-26')
+  // 처음 쓴 시각은 그대로, 고친 시각이 새로 남는다
+  expect(y).toMatchObject({ ...before, text: '다시 생각해 보니 조금 쓸쓸한 날', mood: 'blue' })
+  expect(y.editedAt).toBeGreaterThanOrEqual(Date.parse('2026-10-27T21:00:00+09:00'))
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('다시 생각해 보니 조금 쓸쓸한 날')
+})
+
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {
   await page.goto('./')
   await page.evaluate((k) => localStorage.setItem(k, '{broken'), KEY)

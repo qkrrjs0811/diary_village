@@ -32,7 +32,12 @@ export function parseSave(text: string): SaveData | null {
   if (typeof raw !== 'object' || raw === null) return null
   const x = raw as Record<string, unknown>
   if (x.version !== 1 || !Array.isArray(x.entries) || !x.entries.every(isEntry)) return null
-  const entries = x.entries.map((e: Entry) => ({ date: e.date, text: e.text, mood: e.mood, writtenAt: e.writtenAt }))
+  // 고친 시각이 이상하면 그 칸만 버린다(글은 지킨다)
+  const entries = x.entries.map((e: Entry): Entry => {
+    const entry: Entry = { date: e.date, text: e.text, mood: e.mood, writtenAt: e.writtenAt }
+    if (typeof e.editedAt === 'number' && Number.isFinite(e.editedAt)) entry.editedAt = e.editedAt
+    return entry
+  })
   if (new Set(entries.map((e) => e.date)).size !== entries.length) return null
   entries.sort((a, b) => a.date.localeCompare(b.date))
   return { version: 1, entries }

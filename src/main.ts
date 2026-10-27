@@ -1,6 +1,6 @@
 import './style.css'
 import { dayKey } from './core/date'
-import { entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
+import { editEntry, entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
@@ -53,7 +53,23 @@ if (readOnly) {
   banner.hidden = false
 }
 
-const reader = createReader()
+const reader = createReader({
+  onEdit: readOnly
+    ? null
+    : (date, text, mood) => {
+        const r = editEntry(save, date, { text, mood }, Date.now())
+        if (!r.ok) return { error: r.reason === 'missing' ? '이 날의 기록을 찾지 못했어요' : '한 줄을 다시 확인해 주세요' }
+        if (!r.changed) return { entry: r.entry }
+        try {
+          writeSave(kv, r.save)
+        } catch {
+          return { error: '저장하지 못했어요. 저장 공간을 확인해 주세요' }
+        }
+        save = r.save
+        render()
+        return { entry: r.entry }
+      },
+})
 document.body.appendChild(reader.root)
 
 const card = createWriteCard({
