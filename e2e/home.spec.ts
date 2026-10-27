@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 
 const KEY = 'diary-village:save'
@@ -381,5 +382,70 @@ test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async
   await page.getByTestId('write-input').fill('안녕')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('write-msg')).toHaveText('지금은 쓸 수 없어요')
+  // 백업을 가져와 덮어쓰지도 못한다
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('backup-import')).toBeDisabled()
+  await expect(page.getByTestId('backup-export')).toBeDisabled()
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe('{broken')
+})
+
+test('설정 창에서 백업을 내려받고, 다른 폰에서 가져오면 마을이 다시 지어진다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 10, 20])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const gear = page.getByTestId('settings-open')
+  const box = (await gear.boundingBox())!
+  expect(box.width).toBeGreaterThanOrEqual(44)
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/settings-gear.png' })
+
+  await gear.click()
+  await expect(page.getByTestId('settings')).toBeVisible()
+  await page.waitForTimeout(400) // 창이 올라오는 연출이 끝나면 찍는다
+  await page.screenshot({ path: 'test-results/screens/settings.png' })
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  expect(download.suggestedFilename()).toBe('diary-village-2026-10-27.json')
+  const file = readFileSync(await download.path(), 'utf8')
+  expect(JSON.parse(file).entries).toEqual(entries)
+  await expect(page.getByTestId('settings-msg')).toHaveText('📦 백업 파일을 내려받았어요')
+  await page.getByTestId('settings-close').click()
+  await expect(page.getByTestId('settings')).toBeHidden()
+
+  // 새 폰: 오늘 하나만 쓴 상태에서 가져온다
+  const today = { date: '2026-10-27', text: '새 폰의 첫 줄', mood: 'great', writtenAt: Date.parse('2026-10-27T20:00:00+09:00') }
+  const backup = JSON.stringify({ version: 1, entries: [...entries, { ...today, text: '백업의 같은 날' }] })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries: [today] })])
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 1채')
+  await page.getByTestId('settings-open').click()
+
+  // 형식이 틀린 파일은 거절한다
+  await page.getByTestId('backup-file').setInputFiles({ name: 'note.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') })
+  await expect(page.getByTestId('settings-msg')).toHaveText('한 줄 마을 백업 파일이 아니에요. 다른 파일을 골라 주세요')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/settings-bad-file.png' })
+
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-27.json', mimeType: 'application/json', buffer: Buffer.from(backup) })
+  await expect(page.getByTestId('import-summary')).toHaveText('백업에 4일의 한 줄이 있어요. 그중 3일을 마을에 더해요. 이미 쓴 1일은 지금 글을 그대로 둬요.')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/settings-import-confirm.png' })
+  // 그만두면 아무것도 바뀌지 않는다
+  await page.getByTestId('import-cancel').click()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 1채')
+
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-27.json', mimeType: 'application/json', buffer: Buffer.from(backup) })
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('settings-msg')).toHaveText('🏠 3일의 집을 다시 지었어요')
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 4채')
+  await page.screenshot({ path: 'test-results/screens/settings-imported.png' })
+  await page.getByTestId('settings-close').click()
+  await expect(page.getByTestId('house-2026-10-03')).toBeAttached()
+  await expect(page.getByTestId('today-line')).toContainText('새 폰의 첫 줄')
+
+  await page.reload()
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries.map((e: { date: string }) => e.date)).toEqual(['2026-10-03', '2026-10-10', '2026-10-20', '2026-10-27'])
+  expect(saved.entries[3].text).toBe('새 폰의 첫 줄')
 })

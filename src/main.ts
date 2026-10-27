@@ -1,4 +1,5 @@
 import './style.css'
+import { backupFileName, backupText, planImport } from './core/backup'
 import { buildingNote, buildingOf } from './core/building'
 import { dayKey } from './core/date'
 import { editEntry, entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
@@ -7,6 +8,7 @@ import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
 import { createReader } from './ui/reader'
+import { createSettings } from './ui/settings'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { SHOW, START_UNIT } from './core/view'
@@ -37,7 +39,7 @@ try {
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="count" data-testid="house-count"></span></header>
+  <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
     <svg data-testid="village" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -73,6 +75,24 @@ const reader = createReader({
       },
 })
 document.body.appendChild(reader.root)
+
+const settings = createSettings({
+  exportFile: readOnly ? null : () => ({ name: backupFileName(dayKey(Date.now())), text: backupText(save) }),
+  planImport: readOnly ? null : (text) => planImport(save, text),
+  applyImport(plan) {
+    if (readOnly) return '지금은 가져올 수 없어요'
+    try {
+      writeSave(kv, plan.save)
+    } catch {
+      return '저장하지 못했어요. 저장 공간을 확인해 주세요'
+    }
+    save = plan.save
+    render()
+    return null
+  },
+})
+document.body.appendChild(settings.root)
+app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
 
 const card = createWriteCard({
   onSubmit(text: string, mood: MoodId, day: Day) {
