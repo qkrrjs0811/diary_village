@@ -7,10 +7,10 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
-import { festivalOn } from './core/festival'
+import { festivalCard, festivalOn, type Festival } from './core/festival'
 import { recapOf } from './core/recap'
 import { buildVillage } from './core/village'
-import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
@@ -175,6 +175,20 @@ function celebrate(before: Dated[], wait: number) {
   // 소리는 누른 순간에 예약해야 폰이 막지 않는다. 카드가 뜨는 순간 울린다
   sound.cue('celebrate', '', wait)
 }
+/**
+ * 잔치 날 앱을 열면(켜 둔 채 잔치 날이 되어도) 잔치 카드를 이번 열기에 한 번 띄운다. 본 표시는 저장하지 않는다.
+ * 폰은 손길 없이 소리를 막으니 축하 가락은 "잔치 즐기기"를 누른 순간 울리고, 광장 잔치 장식으로 간다
+ */
+function showFestival(f: Festival) {
+  celebrateCard.open(festivalCard(f), {
+    label: '🎉 잔치 즐기기',
+    onDone() {
+      sound.cue('celebrate')
+      // 큰 잔치 장식(광장 (5,2)) 언저리로 간다
+      camera.glide(iso(PLAZA.gx + 4.5, PLAZA.gy + 2.5, 26), 0.8)
+    },
+  })
+}
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
 function visitLandmark(l: Landmark) {
   const s = landmarkSpot(l)
@@ -252,7 +266,9 @@ const camera = createCamera(svg, (target, at) => {
     const tap = taps.get(resident.id) ?? 0
     taps.set(resident.id, tap + 1)
     sound.cue('resident', resident.id)
-    return showNote(`${resident.name}: “${residentLine(resident, save.entries, dayKey(Date.now()), tap, builtDays(save))}”`, 0)
+    const today = dayKey(Date.now())
+    const line = residentLine(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today))
+    return showNote(`${resident.name}: “${line}”`, 0)
   }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
@@ -441,6 +457,7 @@ function render(newDate?: string) {
   // 지운 날은 빈 땅으로 돌아가지만 집을 지었던 날로 센다(명소·단계·주민을 빼앗지 않는다)
   const days = builtDays(save)
   const village = buildVillage(save.entries, today, (save.erased ?? []).map((x) => x.date))
+  const festival = festivalOn(days, today)
   drawn = { village, today }
   if (picked != null && !save.decor?.[picked]) picked = null
   // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
@@ -459,7 +476,7 @@ function render(newDate?: string) {
     sign: nextSign(days),
     walks: residentWalks(village, residentsOf(days)),
     decors: decorsOnMap(village, today, save),
-    festival: festivalOn(days, today)?.id,
+    festival: festival?.id,
   })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), recapOf(save.entries, today))
@@ -477,6 +494,7 @@ function render(newDate?: string) {
     const lot = block.lots.find((l) => l.date === today)!
     if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)) camera.show(blockView(block))
     shownDay = today
+    if (festival) showFestival(festival)
   } else if (newDate && !calm) {
     const lot = village.blocks.flatMap((b) => b.lots).find((l) => l.date === newDate)
     if (lot) camera.visit(iso(lot.gx + 0.5, lot.gy + 0.5, 22))

@@ -2,6 +2,7 @@ import { buildingInfo, buildingOf, hasFinal } from './building'
 import { PLAZA, writtenDays } from './landmark'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
 import type { Dated, Entry } from './types'
+import { festivalLine, type Festival } from './festival'
 
 export type Ears = 'none' | 'bunny' | 'bear' | 'cat' | 'leaf'
 
@@ -116,8 +117,19 @@ export function residentWalks(village: Village, residents: Resident[]): Walk[] {
 }
 
 /** 주민을 누르면 하는 짧은 한마디. tap 은 지금까지 누른 횟수(0부터) */
-/** days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다 */
-export function residentLine(r: Resident, entries: Entry[], today: string, tap: number, days: Dated[] = entries): string {
+/** days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다. 잔치 날에는 두 번째에 잔치 한마디를 한다 */
+export function residentLine(
+  r: Resident,
+  entries: Entry[],
+  today: string,
+  tap: number,
+  days: Dated[] = entries,
+  festival: Festival | null = null,
+): string {
+  if (festival && tap >= 1) {
+    if (tap === 1) return festivalLine(festival, r.id)
+    tap -= 1
+  }
   if (tap === 0) {
     const todays = entries.find((x) => x.date === today)
     if (!todays) return '오늘은 어떤 하루였어요?'

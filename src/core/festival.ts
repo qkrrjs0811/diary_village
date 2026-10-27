@@ -4,6 +4,8 @@
  */
 import { isDate } from './date'
 import type { Dated } from './types'
+import type { MilestoneCard } from './stage'
+import { hash } from './village'
 
 export type FestivalId = 'birthday' | 'newYear' | 'pumpkin' | 'christmas'
 
@@ -28,6 +30,33 @@ export function festivalOn(days: readonly Dated[], today: string): Festival | nu
   const md = today.slice(5)
   const f = DATED.find((x) => x.days.includes(md))
   return f ? { id: f.id, name: f.name, icon: f.icon } : null
+}
+
+const CARD: Record<FestivalId, { title: string; body: string }> = {
+  birthday: { title: '오늘은 마을 생일이에요', body: '주민들이 광장에 모여 케이크에 초를 켰어요.' },
+  newYear: { title: '새해 잔치가 열렸어요', body: '새해 복 많이 받아요! 광장에 복주머니가 걸렸어요.' },
+  pumpkin: { title: '오늘은 호박 축제예요', body: '광장에 호박 등불이 켜지고 주민들이 들떠 있어요.' },
+  christmas: { title: '성탄 잔치가 열렸어요', body: '광장에 별 달린 트리가 섰어요. 따뜻한 성탄 보내요.' },
+}
+
+/** 잔치 날 앱을 열면 띄우는 잔치 카드 문구. 쓴 날 수·기분은 보지 않고, 쓰라고 재촉하지 않는다 */
+export function festivalCard(f: Festival): MilestoneCard {
+  const c = CARD[f.id]
+  const body = f.id === 'birthday' ? `첫 집을 지은 지 ${f.years ?? 1}년이 되었어요. ${c.body}` : c.body
+  return { title: `${f.icon} ${c.title}`, body, next: '광장에 잔치 장식이 섰어요', icons: [f.icon, '🎉'], visit: null }
+}
+
+const LINES: Record<FestivalId, string[]> = {
+  birthday: ['마을 생일 축하해요!', '생일 케이크 맛있어요!', '우리 마을 생일이에요!'],
+  newYear: ['새해 복 많이 받아요!', '올해도 한 줄씩 함께해요.', '복주머니 받으셨어요?'],
+  pumpkin: ['호박 등불이 참 예뻐요!', '오늘은 호박 축제예요!', '사탕 하나 드릴까요?'],
+  christmas: ['메리 크리스마스!', '트리에 별을 달았어요.', '선물 상자가 궁금해요!'],
+}
+
+/** 잔치 날 주민의 한마디. 같은 주민은 같은 말을 한다 */
+export function festivalLine(f: Festival, residentId: string): string {
+  const lines = LINES[f.id]
+  return lines[hash(residentId) % lines.length]
 }
 
 function birthdayOn(days: readonly Dated[], today: string): Festival | null {

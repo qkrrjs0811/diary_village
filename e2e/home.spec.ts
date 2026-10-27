@@ -1579,6 +1579,10 @@ test('잔치 날에는 광장에 깃발 줄과 잔치 장식이 서고, 여느 �
     await expect(page.locator('.festival')).toHaveCount(2)
     // 기둥 세 개 + 두 변의 깃발 13칸
     await expect(page.locator('.bunting')).toHaveCount(16)
+    // 잔치 카드를 닫으면 광장 쪽으로 간다
+    await page.getByTestId('celebrate-close').click()
+    await expect(page.getByTestId('celebrate')).toBeHidden()
+    await page.waitForTimeout(1000)
     if (shot) {
       // 멀리 본 뒤 잔치 장식 쪽으로 가까이 간다
       const svg = (await page.getByTestId('village').boundingBox())!
@@ -1603,6 +1607,62 @@ test('잔치 날에는 광장에 깃발 줄과 잔치 장식이 서고, 여느 �
   await visit('2026-12-24T13:00:00+09:00', 'christmas', 'festival-christmas')
   await visit('2027-01-01T13:00:00+09:00', 'newYear', 'festival-newyear')
   // 잔치 장식은 계산만 한다: 저장은 처음 기록 그대로
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+  expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([KEY])
+})
+
+test('잔치 날 처음 열면 잔치 카드가 한 번 뜨고, 누르면 축하 가락과 함께 광장으로 간다. 주민도 잔치 한마디를 한다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const entries = [...monthEntries('2025-10', [28, 29]), ...monthEntries('2026-10', [3, 9, 15, 21, 27])]
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  const heard = () => page.evaluate(() => {
+    const w = window as unknown as { notes: number[]; buzz: unknown[] }
+    return { notes: w.notes.length, buzz: w.buzz }
+  })
+  // 마을 생일: 첫 집을 지은 지 1년
+  const cardEl = page.getByTestId('celebrate')
+  await expect(cardEl).toBeVisible()
+  await expect(page.getByTestId('celebrate-title')).toHaveText('🎂 오늘은 마을 생일이에요')
+  await expect(page.getByTestId('celebrate-body')).toContainText('첫 집을 지은 지 1년')
+  const btn = page.getByTestId('celebrate-close')
+  await expect(btn).toHaveText('🎉 잔치 즐기기')
+  expect((await btn.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(btn).toBeInViewport()
+  // 연 것만으로는 소리를 내지 않는다(폰이 막는다)
+  expect(await heard()).toEqual({ notes: 0, buzz: [] })
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: 'test-results/screens/festival-card.png' })
+  await btn.click()
+  await expect(cardEl).toBeHidden()
+  // 축하 가락 다섯 음(바탕음·배음)과 떨림
+  expect((await heard()).notes).toBe(10)
+  await page.waitForTimeout(1000)
+  expect((await heard()).buzz).toEqual([[20, 40, 20, 40, 20]])
+  // 광장 잔치 장식이 화면 안에 보인다
+  await expect(page.getByTestId('festival')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/festival-plaza.png' })
+
+  // 광장을 걷는 모모: 처음엔 오늘 이야기, 두 번째는 잔치 한마디
+  const momo = page.locator('[data-resident="momo"]')
+  await momo.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('모모')
+  await momo.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText(/생일/)
+
+  // 같은 날 다시 열어도 카드는 이번 열기에 한 번(본 표시는 저장하지 않는다)
+  await page.reload()
+  await expect(cardEl).toBeVisible()
+  await page.getByTestId('celebrate-close').click()
+  // 여느 날에는 잔치 카드가 없다
+  await page.clock.setSystemTime(new Date('2026-10-29T13:00:00+09:00'))
+  await page.reload()
+  await expect(page.getByTestId('plaza')).toBeAttached()
+  await page.waitForTimeout(300)
+  await expect(cardEl).toBeHidden()
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([KEY])
 })

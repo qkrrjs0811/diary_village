@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { RESIDENTS, residentLine, residentsOf, residentWalks } from './resident'
 import { PLAZA } from './landmark'
+import { festivalLine, festivalOn } from './festival'
 import { BLOCK_H, BLOCK_W, ROAD, buildVillage } from './village'
 import { addDays } from './date'
 import type { Entry } from './types'
@@ -87,5 +88,18 @@ describe('주민', () => {
     const all = [1, 2, 3, 4, 5].map((t) => residentLine(r, days(12), today, t)).join(' ')
     expect(all).toContain('12일')
     expect(all).not.toMatch(/연속|끊/)
+  })
+
+  it('잔치 날에는 두 번째로 누르면 잔치 한마디, 그 뒤는 여느 때 말을 차례로 한다', () => {
+    const r = RESIDENTS[0]
+    const today = '2026-12-24'
+    const f = festivalOn([], today)!
+    const es = [e(today)]
+    expect(residentLine(r, es, today, 0, es, f)).toBe('오늘 지은 집, 참 예뻐요.')
+    expect(residentLine(r, es, today, 1, es, f)).toBe(festivalLine(f, r.id))
+    expect(residentLine(r, es, today, 2, es, f)).toBe(residentLine(r, es, today, 1))
+    expect(residentLine(r, es, today, 3, es, f)).toBe(residentLine(r, es, today, 2))
+    // 잔치가 없는 날은 그대로
+    expect(residentLine(r, es, today, 1, es, null)).toBe(residentLine(r, es, today, 1))
   })
 })
