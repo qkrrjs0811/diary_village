@@ -2,7 +2,7 @@ import './style.css'
 import { backupFileName, backupText, planImport } from './core/backup'
 import { buildingNote, buildingOf } from './core/building'
 import { dayKey } from './core/date'
-import { builtDays, editEntry, entryOn, eraseEntry, writeEntry, yesterdayOpen, type Day } from './core/entries'
+import { builtDays, editEntry, entryOn, eraseEntry, neighborDays, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
@@ -117,6 +117,11 @@ const reader = createReader({
         return null
       },
   onClose: () => unveil(svg),
+  neighbors: (date) => {
+    const near = neighborDays(save.entries, date)
+    return { prev: near.prev ? entryOn(save, near.prev) ?? null : null, next: near.next ? entryOn(save, near.next) ?? null : null }
+  },
+  onTurn: turnTo,
 })
 document.body.appendChild(reader.root)
 
@@ -125,6 +130,15 @@ let veilTimer = 0
 function readEntry(entry: Entry) {
   clearTimeout(veilTimer)
   reader.open(entry)
+  veilFront(svg, entry.date)
+}
+
+/** 읽기 창에서 앞뒤 날로 넘기면 마을 보기도 그 집으로 옮겨 가고, 그 집 앞을 옅게 한다 */
+function turnTo(entry: Entry) {
+  clearTimeout(veilTimer)
+  clearTimeout(memoryTimer)
+  const lot = drawn?.village.blocks.flatMap((b) => b.lots).find((l) => l.date === entry.date)
+  if (lot) camera.glide(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)
   veilFront(svg, entry.date)
 }
 

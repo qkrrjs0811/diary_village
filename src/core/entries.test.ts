@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen, editEntry, eraseEntry, builtDays } from './entries'
+import { checkText, MAX_TEXT, writeEntry, entryOn, yesterdayOpen, editEntry, eraseEntry, builtDays, neighborDays } from './entries'
 import { earnedLandmarks } from './landmark'
 import { stageOf } from './stage'
 import type { SaveData } from './types'
@@ -174,5 +174,34 @@ describe('쓴 글 지우기', () => {
 
   it('지운 날이 없으면 기록 날짜만 센다', () => {
     expect(builtDays(written).map((d) => d.date)).toEqual(['2026-10-20', '2026-10-26'])
+  })
+})
+
+describe('앞뒤 날 넘겨 읽기', () => {
+  const at = (date: string) => ({ date, text: date, mood: 'calm' as const, writtenAt: now })
+  // 저장 순서가 섞여 있어도 날짜 순서로 본다
+  const entries = [at('2026-10-20'), at('2026-10-03'), at('2026-10-12'), at('2026-09-30')]
+
+  it('쓴 날 중 바로 앞·뒤 날을 찾고, 빈 날은 건너뛴다', () => {
+    expect(neighborDays(entries, '2026-10-12')).toEqual({ prev: '2026-10-03', next: '2026-10-20' })
+    expect(neighborDays(entries, '2026-10-03')).toEqual({ prev: '2026-09-30', next: '2026-10-12' })
+  })
+
+  it('처음 날엔 앞 날이, 마지막 날엔 뒷 날이 없다', () => {
+    expect(neighborDays(entries, '2026-09-30')).toEqual({ prev: null, next: '2026-10-03' })
+    expect(neighborDays(entries, '2026-10-20')).toEqual({ prev: '2026-10-12', next: null })
+    expect(neighborDays([at('2026-10-27')], '2026-10-27')).toEqual({ prev: null, next: null })
+  })
+
+  it('지운 날은 건너뛴다', () => {
+    const save: SaveData = { version: 1, entries: [at('2026-10-25'), at('2026-10-26'), at('2026-10-27')] }
+    const r = eraseEntry(save, '2026-10-26', now)
+    if (!r.ok) throw new Error()
+    expect(neighborDays(r.save.entries, '2026-10-25')).toEqual({ prev: null, next: '2026-10-27' })
+    expect(neighborDays(r.save.entries, '2026-10-27')).toEqual({ prev: '2026-10-25', next: null })
+  })
+
+  it('쓰지 않은 날에서도 그 앞·뒤 쓴 날을 찾는다', () => {
+    expect(neighborDays(entries, '2026-10-10')).toEqual({ prev: '2026-10-03', next: '2026-10-12' })
   })
 })

@@ -13,6 +13,10 @@ export function createReader(handlers: {
   onErase: ((date: string) => string | null) | null
   /** 창이 닫힐 때 */
   onClose?: () => void
+  /** 바로 앞·뒤 쓴 날의 글(없으면 null) */
+  neighbors?: (date: string) => { prev: Entry | null; next: Entry | null }
+  /** 앞뒤 날로 넘겨 다른 글을 보일 때(마을 보기를 그 집으로 옮긴다) */
+  onTurn?: (entry: Entry) => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -35,6 +39,10 @@ export function createReader(handlers: {
       <div class="reader-building" data-testid="reader-building" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
+      ${handlers.neighbors ? `<div class="reader-turn">
+        <button type="button" class="turn-btn" data-testid="reader-prev">◀ 앞 날</button>
+        <button type="button" class="turn-btn" data-testid="reader-next">뒷 날 ▶</button>
+      </div>` : ''}
       <div class="sheet-buttons">
         ${handlers.onEdit ? '<button type="button" class="sheet-btn" data-testid="reader-edit">✏️ 고치기</button>' : ''}
         ${handlers.onErase ? '<button type="button" class="sheet-btn" data-testid="reader-erase">🗑️ 지우기</button>' : ''}
@@ -54,6 +62,21 @@ export function createReader(handlers: {
       const edited = sheet.querySelector<HTMLElement>('.reader-edited')!
       edited.textContent = `✏️ ${dateLabel(dayKey(entry.editedAt)).replace(/ \S+요일$/, '')}에 고쳤어요`
       edited.hidden = false
+    }
+    if (handlers.neighbors) {
+      const near = handlers.neighbors(entry.date)
+      const turn = (id: string, to: Entry | null, label: string) => {
+        const btn = sheet.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!
+        btn.disabled = !to
+        if (to) btn.setAttribute('aria-label', `${label} · ${fullDateLabel(to.date)}`)
+        btn.addEventListener('click', () => {
+          if (!to) return
+          showRead(to)
+          handlers.onTurn?.(to)
+        })
+      }
+      turn('reader-prev', near.prev, '앞 날')
+      turn('reader-next', near.next, '뒷 날')
     }
     sheet.querySelector('.close')!.addEventListener('click', close)
     sheet.querySelector('[data-testid="reader-edit"]')?.addEventListener('click', () => showEdit(entry))

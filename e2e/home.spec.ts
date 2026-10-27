@@ -2210,3 +2210,54 @@ test('쓰기 칸·어제 칸 빈 글자 자리에 오늘의 물음이 뜨고, �
   expect(saved.entries).toHaveLength(4)
   expect(saved.entries.find((e: Entry) => e.date === '2026-10-28').text).toBe('귤을 까 먹었다')
 })
+
+test('읽기 창에서 앞뒤 쓴 날로 넘겨 읽고, 마을 보기도 그 집으로 옮겨 간다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const erased = [{ date: '2026-10-07', erasedAt: Date.parse('2026-10-08T09:00:00+09:00') }]
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', [2, 5, 9, 26]), erased })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+
+  await page.getByTestId('house-2026-10-26').dispatchEvent('click')
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  const prev = page.getByTestId('reader-prev')
+  const next = page.getByTestId('reader-next')
+  await expect(next).toBeDisabled() // 가장 최근 날
+  await expect(prev).toBeEnabled()
+  for (const id of ['reader-prev', 'reader-next']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(390)
+  }
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-turn.png' })
+
+  // 빈 날과 지운 날(7일)은 건너뛴다. 넘기면 마을 보기도 그 집으로 옮겨 간다
+  const viewBox = () => page.getByTestId('village').getAttribute('viewBox')
+  const before = await viewBox()
+  await prev.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 9일의 한 줄')
+  await expect(page.getByTestId('reader-date')).toHaveText('2026년 10월 9일 금요일')
+  await page.clock.runFor(1500)
+  expect(await viewBox()).not.toBe(before)
+  await expect(next).toBeEnabled()
+  await prev.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 5일의 한 줄')
+  await prev.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 2일의 한 줄')
+  await expect(prev).toBeDisabled() // 가장 처음 날
+  await page.clock.runFor(1500)
+  await page.screenshot({ path: 'test-results/screens/reader-turn-first.png' })
+  await next.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 5일의 한 줄')
+
+  // 넘긴 날에서 고치기를 하면 그 날을 고친다
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('reader-date')).toHaveText('2026년 10월 5일 월요일')
+  await page.getByTestId('edit-cancel').click()
+  await page.getByTestId('reader-close').click()
+  await expect(page.locator('svg .veiled')).toHaveCount(0)
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})

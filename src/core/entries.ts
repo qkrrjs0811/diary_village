@@ -63,6 +63,20 @@ export function builtDays(save: SaveData): Dated[] {
   return [...dates].sort().map((date) => ({ date }))
 }
 
+/**
+ * 읽기 창에서 넘겨 볼 바로 앞·뒤 쓴 날. 빈 날·지운 날(entries 에 없음)은 건너뛰고, 없으면 null.
+ * 저장 순서와 상관없이 날짜 순서로 본다
+ */
+export function neighborDays(entries: Dated[], date: string): { prev: string | null; next: string | null } {
+  let prev: string | null = null
+  let next: string | null = null
+  for (const e of entries) {
+    if (e.date < date && (prev === null || e.date > prev)) prev = e.date
+    if (e.date > date && (next === null || e.date < next)) next = e.date
+  }
+  return { prev, next }
+}
+
 export type EditResult =
   | { ok: true; save: SaveData; entry: Entry; changed: boolean }
   | { ok: false; reason: 'empty' | 'long' | 'missing' }
