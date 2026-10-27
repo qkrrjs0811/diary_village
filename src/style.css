@@ -56,6 +56,28 @@ button { font: inherit; color: inherit; }
   font-size: 12px;
   font-weight: 600;
 }
+.build-note {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 28px);
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: 0 4px 14px rgba(90, 70, 54, 0.12);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  animation: note-in 0.45s ease-out var(--delay, 0s) both;
+}
+.build-note[hidden] { display: none; }
+@keyframes note-in { from { opacity: 0; transform: translate(-50%, 10px); } }
+@media (prefers-reduced-motion: reduce) { .build-note { animation: none; } }
 
 .house { cursor: pointer; }
 /* 짓는 연출: 화면이 다가간 뒤(--delay) 집이 쑥 올라오고, 먼지가 퍼지고, 반짝인다 */
@@ -203,6 +225,15 @@ button { font: inherit; color: inherit; }
 @keyframes rise { from { transform: translateY(30px); opacity: 0; } }
 .reader-date { font-size: 13px; color: var(--ink-soft); }
 .reader-mood { margin-top: 6px; font-size: 14px; font-weight: 600; }
+.reader-building {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 13px;
+}
+.reader-building[hidden] { display: none; }
 .reader-text { margin: 14px 0 18px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
 .reader-edited { margin: -10px 0 16px; font-size: 12px; color: var(--ink-soft); }
 .edit-title { margin: 4px 0 12px; font-size: 16px; font-weight: 700; }

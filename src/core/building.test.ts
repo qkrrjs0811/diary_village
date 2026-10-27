@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, buildingOf, findBuilding } from './building'
+import { BUILDINGS, buildingNote, buildingOf, findBuilding } from './building'
 import type { Entry } from './types'
 
 describe('글 단어로 건물 정하기', () => {
@@ -9,6 +9,7 @@ describe('글 단어로 건물 정하기', () => {
     for (const b of BUILDINGS) {
       expect(b.name.length).toBeGreaterThan(0)
       expect(b.words.length).toBeGreaterThan(0)
+      expect(b.icon.length).toBeGreaterThan(0)
     }
     const ids = BUILDINGS.map((b) => b.id)
     for (const id of ['cafe', 'bookstore', 'field', 'catHouse', 'flowerShop', 'bakery', 'lighthouse', 'musicHall']) {
@@ -81,5 +82,23 @@ describe('글 단어로 건물 정하기', () => {
   it('단어 목록끼리 같은 말이 두 건물에 들어 있지 않다', () => {
     const all = BUILDINGS.flatMap((b) => b.words)
     expect(new Set(all).size).toBe(all.length)
+  })
+})
+
+describe('건물이 생겼다는 알림', () => {
+  it('찾은 말과 건물 이름으로 알려 준다', () => {
+    expect(buildingNote({ id: 'cafe', word: '커피' })).toBe("☕ '커피'를 찾아 카페가 생겼어요")
+    expect(buildingNote({ id: 'lighthouse', word: '바다' })).toBe("🌊 '바다'를 찾아 등대가 생겼어요")
+  })
+
+  it('받침에 맞게 을/를, 이/가를 붙인다', () => {
+    expect(buildingNote({ id: 'bookstore', word: '책' })).toBe("📚 '책'을 찾아 책방이 생겼어요")
+    expect(buildingNote({ id: 'field', word: '운동' })).toBe("⚽ '운동'을 찾아 운동장이 생겼어요")
+    expect(buildingNote({ id: 'catHouse', word: '고양이' })).toBe("🐱 '고양이'를 찾아 고양이 집이 생겼어요")
+    expect(buildingNote({ id: 'cafe', word: 'coffee' })).toBe("☕ 'coffee'를 찾아 카페가 생겼어요")
+  })
+
+  it('맞는 말이 없으면 알림이 없다', () => {
+    expect(buildingNote(null)).toBeNull()
   })
 })

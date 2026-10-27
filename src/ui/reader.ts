@@ -1,3 +1,4 @@
+import { buildingInfo, buildingOf } from '../core/building'
 import { dayKey } from '../core/date'
 import { checkText, MAX_TEXT } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
@@ -24,6 +25,7 @@ export function createReader(handlers: {
     sheet.innerHTML = `
       <div class="reader-date" data-testid="reader-date"></div>
       <div class="reader-mood" data-testid="reader-mood"></div>
+      <div class="reader-building" data-testid="reader-building" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
       <div class="sheet-buttons">
@@ -33,6 +35,13 @@ export function createReader(handlers: {
     sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
     sheet.querySelector('.reader-mood')!.textContent = `${m.emoji} ${m.label} · ${m.weather}`
     sheet.querySelector('.reader-text')!.textContent = entry.text
+    const found = buildingOf(entry)
+    if (found) {
+      const b = buildingInfo(found.id)
+      const line = sheet.querySelector<HTMLElement>('.reader-building')!
+      line.textContent = `${b.icon} ${b.name} · '${found.word}'에서 생겼어요`
+      line.hidden = false
+    }
     if (entry.editedAt != null) {
       const edited = sheet.querySelector<HTMLElement>('.reader-edited')!
       edited.textContent = `✏️ ${dateLabel(dayKey(entry.editedAt)).replace(/ \S+요일$/, '')}에 고쳤어요`

@@ -1,4 +1,5 @@
 import './style.css'
+import { buildingNote, buildingOf } from './core/building'
 import { dayKey } from './core/date'
 import { editEntry, entryOn, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
@@ -41,6 +42,7 @@ app.innerHTML = `
   <main class="scene" data-testid="scene">
     <svg data-testid="village" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="weather" data-testid="weather"></div>
+    <div class="build-note" data-testid="build-note" role="status" hidden></div>
   </main>`
 const svg = app.querySelector<SVGSVGElement>('svg')!
 const scene = app.querySelector<HTMLElement>('.scene')!
@@ -84,6 +86,7 @@ const card = createWriteCard({
     }
     save = r.save
     render(r.entry.date)
+    showNote(buildingNote(buildingOf(r.entry)))
     return null
   },
   onOpen: (entry) => reader.open(entry),
@@ -99,6 +102,19 @@ const camera = createCamera(svg, (target) => {
 let shownDay = ''
 
 const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+/** 지은 건물을 마을 아래쪽에 잠깐 알려 준다("'커피'를 찾아 카페가 생겼어요"). 누르면 닫힌다 */
+const note = app.querySelector<HTMLElement>('.build-note')!
+let noteTimer = 0
+note.addEventListener('click', () => (note.hidden = true))
+function showNote(text: string | null) {
+  clearTimeout(noteTimer)
+  note.hidden = !text
+  if (!text) return
+  note.textContent = text
+  note.style.setProperty('--delay', `${calm ? 0 : SHOW.go}ms`)
+  noteTimer = window.setTimeout(() => (note.hidden = true), SHOW.go + SHOW.hold + SHOW.back + 2500)
+}
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */
 function render(newDate?: string) {

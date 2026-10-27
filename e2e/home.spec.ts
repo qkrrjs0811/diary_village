@@ -300,6 +300,78 @@ test('읽기 창에서 쓴 글과 기분을 고친다', async ({ page }) => {
   await expect(page.getByTestId('reader-text')).toHaveText('다시 생각해 보니 조금 쓸쓸한 날')
 })
 
+test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽기 창에 건물 이름이 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const texts: [number, string, string][] = [
+    [14, '도서관에서 소설을 빌렸다', 'bookstore'],
+    [15, '저녁에 한강 달리기', 'field'],
+    [16, '길에서 만난 고양이', 'catHouse'],
+    [17, '옆집 강아지가 반겨 줬다', 'dogHouse'],
+    [19, '튤립 한 단을 샀다', 'flowerShop'],
+    [20, '갓 구운 빵 냄새', 'bakery'],
+    [21, '바다를 보고 왔다', 'lighthouse'],
+    [22, '좋아하는 노래를 들었다', 'musicHall'],
+    [23, '영화 한 편', 'cinema'],
+    [24, '아침 라떼가 맛있었다', 'cafe'],
+    [25, '그냥 조용한 하루', 'house'],
+  ]
+  const entries = texts.map(([d, text], i) => ({
+    date: `2026-10-${d}`,
+    text,
+    mood: moods[i % moods.length],
+    writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`),
+  }))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  for (const [d, , kind] of texts) await expect(page.getByTestId(`house-2026-10-${d}`)).toHaveAttribute('data-building', kind)
+  await expect(page.getByTestId('build-note')).toBeHidden()
+  // 조금 가까이 본다
+  const svg = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2 - 40)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -200)
+  await page.screenshot({ path: 'test-results/screens/buildings.png' })
+  await page.mouse.wheel(0, 600)
+
+  // 오늘 '커피'를 쓰면 카페가 생기고 알려 준다
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
+  await expect(page.getByTestId('build-note')).toHaveText("☕ '커피'를 찾아 카페가 생겼어요")
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-note.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  // 잠시 뒤 저절로 사라진다
+  await page.clock.runFor(6000)
+  await expect(page.getByTestId('build-note')).toBeHidden()
+
+  // 읽기 창에 건물 이름이 보이고, 보통 집은 보이지 않는다
+  await page.getByTestId('house-2026-10-27').click()
+  await expect(page.getByTestId('reader-building')).toHaveText("☕ 카페 · '커피'에서 생겼어요")
+  await page.waitForTimeout(400) // 창이 올라오는 연출이 끝날 때까지
+  await page.screenshot({ path: 'test-results/screens/reader-building.png' })
+  // 글을 고치면 건물도 바뀐다(기획서 8번)
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-input').fill('퇴근길에 책 한 권')
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('reader-building')).toHaveText("📚 책방 · '책'에서 생겼어요")
+  await page.getByTestId('reader-close').click()
+  await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'bookstore')
+  await page.getByTestId('house-2026-10-25').click()
+  await expect(page.getByTestId('reader-building')).toBeHidden()
+
+  // 보통 집을 지으면 알림이 없다
+  await page.getByTestId('reader-close').click()
+  await page.getByTestId('write-yesterday').click()
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('일찍 잤다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
+  await expect(page.getByTestId('build-note')).toBeHidden()
+})
+
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {
   await page.goto('./')
   await page.evaluate((k) => localStorage.setItem(k, '{broken'), KEY)
