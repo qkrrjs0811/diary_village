@@ -221,6 +221,8 @@ button { font: inherit; color: inherit; }
 /* 저녁·밤: 창문에 따뜻한 불이 켜진다 */
 .scene .win { transition: fill 0.6s; }
 .scene.lit .win { fill: #ffd56e; stroke: #f5b94f; }
+/* 지붕 위 풍향계·새는 뒤 집 누르기를 가로막지 않는다 */
+.roof-vane, .roof-bird { pointer-events: none; }
 .weather {
   position: absolute;
   top: 10px;

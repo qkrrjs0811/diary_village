@@ -1240,6 +1240,54 @@ test('지금 시각에 따라 낮·저녁·밤 하늘이 되고, 저녁·밤에�
   await shot('time-night-rain')
 })
 
+test('보통 집마다 문 색·창 모양·꽃상자·현관·지붕 위 작은 것이 달라 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const days = Array.from({ length: 26 }, (_, i) => i + 1)
+  const entries = monthEntries('2026-10', days)
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 26채')
+  const plain = page.locator('[data-building="house"]')
+  const n = await plain.count()
+  expect(n).toBe(26)
+  // 보통 집마다 색 문이 하나, 창 모양은 세 가지가 모두 보인다
+  await expect(page.locator('[data-building="house"] .house-door')).toHaveCount(n)
+  const colors = new Set(await page.locator('.house-door').evaluateAll((l) => l.map((d) => d.getAttribute('data-color'))))
+  expect(colors.size).toBeGreaterThanOrEqual(4)
+  for (const shape of ['square', 'round', 'arch']) expect(await page.locator(`[data-building="house"] .win[data-shape="${shape}"]`).count()).toBeGreaterThan(0)
+  for (const part of ['flower-box', 'porch-lamp', 'porch-step', 'roof-vane', 'roof-bird']) expect(await page.locator(`.${part}`).count()).toBeGreaterThan(0)
+  // 이웃한 날 집은 손길이 똑같지 않다
+  const touch = (d: string) => page.getByTestId(`house-2026-10-${d}`).getAttribute('data-touch')
+  expect(await touch('11')).not.toBe(await touch('12'))
+  // 집은 그대로 눌린다
+  await page.getByTestId('house-2026-10-26').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  await page.getByTestId('reader-close').click()
+
+  const shot = async (name: string) => {
+    await page.waitForTimeout(700)
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/${name}.png` })
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  }
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -200)
+  await shot('house-touches-day')
+
+  // 밤: 둥근·반달 창과 현관 등에도 불이 켜진다
+  await page.clock.fastForward('08:00:00')
+  await expect(page.getByTestId('scene')).toHaveAttribute('data-time', 'night')
+  const lit = (sel: string) => page.locator(sel).first().evaluate((e) => getComputedStyle(e).fill)
+  await expect.poll(() => lit('.win[data-shape="round"]')).toBe('rgb(255, 213, 110)')
+  await expect.poll(() => lit('.win[data-shape="arch"]')).toBe('rgb(255, 213, 110)')
+  await expect.poll(() => lit('.porch-lamp .win')).toBe('rgb(255, 213, 110)')
+  await shot('house-touches-night')
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
 test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도감과 명소를 모아 본다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
