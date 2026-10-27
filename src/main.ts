@@ -140,6 +140,7 @@ function turnTo(entry: Entry) {
   const lot = drawn?.village.blocks.flatMap((b) => b.lots).find((l) => l.date === entry.date)
   if (lot) camera.glide(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)
   veilFront(svg, entry.date)
+  sound.cue('turn')
 }
 
 const settings = createSettings({

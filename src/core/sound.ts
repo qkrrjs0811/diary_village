@@ -57,8 +57,8 @@ export function buildTune(mood: MoodId, date: string): Note[] {
 /** 집이 쑥 올라올 때 폰이 짧게 떤다(ms: 떨림, 쉼, 떨림) */
 export const BUZZ = [30, 40, 50]
 
-/** 짓기 말고 마을에서 나는 짧은 소리: 명소·단계 축하, 주민 누르기, 소품 놓기 */
-export type Cue = 'celebrate' | 'resident' | 'place'
+/** 짓기 말고 마을에서 나는 짧은 소리: 명소·단계 축하, 주민 누르기, 소품 놓기, 읽기 창 넘기기 */
+export type Cue = 'celebrate' | 'resident' | 'place' | 'turn'
 
 /** 축하는 C 장조 화음을 한 옥타브 넘게 차례로 올라간다(짓는 소리보다 길게) */
 const FANFARE = [72, 76, 79, 84, 88]
@@ -84,15 +84,23 @@ export function cueTune(cue: Cue, key = ''): Note[] {
       { freq: hz(base + 5), at: 0.08, dur: 0.18, gain: GAIN * 0.6 },
     ]
   }
+  if (cue === 'turn') {
+    // 책장을 넘기는 여린 "사락": 두 음이 살짝 내려간다
+    return [
+      { freq: hz(81), at: 0, dur: 0.1, gain: GAIN * 0.4 },
+      { freq: hz(76), at: 0.06, dur: 0.16, gain: GAIN * 0.4 },
+    ]
+  }
   // 소품을 땅에 내려놓는 나무 "톡"
   return [{ freq: hz(64), at: 0, dur: 0.14, gain: GAIN * 0.7 }]
 }
 
-/** 짧은 소리의 떨림. 주민은 자주 누르니 떨지 않는다 */
+/** 짧은 소리의 떨림. 주민 누르기·책장 넘기기는 자주 하니 떨지 않는다 */
 export const CUE_BUZZ: Record<Cue, number[]> = {
   celebrate: [20, 40, 20, 40, 20],
   resident: [],
   place: [15],
+  turn: [],
 }
 
 /** 소리 켜기는 사용자가 직접 정한 값이라 따로 저장한다 */

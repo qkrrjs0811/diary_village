@@ -5,6 +5,17 @@ import { MOODS, moodOf } from '../core/mood'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel, fullDateLabel } from './format'
 
+/** 이만큼(px) 옆으로 밀면 앞뒤 날로 넘긴다 */
+const SWIPE = 56
+
+/** 가장 처음·가장 최근 날에 다정하게 건네는 한마디. 빠진 날 이야기는 하지 않는다 */
+function edgeLine(first: boolean, last: boolean): string | null {
+  if (first && last) return '🌱 마을에 처음 지은 집이에요'
+  if (first) return '🌱 가장 처음 지은 집이에요'
+  if (last) return '🏡 가장 최근에 지은 집이에요'
+  return null
+}
+
 /** 집을 누르면 그날 쓴 글을 보여 주는 아래쪽 창. onEdit 이 있으면 "고치기"로 글과 기분을 바꾼다 */
 export function createReader(handlers: {
   /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 고친 기록을 돌려준다 */
@@ -31,7 +42,29 @@ export function createReader(handlers: {
     if (e.target === back) close()
   })
 
-  function showRead(entry: Entry) {
+  /** 읽는 중일 때만 옆으로 밀어 넘길 수 있다(고치기·지우기 창에서는 null) */
+  let swipeTo: ((dir: 'prev' | 'next') => void) | null = null
+  let start: { id: number; x: number; y: number; selecting: boolean } | null = null
+  const selected = () => !!window.getSelection()?.toString()
+  sheet.addEventListener('pointerdown', (e) => {
+    const onControl = (e.target as Element).closest('button, input')
+    start = swipeTo && !onControl ? { id: e.pointerId, x: e.clientX, y: e.clientY, selecting: selected() } : null
+  })
+  sheet.addEventListener('pointercancel', () => (start = null))
+  sheet.addEventListener('pointerup', (e) => {
+    const s = start
+    start = null
+    if (!s || s.id !== e.pointerId || !swipeTo) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    // 세로로 움직였거나 글자를 고르는 중이면 넘기지 않는다(마우스로 끌면 글자 고르기다)
+    if (Math.abs(dx) < SWIPE || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    if (s.selecting || (e.pointerType === 'mouse' && selected())) return
+    swipeTo(dx < 0 ? 'next' : 'prev')
+  })
+
+  function showRead(entry: Entry, from?: 'prev' | 'next') {
+    swipeTo = null
     const m = moodOf(entry.mood)
     sheet.innerHTML = `
       <div class="reader-date" data-testid="reader-date"></div>
@@ -39,6 +72,7 @@ export function createReader(handlers: {
       <div class="reader-building" data-testid="reader-building" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
+      <div class="reader-edge" data-testid="reader-edge" hidden></div>
       ${handlers.neighbors ? `<div class="reader-turn">
         <button type="button" class="turn-btn" data-testid="reader-prev">◀ 앞 날</button>
         <button type="button" class="turn-btn" data-testid="reader-next">뒷 날 ▶</button>
@@ -65,18 +99,34 @@ export function createReader(handlers: {
     }
     if (handlers.neighbors) {
       const near = handlers.neighbors(entry.date)
-      const turn = (id: string, to: Entry | null, label: string) => {
-        const btn = sheet.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!
+      const go = (dir: 'prev' | 'next') => {
+        const to = near[dir]
+        if (!to) return
+        showRead(to, dir)
+        handlers.onTurn?.(to)
+      }
+      const turn = (dir: 'prev' | 'next', label: string) => {
+        const btn = sheet.querySelector<HTMLButtonElement>(`[data-testid="reader-${dir}"]`)!
+        const to = near[dir]
         btn.disabled = !to
         if (to) btn.setAttribute('aria-label', `${label} · ${fullDateLabel(to.date)}`)
-        btn.addEventListener('click', () => {
-          if (!to) return
-          showRead(to)
-          handlers.onTurn?.(to)
-        })
+        btn.addEventListener('click', () => go(dir))
       }
-      turn('reader-prev', near.prev, '앞 날')
-      turn('reader-next', near.next, '뒷 날')
+      turn('prev', '앞 날')
+      turn('next', '뒷 날')
+      swipeTo = go
+      const edge = edgeLine(!near.prev, !near.next)
+      if (edge) {
+        const line = sheet.querySelector<HTMLElement>('.reader-edge')!
+        line.textContent = edge
+        line.hidden = false
+      }
+    }
+    // 넘긴 쪽에서 글이 살며시 들어온다(움직임 줄이기면 CSS 가 멈춘다)
+    sheet.classList.remove('turn-from-prev', 'turn-from-next')
+    if (from) {
+      void sheet.offsetWidth
+      sheet.classList.add(`turn-from-${from}`)
     }
     sheet.querySelector('.close')!.addEventListener('click', close)
     sheet.querySelector('[data-testid="reader-edit"]')?.addEventListener('click', () => showEdit(entry))
@@ -85,6 +135,7 @@ export function createReader(handlers: {
 
   /** 지우기는 확인을 한 번 더 받는다(기획서 8번) */
   function showErase(entry: Entry) {
+    swipeTo = null
     sheet.innerHTML = `
       <div class="reader-date" data-testid="reader-date"></div>
       <div class="edit-title">이 날의 한 줄을 지울까요?</div>
@@ -107,6 +158,7 @@ export function createReader(handlers: {
   }
 
   function showEdit(entry: Entry) {
+    swipeTo = null
     let mood: MoodId = entry.mood
     sheet.innerHTML = `
       <div class="reader-date" data-testid="reader-date"></div>

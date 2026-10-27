@@ -2261,3 +2261,95 @@ test('읽기 창에서 앞뒤 쓴 날로 넘겨 읽고, 마을 보기도 그 집
   await expect(page.locator('svg .veiled')).toHaveCount(0)
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
+
+test('읽기 창을 옆으로 밀어 넘기고, 넘길 때 책장 소리, 처음·최근 날엔 다정한 한마디', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', [2, 5, 9, 26]) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+
+  await page.getByTestId('house-2026-10-09').dispatchEvent('click')
+  const text = page.getByTestId('reader-text')
+  const edge = page.getByTestId('reader-edge')
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+  await expect(edge).toBeHidden() // 가운데 날엔 한마디 없음
+  const notes = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes.length)
+  const buzz = () => page.evaluate(() => (window as unknown as { buzz: unknown[] }).buzz)
+  const quiet = await notes()
+
+  // 마우스로 글 위를 끌면 글자 고르기라 넘기지 않는다
+  const tb = (await text.boundingBox())!
+  await page.mouse.move(tb.x + tb.width - 4, tb.y + tb.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(tb.x + 4, tb.y + tb.height / 2, { steps: 4 })
+  await page.mouse.up()
+  expect(await page.evaluate(() => window.getSelection()!.toString())).not.toBe('')
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+  await page.evaluate(() => window.getSelection()!.removeAllRanges())
+
+  // 손가락으로 창(글 위)을 민다. 왼쪽으로 밀면 뒷 날, 오른쪽으로 밀면 앞 날
+  const swipe = async (dx: number, dy = 0) => {
+    const box = (await text.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    const at = (px: number, py: number) => ({ pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: px, clientY: py, bubbles: true })
+    await text.dispatchEvent('pointerdown', at(x, y))
+    await text.dispatchEvent('pointermove', at(x + dx / 2, y + dy / 2))
+    await text.dispatchEvent('pointerup', at(x + dx, y + dy))
+  }
+  await swipe(-120)
+  await expect(text).toHaveText('2026-10 26일의 한 줄')
+  await expect(edge).toHaveText('🏡 가장 최근에 지은 집이에요')
+  // 책장 소리(두 음, 음마다 바탕음과 배음)가 나고 떨지는 않는다
+  expect((await notes()) - quiet).toBe(4)
+  expect(await buzz()).toEqual([])
+  await swipe(-120) // 더 넘길 날이 없으면 그대로
+  await expect(text).toHaveText('2026-10 26일의 한 줄')
+  await swipe(120)
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+
+  // 조금만 밀거나 세로로 움직이면 넘기지 않는다
+  await swipe(-30)
+  await swipe(-70, 120)
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+
+  await swipe(120)
+  await swipe(120)
+  await expect(text).toHaveText('2026-10 2일의 한 줄')
+  await expect(edge).toHaveText('🌱 가장 처음 지은 집이에요')
+  await page.clock.runFor(1500)
+  await page.screenshot({ path: 'test-results/screens/reader-turn-edge.png' })
+
+  // 소리를 끄면 넘겨도 조용하다
+  await page.getByTestId('reader-close').click()
+  await page.evaluate(() => localStorage.setItem('diary-village:sound', 'off'))
+  await page.getByTestId('house-2026-10-05').dispatchEvent('click')
+  const before = await notes()
+  await page.getByTestId('reader-next').click()
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+  expect(await notes()).toBe(before)
+
+  // 고치기 창에서는 밀어도 넘기지 않고, 넘긴 날을 지우면 그 날만 지워진다
+  await page.getByTestId('reader-edit').click()
+  const input = page.getByTestId('edit-input')
+  const box = (await input.boundingBox())!
+  await page.mouse.move(box.x + 200, box.y - 40)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 40, box.y - 40)
+  await page.mouse.up()
+  await expect(page.getByTestId('reader-date')).toHaveText('2026년 10월 9일 금요일')
+  await page.getByTestId('edit-cancel').click()
+  await page.getByTestId('reader-erase').click()
+  await page.getByTestId('erase-confirm').click()
+  const after = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(after.entries.map((e: Entry) => e.date)).toEqual(['2026-10-02', '2026-10-05', '2026-10-26'])
+  expect(after.erased.map((e: { date: string }) => e.date)).toEqual(['2026-10-09'])
+
+  // 하나뿐인 집에는 "처음 지은 집"
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries: monthEntries('2026-10', [20]) })])
+  await page.reload()
+  await page.getByTestId('house-2026-10-20').dispatchEvent('click')
+  await expect(edge).toHaveText('🌱 마을에 처음 지은 집이에요')
+})

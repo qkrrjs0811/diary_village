@@ -614,6 +614,15 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .turn-btn:disabled { opacity: 0.35; cursor: default; }
+.reader-edge { margin: -8px 0 14px; font-size: 12px; color: var(--ink-soft); text-align: center; }
+.reader-edge[hidden] { display: none; }
+/* 옆으로 밀어 넘기기: 세로 스크롤은 그대로 둔다 */
+.sheet:has(.reader-turn) { touch-action: pan-y; }
+.sheet.turn-from-next { animation: turn-in-next 0.22s ease-out; }
+.sheet.turn-from-prev { animation: turn-in-prev 0.22s ease-out; }
+@keyframes turn-in-next { from { transform: translateX(26px); opacity: 0.5; } }
+@keyframes turn-in-prev { from { transform: translateX(-26px); opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { .sheet.turn-from-next, .sheet.turn-from-prev { animation: none; } }
 .edit-title { margin: 4px 0 12px; font-size: 16px; font-weight: 700; }
 .sheet .line-input { width: 100%; }
 .sheet .hint { margin-bottom: 12px; }

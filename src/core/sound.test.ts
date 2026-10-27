@@ -74,7 +74,7 @@ describe('소리 켜기 설정', () => {
 })
 
 describe('짧은 소리(축하·주민·소품)', () => {
-  const all = [cueTune('celebrate'), cueTune('resident', 'kong'), cueTune('place')]
+  const all = [cueTune('celebrate'), cueTune('resident', 'kong'), cueTune('place'), cueTune('turn')]
 
   it('모두 귀에 편한 높이이고, 짓는 소리보다 크지 않다', () => {
     const build = buildTune('calm', '2026-10-28')
@@ -109,6 +109,15 @@ describe('짧은 소리(축하·주민·소품)', () => {
     const t = cueTune('place')
     expect(t).toHaveLength(1)
     expect(t[0].dur).toBeLessThanOrEqual(0.2)
+  })
+
+  it('책장을 넘길 때는 아주 짧고 여린 두 음이 내려가고, 떨지 않는다', () => {
+    const t = cueTune('turn')
+    expect(t).toHaveLength(2)
+    expect(t[1].freq).toBeLessThan(t[0].freq)
+    expect(Math.max(...t.map((n) => n.at + n.dur))).toBeLessThanOrEqual(0.3)
+    for (const n of t) expect(n.gain).toBeLessThanOrEqual(cueTune('place')[0].gain)
+    expect(CUE_BUZZ.turn).toEqual([])
   })
 
   it('떨림은 짧고, 주민을 누를 때는 떨지 않는다', () => {
