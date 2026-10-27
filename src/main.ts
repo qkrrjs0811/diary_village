@@ -14,6 +14,8 @@ import { createReader } from './ui/reader'
 import { createSettings } from './ui/settings'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
+import { drawSky } from './village/sky'
+import { weatherOf } from './core/weather'
 import { SHOW, START_UNIT } from './core/view'
 import { blockView, drawVillage, iso } from './village/render'
 
@@ -45,12 +47,16 @@ app.innerHTML = `
   <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
+    <div class="sky sky-back" data-testid="sky" aria-hidden="true"></div>
     <svg data-testid="village" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="sky sky-front" data-testid="rain" aria-hidden="true"></div>
     <div class="weather" data-testid="weather"></div>
     <div class="build-note" data-testid="build-note" role="status" hidden></div>
   </main>`
 const svg = app.querySelector<SVGSVGElement>('svg')!
 const scene = app.querySelector<HTMLElement>('.scene')!
+const skyBack = app.querySelector<HTMLElement>('.sky-back')!
+const skyFront = app.querySelector<HTMLElement>('.sky-front')!
 const banner = app.querySelector<HTMLElement>('.banner')!
 if (readOnly) {
   banner.textContent = '저장된 일기를 읽지 못했어요. 기록을 지키려고 새로 쓰기를 잠시 막았어요.'
@@ -194,11 +200,11 @@ function render(newDate?: string) {
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
-  // 하늘은 오늘 기분(안 썼으면 가장 최근 기분)을 따른다
-  const latest = todayEntry ?? save.entries[save.entries.length - 1]
-  const mood = moodOf(latest?.mood ?? 'calm')
+  // 하늘 색과 날씨는 오늘 기분을 따른다. 오늘 자리가 비었으면 구름 조금 낀 평온한 하늘이다
+  const mood = moodOf(todayEntry?.mood ?? 'calm')
   scene.style.setProperty('--sky-top', mood.sky[0])
   scene.style.setProperty('--sky-bottom', mood.sky[1])
+  drawSky(skyBack, skyFront, weatherOf(save.entries, today))
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'
   // 날이 바뀌었을 때만 오늘 구역으로 화면을 옮긴다(둘러보던 자리를 지킨다)
   // 처음엔 오늘 자리를 가운데에 두고 집이 또렷이 보이게 가까이 본다

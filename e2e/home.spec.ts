@@ -634,3 +634,47 @@ test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한�
   await page.reload()
   await expect(page.locator('.resident')).toHaveCount(10)
 })
+
+test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 오늘 자리가 비었으면 구름 조금 낀 하늘
+  await expect(page.getByTestId('sky').locator('.sun')).toHaveCount(1)
+  await expect(page.getByTestId('sky').locator('.cloud')).toHaveCount(3)
+  await expect(page.getByTestId('rain').locator('.drop')).toHaveCount(0)
+
+  const today = (mood: string, text = '오늘의 한 줄') =>
+    JSON.stringify({ version: 1, entries: [{ date: '2026-10-27', text, mood, writtenAt: Date.parse('2026-10-27T20:00:00+09:00') }] })
+  const shots: [string, string][] = [['great', 'sunny'], ['meh', 'cloudy'], ['blue', 'rain'], ['tired', 'starry']]
+  for (const [mood, name] of shots) {
+    await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, today(mood)])
+    await page.reload()
+    await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/weather-${name}.png` })
+  }
+
+  // 비 오는 날: 빗방울이 마을 앞으로 떨어진다
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, today('blue', '비 오는 날')])
+  await page.reload()
+  await expect(page.getByTestId('weather')).toHaveText('🌧️ 오늘은 비')
+  expect(await page.getByTestId('rain').locator('.drop').count()).toBeGreaterThanOrEqual(20)
+  await expect(page.getByTestId('sky').locator('.sun')).toHaveCount(0)
+  const falling = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'fall' && a.playState === 'running'))
+  expect(falling).toBe(true)
+  // 빗방울 너머의 집도 그대로 눌린다
+  await page.getByTestId('house-2026-10-27').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('비 오는 날')
+  await page.getByTestId('reader-close').click()
+
+  // 별밤: 달과 별. 날씨 이름표와 하늘 그림이 겹치지 않는다
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, today('tired')])
+  await page.reload()
+  await expect(page.getByTestId('sky').locator('.moon')).toHaveCount(1)
+  const chip = (await page.getByTestId('weather').boundingBox())!
+  for (const b of await page.getByTestId('sky').locator('.sky-bit').all()) {
+    const r = (await b.boundingBox())!
+    const overlap = r.x < chip.x + chip.width && r.x + r.width > chip.x && r.y < chip.y + chip.height && r.y + r.height > chip.y
+    expect(overlap).toBe(false)
+  }
+})

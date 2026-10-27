@@ -74,7 +74,38 @@ button { font: inherit; color: inherit; }
   transition: background 0.6s;
   touch-action: none;
 }
-.scene svg { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
+.scene svg { position: relative; width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
+
+/* 오늘 기분 날씨: 마을 뒤 하늘(해·달·구름·별)과 마을 앞 빗방울. 손가락을 통과시킨다 */
+.sky { position: absolute; inset: 0; pointer-events: none; overflow: hidden; container-type: size; }
+.sky-bit { position: absolute; width: var(--size); transform: translate(-50%, -50%); }
+.sky-bit svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sky-bit.sun .rays { transform-origin: 50px 50px; animation: spin 40s linear infinite; }
+.sky-bit.sun svg { filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.55)); }
+.sky-bit.moon svg { filter: drop-shadow(0 0 8px rgba(255, 243, 184, 0.6)); }
+.sky-bit.cloud { opacity: 0.92; animation: drift calc(16s + var(--d) * 10s) ease-in-out calc(var(--d) * -12s) infinite alternate; }
+.sky-bit.cloud.grey { opacity: 0.88; }
+@keyframes drift {
+  from { transform: translate(calc(-50% - 10px), -50%); }
+  to { transform: translate(calc(-50% + 10px), -50%); }
+}
+.sky-bit.star { animation: twinkle calc(1.6s + var(--d) * 1.6s) ease-in-out calc(var(--d) * -3s) infinite; }
+.sky-bit.drop {
+  top: -24px;
+  width: 2px;
+  height: var(--size);
+  border-radius: 2px;
+  background: linear-gradient(rgba(140, 170, 215, 0), rgba(120, 155, 210, 0.75));
+  transform: translate(-6px, calc(var(--y) * 1cqh)) rotate(12deg);
+  animation: fall calc(0.8s + var(--d) * 0.4s) linear calc(var(--d) * -1.2s) infinite;
+}
+@keyframes fall {
+  from { transform: translate(0, 0) rotate(12deg); }
+  to { transform: translate(-24px, calc(100cqh + 30px)) rotate(12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-bit.sun .rays, .sky-bit.cloud, .sky-bit.star, .sky-bit.drop { animation: none; }
+}
 .scene svg.dragging { cursor: grabbing; }
 .weather {
   position: absolute;
