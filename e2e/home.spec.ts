@@ -1151,6 +1151,37 @@ for (const [time, kind, name] of SEASON_SKIES) {
   })
 }
 
+const ISLAND_SEASONS: [string, string[], string][] = [
+  ['2027-04-12T13:00:00+09:00', ['2027-02', '2027-03', '2027-04'], 'spring'],
+  ['2026-12-20T13:00:00+09:00', ['2026-10', '2026-11', '2026-12'], 'winter'],
+]
+for (const [time, months, name] of ISLAND_SEASONS) {
+  test(`${name}: 섬 가장자리에 흙 옆면·풀숲이 보이고, 누르기를 막지 않는다`, async ({ page }) => {
+    const date = time.slice(0, 10)
+    await page.clock.install({ time: new Date(time) })
+    const entries = [...months.flatMap((m) => monthEntries(m, [3, 8, 10])), { date, text: `${name}의 섬`, mood: 'calm', writtenAt: Date.parse(time) }]
+    await page.addInitScript(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+    await page.goto('./')
+    // 구역 셋과 광장 모두 바깥으로 드러난 쪽이 있다
+    for (const key of [...months, 'plaza']) {
+      const edge = page.getByTestId(`edge-${key}`)
+      await expect(edge).toHaveAttribute('pointer-events', 'none')
+      expect(await edge.locator('*').count()).toBeGreaterThan(0)
+    }
+    // 가장자리 장식이 있어도 집과 오늘 쓴 집이 그대로 눌린다
+    await page.getByTestId(`house-${date}`).click()
+    await expect(page.getByTestId('reader-text')).toHaveText(`${name}의 섬`)
+    await page.getByTestId('reader-close').click()
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/island-${name}.png` })
+    // 멀리서 본 섬 전체
+    const svg = (await page.getByTestId('village').boundingBox())!
+    await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 300)
+    await page.screenshot({ path: `test-results/screens/island-${name}-far.png` })
+  })
+}
+
 test('여름 낮에는 반딧불이 없다', async ({ page }) => {
   await page.clock.install({ time: new Date('2027-07-20T13:00:00+09:00') })
   await page.goto('./')

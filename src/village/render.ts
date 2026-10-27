@@ -9,7 +9,7 @@ import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX } from '../core/letter'
 import type { Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
-import { PLAZA_TREES, blockScenery } from '../core/scenery'
+import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -105,6 +105,82 @@ function drawSlab(g: Element, labels: Element, block: Block) {
   el('rect', { x: foot.x - 20, y: signTop - 18, width: 40, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
   const t = el('text', { x: foot.x, y: signTop - 5, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
   t.textContent = `${m}월`
+}
+
+const TUFT: Record<Season, string> = { spring: '#8fc879', summer: '#76b866', autumn: '#b9b56a', winter: '#a9c4b6' }
+const RIM_FLOWERS = ['#ffffff', '#ffc2d4', '#fff1a8', '#d9c8f0']
+const PEBBLE = '#e3d8c8'
+const ROOT = '#a7805e'
+
+/**
+ * 떠 있는 섬의 가장자리(바깥으로 드러난 쪽만): 앞쪽 흙 옆면의 흙 층·풀 가장자리·박힌 돌·아래로 늘어진 흙과 뿌리,
+ * 테두리 길가의 풀숲·꽃·돌. 모두 누르기를 통과한다
+ */
+function drawIslandEdge(g: Element, slab: Slab, sides: string[], rim: RimBit[], cliff: CliffBit[], season: Season) {
+  const edge = el('g', { class: 'island-edge', 'data-testid': `edge-${slab.key}`, 'pointer-events': 'none' }, g)
+  const x0 = slab.bx * (BLOCK_W + ROAD) - ROAD / 2
+  const y0 = slab.by * (BLOCK_H + ROAD) - ROAD / 2
+  const x1 = x0 + BLOCK_W + ROAD
+  const y1 = y0 + BLOCK_H + ROAD
+  const faces = {
+    south: { left: iso(x0, y1), right: iso(x1, y1), color: shade(SOIL, -0.12) },
+    east: { left: iso(x1, y1), right: iso(x1, y0), color: SOIL },
+  }
+  const at = (f: { left: Pt; right: Pt }, t: number, h: number): Pt => ({
+    x: f.left.x + (f.right.x - f.left.x) * t,
+    y: f.left.y + (f.right.y - f.left.y) * t + h * SLAB_DEPTH,
+  })
+  for (const side of ['south', 'east'] as const) {
+    if (!sides.includes(side)) continue
+    const f = faces[side]
+    // 아래로 둥글게 늘어진 흙(떠 있는 섬의 밑동)
+    const n = 8
+    let d = `M${at(f, 0, 1).x},${at(f, 0, 1).y}`
+    for (let i = 0; i < n; i++) {
+      const p = at(f, (i + 1) / n, 1)
+      const bulge = 4 + (hash(`${slab.key}:${side}:lump:${i}`) % 4)
+      const m = at(f, (i + 0.5) / n, 1)
+      d += ` Q${m.x.toFixed(1)},${(m.y + bulge * 2).toFixed(1)} ${p.x.toFixed(1)},${p.y.toFixed(1)}`
+    }
+    el('path', { d: `${d} Z`, fill: shade(f.color, -0.14), stroke: LINE, 'stroke-width': 0.8, 'stroke-linejoin': 'round' }, edge)
+    // 흙 층: 옆면 가운데쯤 옅은 띠
+    poly(edge, [at(f, 0, 0.5), at(f, 1, 0.5), at(f, 1, 0.68), at(f, 0, 0.68)], shade(f.color, 0.1), { stroke: 'none' })
+    // 풀 가장자리: 옆면 위로 동그랗게 늘어진 풀
+    let grass = `M${at(f, 0, 0).x},${at(f, 0, 0).y}`
+    const m = 16
+    for (let i = 0; i < m; i++) {
+      const p = at(f, (i + 1) / m, 0)
+      const c = at(f, (i + 0.5) / m, 0.32)
+      grass += ` Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${p.x.toFixed(1)},${p.y.toFixed(1)}`
+    }
+    el('path', { d: `${grass} Z`, fill: season === 'winter' ? '#f4f8f8' : TUFT[season], stroke: 'none' }, edge)
+  }
+  for (const c of cliff) {
+    const f = faces[c.side]
+    if (c.kind === 'stone') {
+      const p = at(f, c.t, c.h)
+      el('ellipse', { cx: p.x, cy: p.y, rx: 2.6 + (c.seed % 2), ry: 1.8, fill: PEBBLE, stroke: LINE, 'stroke-width': 0.6 }, edge)
+    } else {
+      const p = at(f, c.t, 1.25)
+      const len = 5 + (c.seed % 5)
+      const sway = (c.seed >>> 4) % 2 ? 2 : -2
+      el('path', { d: `M${p.x},${p.y} q${sway},${len / 2} 0,${len} q${-sway / 2},2 ${sway / 2},4`, fill: 'none', stroke: ROOT, 'stroke-width': 1.1, 'stroke-linecap': 'round' }, edge)
+    }
+  }
+  for (const r of rim) {
+    const p = iso(r.gx, r.gy)
+    if (r.kind === 'stone') {
+      el('ellipse', { cx: p.x, cy: p.y, rx: 2.8, ry: 1.6, fill: PEBBLE, stroke: LINE, 'stroke-width': 0.6 }, edge)
+      continue
+    }
+    const color = TUFT[season]
+    el('path', { d: `M${p.x - 3},${p.y} q1,-3 0,-5 M${p.x},${p.y} v-6 M${p.x + 3},${p.y} q-1,-3 0,-5`, stroke: color, 'stroke-width': 1.3, 'stroke-linecap': 'round', fill: 'none' }, edge)
+    if (season === 'winter') el('ellipse', { cx: p.x, cy: p.y - 5, rx: 2.6, ry: 1.3, fill: '#ffffff' }, edge)
+    if (r.kind === 'flower') {
+      el('circle', { cx: p.x - 1.5, cy: p.y - 5.5, r: 1.6, fill: RIM_FLOWERS[r.seed % RIM_FLOWERS.length] }, edge)
+      el('circle', { cx: p.x + 2.2, cy: p.y - 4, r: 1.4, fill: RIM_FLOWERS[(r.seed >>> 3) % RIM_FLOWERS.length] }, edge)
+    }
+  }
 }
 
 function drawTree(g: Element, gx: number, gy: number, season: Season, seed: number) {
@@ -816,7 +892,7 @@ function drawPlazaGround(g: Element, labels: Element) {
     el('ellipse', { cx: p.x, cy: p.y, rx: 3.2, ry: 1.6, fill: shade(stone, -0.06) }, plaza)
   }
   // 이름표는 왼쪽 모서리 길 위에(명소·팻말을 가리지 않게)
-  const label = iso(x0 + 0.1, y1 - 0.3)
+  const label = iso(PLAZA_SIGN.gx, PLAZA_SIGN.gy)
   const sign = el('g', { class: 'month-sign', 'data-testid': 'plaza-sign' }, labels)
   el('rect', { x: label.x - 24, y: label.y - 4, width: 48, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
   const t = el('text', { x: label.x, y: label.y + 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
@@ -1544,10 +1620,18 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   const smokes = el('g', { class: 'smokes' }, svg)
   const fx = el('g', { class: 'fx', style: delay }, svg)
   const labels = el('g', { class: 'labels' }, svg)
-  // 땅: 뒤 구역부터. 광장은 첫 구역 바로 아래(구역 자리 0,1)라 그 깊이에 끼운다
+  // 땅: 뒤 구역부터. 광장은 첫 구역 바로 아래(구역 자리 0,1)라 그 깊이에 끼운다.
+  // 판마다 바로 이어서 섬 가장자리(흙 옆면·길가 풀숲)를 그려 앞 판이 뒤 판의 늘어진 흙을 덮는다
+  const island = islandSlabs(village)
+  const edge = islandEdge(village, opt.today)
+  const drawEdge = (slab: Slab) => {
+    const season = seasonOf(slab.key === 'plaza' ? opt.today.slice(0, 7) : slab.key)
+    const mine = <T extends { slab: string }>(list: T[]) => list.filter((x) => x.slab === slab.key)
+    drawIslandEdge(ground, slab, outerSides(island, slab), mine(edge.rim), mine(edge.cliff), season)
+  }
   const slabs = [
-    ...village.blocks.map((b) => ({ depth: b.bx + b.by, draw: () => drawSlab(ground, labels, b) })),
-    { depth: 1, draw: () => drawPlazaGround(ground, labels) },
+    ...village.blocks.map((b, i) => ({ depth: b.bx + b.by, draw: () => (drawSlab(ground, labels, b), drawEdge(island[i])) })),
+    { depth: 1, draw: () => (drawPlazaGround(ground, labels), drawEdge(island[island.length - 1])) },
   ].sort((a, b) => a.depth - b.depth)
   for (const s of slabs) s.draw()
 
