@@ -1559,3 +1559,50 @@ test('명소 축하·주민 누르기·소품 놓기에도 짧은 소리가 나�
   const keys = await page.evaluate(() => Object.keys(localStorage).sort())
   expect(keys).toEqual(['diary-village:save', 'diary-village:sound'])
 })
+
+test('잔치 날에는 광장에 깃발 줄과 잔치 장식이 서고, 여느 날에는 없다', async ({ page }) => {
+  // 첫 집은 작년 10월 28일 → 올해 10월 28일이 마을 생일
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2025-10', [28, 29]), ...monthEntries('2026-10', [3, 9, 15, 21, 27])]
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  const visit = async (time: string, festival: string | null, shot?: string) => {
+    await page.clock.setSystemTime(new Date(time))
+    await page.reload()
+    await expect(page.getByTestId('plaza')).toBeAttached()
+    if (!festival) {
+      await expect(page.locator('.festival, .bunting')).toHaveCount(0)
+      return
+    }
+    await expect(page.getByTestId('festival')).toHaveAttribute('data-festival', festival)
+    await expect(page.locator('.festival')).toHaveCount(2)
+    // 기둥 세 개 + 두 변의 깃발 13칸
+    await expect(page.locator('.bunting')).toHaveCount(16)
+    if (shot) {
+      // 멀리 본 뒤 잔치 장식 쪽으로 가까이 간다
+      const svg = (await page.getByTestId('village').boundingBox())!
+      await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+      for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 300)
+      // 장식을 가운데로 끌어온 뒤 가운데에서 가까이 본다
+      const f = (await page.getByTestId('festival').boundingBox())!
+      const cx = svg.x + svg.width / 2
+      const cy = svg.y + svg.height / 2
+      await page.mouse.move(cx, cy)
+      await page.mouse.down()
+      await page.mouse.move(cx + (cx - f.x - f.width / 2) + 40, cy + (cy - f.y - f.height / 2), { steps: 8 })
+      await page.mouse.up()
+      await page.mouse.move(cx, cy)
+      for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -200)
+      await page.screenshot({ path: `test-results/screens/${shot}.png` })
+    }
+  }
+  await visit('2026-10-28T13:00:00+09:00', 'birthday', 'festival-birthday')
+  await visit('2026-10-29T13:00:00+09:00', null)
+  await visit('2026-10-31T13:00:00+09:00', 'pumpkin', 'festival-pumpkin')
+  await visit('2026-12-24T13:00:00+09:00', 'christmas', 'festival-christmas')
+  await visit('2027-01-01T13:00:00+09:00', 'newYear', 'festival-newyear')
+  // 잔치 장식은 계산만 한다: 저장은 처음 기록 그대로
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+  expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([KEY])
+})

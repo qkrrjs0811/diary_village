@@ -7,6 +7,7 @@ import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import type { Walk } from '../core/resident'
+import type { FestivalId } from '../core/festival'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -476,6 +477,177 @@ function drawPlazaGround(g: Element, labels: Element) {
   t.textContent = '⛲ 광장'
 }
 
+/** 잔치마다 깃발 색 */
+const FLAG_COLORS: Record<FestivalId, string[]> = {
+  birthday: ['#ff9fb2', '#ffd36e', '#9fd3ec', '#b7e3a1', '#c9a8e0'],
+  newYear: ['#f28b82', '#fffaf0', '#ffd36e'],
+  pumpkin: ['#f6a35b', '#b99ad6', '#ffd36e'],
+  christmas: ['#ef8f86', '#8cc79a', '#fffaf0'],
+}
+const POLE_H = 30
+
+/** 광장 뒤쪽 두 변(왼쪽 위·오른쪽 위)에 걸린 깃발 줄. 깊이에 맞게 칸마다 나눠 그린다 */
+function festivalBunting(items: { depth: number; draw: () => void }[], g: Element, id: FestivalId) {
+  const { gx: px, gy: py, w, h } = PLAZA
+  const colors = FLAG_COLORS[id]
+  const edges = [
+    { len: h, at: (s: number) => iso(px, py + s, 0) },
+    { len: w, at: (s: number) => iso(px + s, py, 0) },
+  ]
+  // 기둥 사이에서 가운데가 살짝 처진다
+  const hang = (len: number, s: number) => POLE_H - 10 * 4 * (s / len) * (1 - s / len)
+  edges.forEach((edge, e) => {
+    for (let k = 0; k < edge.len; k++) {
+      const depth = e === 0 ? px + py + k - 0.5 : px + k + py - 0.5
+      items.push({
+        depth,
+        draw: () => {
+          const node = el('g', { class: 'bunting' }, g)
+          const at = (s: number) => {
+            const p = edge.at(s)
+            return { x: p.x, y: p.y - hang(edge.len, s) }
+          }
+          const line = [0, 0.25, 0.5, 0.75, 1].map((t) => at(k + t))
+          el('polyline', { points: pts(line), fill: 'none', stroke: '#a7805e', 'stroke-width': 0.8 }, node)
+          ;[0.25, 0.75].forEach((t, i) => {
+            const p = at(k + t)
+            poly(node, [{ x: p.x - 3.4, y: p.y }, { x: p.x + 3.4, y: p.y }, { x: p.x, y: p.y + 7 }], colors[(k * 2 + i + e) % colors.length], { 'stroke-width': 0.6 })
+          })
+        },
+      })
+    }
+  })
+  // 세 모서리의 기둥
+  for (const [gx, gy] of [[px, py], [px + w, py], [px, py + h]]) {
+    items.push({
+      depth: gx + gy - 0.5,
+      draw: () => {
+        const p = iso(gx, gy)
+        const node = el('g', { class: 'bunting' }, g)
+        el('rect', { x: p.x - 1.2, y: p.y - POLE_H - 2, width: 2.4, height: POLE_H + 2, rx: 1.2, fill: '#c49a74', stroke: LINE, 'stroke-width': 0.5 }, node)
+        el('circle', { cx: p.x, cy: p.y - POLE_H - 3, r: 2.4, fill: colors[0], stroke: LINE, 'stroke-width': 0.5 }, node)
+      },
+    })
+  }
+}
+
+function drawBalloons(g: Element, c: Pt, colors: string[]) {
+  ;[-7, 0, 7].forEach((dx, i) => {
+    const top = { x: c.x + dx * 0.9, y: c.y - 30 - (i === 1 ? 8 : 0) }
+    el('path', { d: `M${c.x} ${c.y} Q${c.x + dx * 0.4} ${c.y - 12} ${top.x} ${top.y + 6}`, fill: 'none', stroke: '#a7805e', 'stroke-width': 0.6 }, g)
+    el('ellipse', { cx: top.x, cy: top.y, rx: 5, ry: 6, fill: colors[i % colors.length], stroke: LINE, 'stroke-width': 0.6 }, g)
+    el('ellipse', { cx: top.x - 1.6, cy: top.y - 2, rx: 1.2, ry: 1.8, fill: 'rgba(255,255,255,0.7)' }, g)
+  })
+  el('circle', { cx: c.x, cy: c.y, r: 1.6, fill: '#a7805e' }, g)
+}
+
+function drawGift(g: Element, c: Pt, color: string, s = 1) {
+  const w = 9 * s
+  const hh = 7 * s
+  el('rect', { x: c.x - w / 2, y: c.y - hh, width: w, height: hh, rx: 1.2, fill: color, stroke: LINE, 'stroke-width': 0.6 }, g)
+  el('rect', { x: c.x - 0.9, y: c.y - hh, width: 1.8, height: hh, fill: '#fffaf0' }, g)
+  el('path', { d: `M${c.x} ${c.y - hh} q-4 -4 -4 0 z M${c.x} ${c.y - hh} q4 -4 4 0 z`, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.5 }, g)
+}
+
+function drawPumpkin(g: Element, c: Pt, r: number, face: boolean) {
+  el('ellipse', { cx: c.x, cy: c.y + 1, rx: r * 1.2, ry: r * 0.4, fill: 'rgba(90,70,54,0.14)' }, g)
+  for (const dx of [-0.5, 0.5, 0]) el('ellipse', { cx: c.x + dx * r, cy: c.y - r * 0.8, rx: r * 0.62, ry: r * 0.8, fill: '#f6a35b', stroke: LINE, 'stroke-width': 0.6 }, g)
+  el('rect', { x: c.x - 1, y: c.y - r * 1.8, width: 2, height: r * 0.35, rx: 1, fill: '#8cb87a' }, g)
+  if (!face) return
+  const y = c.y - r * 0.9
+  const glow = '#ffe9a3'
+  poly(g, [{ x: c.x - r * 0.45, y: y - r * 0.15 }, { x: c.x - r * 0.25, y: y - r * 0.4 }, { x: c.x - r * 0.1, y: y - r * 0.15 }], glow, { stroke: 'none', class: 'lantern-glow' })
+  poly(g, [{ x: c.x + r * 0.1, y: y - r * 0.15 }, { x: c.x + r * 0.25, y: y - r * 0.4 }, { x: c.x + r * 0.45, y: y - r * 0.15 }], glow, { stroke: 'none', class: 'lantern-glow' })
+  el('path', { d: `M${c.x - r * 0.4} ${y + r * 0.15} q${r * 0.4} ${r * 0.35} ${r * 0.8} 0 z`, fill: glow, class: 'lantern-glow' }, g)
+}
+
+/** 잔치마다 광장 가운데 돌길 위에 서는 장식(앞쪽 큰 것, 옆 작은 것) */
+const FESTIVAL_ART: Record<FestivalId, { main: (g: Element, c: Pt) => void; side: (g: Element, c: Pt) => void }> = {
+  birthday: {
+    main: (g, c) => {
+      // 둥근 탁자 위 두 단 케이크와 초
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 15, ry: 5, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('rect', { x: c.x - 1.5, y: c.y - 9, width: 3, height: 9, fill: '#c49a74' }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 9, rx: 14, ry: 5.5, fill: '#fffaf0', stroke: LINE }, g)
+      el('path', { d: `M${c.x - 10} ${c.y - 11} v-7 a10 3.6 0 0 0 20 0 v7 a10 3.6 0 0 1 -20 0 z`, fill: '#ffc9d4', stroke: LINE, 'stroke-width': 0.7 }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 18, rx: 10, ry: 3.6, fill: '#fff1f4', stroke: LINE, 'stroke-width': 0.7 }, g)
+      el('path', { d: `M${c.x - 6.5} ${c.y - 19} v-6 a6.5 2.4 0 0 0 13 0 v6 a6.5 2.4 0 0 1 -13 0 z`, fill: '#fff1f4', stroke: LINE, 'stroke-width': 0.7 }, g)
+      el('ellipse', { cx: c.x, cy: c.y - 25, rx: 6.5, ry: 2.4, fill: '#ffffff', stroke: LINE, 'stroke-width': 0.7 }, g)
+      for (const dx of [-3.5, 0, 3.5]) {
+        el('rect', { x: c.x + dx - 0.6, y: c.y - 31, width: 1.2, height: 6, fill: '#9fd3ec' }, g)
+        el('ellipse', { cx: c.x + dx, cy: c.y - 32.5, rx: 1.2, ry: 1.9, fill: '#ffd36e', class: 'candle' }, g)
+      }
+      for (const dx of [-7, -3, 1, 5]) el('circle', { cx: c.x + dx + 1, cy: c.y - 15, r: 0.9, fill: '#ff8fa3' }, g)
+    },
+    side: (g, c) => drawBalloons(g, c, ['#ff9fb2', '#ffd36e', '#9fd3ec']),
+  },
+  newYear: {
+    main: (g, c) => {
+      // 복주머니
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 13, ry: 4.5, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('path', { d: `M${c.x - 5} ${c.y - 22} C${c.x - 18} ${c.y - 14} ${c.x - 15} ${c.y} ${c.x} ${c.y} C${c.x + 15} ${c.y} ${c.x + 18} ${c.y - 14} ${c.x + 5} ${c.y - 22} z`, fill: '#f28b82', stroke: LINE }, g)
+      el('path', { d: `M${c.x - 5} ${c.y - 22} l-3 -5 q8 2 16 0 l-3 5 z`, fill: '#f6a59e', stroke: LINE, 'stroke-width': 0.7 }, g)
+      el('rect', { x: c.x - 6, y: c.y - 23.5, width: 12, height: 2.6, rx: 1.3, fill: '#ffd36e', stroke: LINE, 'stroke-width': 0.5 }, g)
+      el('circle', { cx: c.x, cy: c.y - 10, r: 5, fill: '#ffd36e', stroke: LINE, 'stroke-width': 0.6 }, g)
+      const t = el('text', { x: c.x, y: c.y - 7.6, 'text-anchor': 'middle', 'font-size': 6.5, 'font-weight': 700, fill: '#c0574e' }, g)
+      t.textContent = '福'
+    },
+    side: (g, c) => drawBalloons(g, c, ['#f28b82', '#ffd36e', '#fffaf0']),
+  },
+  pumpkin: {
+    main: (g, c) => drawPumpkin(g, c, 11, true),
+    side: (g, c) => {
+      drawPumpkin(g, { x: c.x - 6, y: c.y }, 5.5, true)
+      drawPumpkin(g, { x: c.x + 6, y: c.y + 2 }, 4.5, false)
+    },
+  },
+  christmas: {
+    main: (g, c) => {
+      el('ellipse', { cx: c.x, cy: c.y + 1, rx: 14, ry: 5, fill: 'rgba(90,70,54,0.14)' }, g)
+      el('rect', { x: c.x - 2, y: c.y - 6, width: 4, height: 6, fill: '#a7805e' }, g)
+      ;[
+        [16, -6, -20],
+        [13, -16, -28],
+        [9.5, -25, -36],
+      ].forEach(([r, y0, y1]) => poly(g, [{ x: c.x - r, y: c.y + y0 }, { x: c.x, y: c.y + y1 - 4 }, { x: c.x + r, y: c.y + y0 }], '#8cc79a'))
+      const balls = [[-8, -9, '#ef8f86'], [6, -11, '#ffd36e'], [-4, -19, '#9fd3ec'], [5, -21, '#ef8f86'], [-1, -29, '#ffd36e']] as const
+      for (const [dx, dy, color] of balls) el('circle', { cx: c.x + dx, cy: c.y + dy, r: 1.8, fill: color, stroke: LINE, 'stroke-width': 0.4 }, g)
+      const star = el('text', { x: c.x, y: c.y - 39, 'text-anchor': 'middle', 'font-size': 10, class: 'twinkle' }, g)
+      star.textContent = '⭐'
+    },
+    side: (g, c) => {
+      drawGift(g, { x: c.x - 5, y: c.y }, '#ef8f86')
+      drawGift(g, { x: c.x + 5, y: c.y + 2 }, '#9fd3ec', 0.8)
+    },
+  },
+}
+
+/** 잔치 날 광장: 깃발 줄 + 가운데 돌길 위 장식 두 개. 계산해서 그리고 저장하지 않는다 */
+function festivalItems(items: { depth: number; draw: () => void }[], g: Element, id: FestivalId) {
+  festivalBunting(items, g, id)
+  // 소품을 놓을 수 없는 돌길 칸이라 사용자가 놓은 소품과 겹치지 않는다.
+  // 화면에서 명소·다음 명소 팻말과 같은 세로줄에 서지 않는 칸을 골랐다
+  const spots: [number, number, 'main' | 'side'][] = [[5, 2, 'main'], [2, 3, 'side']]
+  for (const [col, row, kind] of spots) {
+    const gx = PLAZA.gx + col
+    const gy = PLAZA.gy + row
+    items.push({
+      depth: gx + gy,
+      draw: () => {
+        const c = iso(gx + 0.5, gy + 0.5)
+        const s = kind === 'main' ? 1.3 : 1.1
+        const attrs: Record<string, string> = {
+          class: `festival festival-${kind}`,
+          'data-festival': id,
+          transform: `translate(${c.x} ${c.y}) scale(${s}) translate(${-c.x} ${-c.y})`,
+        }
+        if (kind === 'main') attrs['data-testid'] = 'festival'
+        FESTIVAL_ART[id][kind](el('g', attrs, g), c)
+      },
+    })
+  }
+}
+
 function drawWell(lm: Element, c: Pt) {
   el('ellipse', { cx: c.x, cy: c.y + 2, rx: 17, ry: 7, fill: 'rgba(90,70,54,0.14)' }, lm)
   el('path', { d: `M${c.x - 12} ${c.y - 11} v11 a12 5.5 0 0 0 24 0 v-11 z`, fill: '#cfc4b8', stroke: LINE }, lm)
@@ -920,6 +1092,8 @@ export interface DrawOptions {
   spots?: DecorSpot[]
   /** 꾸미기 중 고른(옮기려는) 소품의 저장 속 순서 */
   picked?: number
+  /** 오늘 열리는 잔치(날짜로 계산). 광장에 깃발 줄과 장식을 세운다 */
+  festival?: FestivalId
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -949,6 +1123,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     const s = landmarkSpot(landmark)
     items.push({ depth: s.gx + s.gy, draw: () => drawNextSign(things, landmark, lines) })
   }
+  if (opt.festival) festivalItems(items, things, opt.festival)
   for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()

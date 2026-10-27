@@ -255,6 +255,10 @@ button { font: inherit; color: inherit; }
 }
 .twinkle { animation: twinkle 1.8s ease-in-out infinite; pointer-events: none; }
 @keyframes twinkle { 50% { opacity: 0.35; } }
+/* 잔치 장식은 집·명소 누르기를 막지 않는다. 촛불·호박 등불은 살랑 흔들린다 */
+.festival, .bunting { pointer-events: none; }
+.candle, .lantern-glow { animation: twinkle 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .candle, .lantern-glow { animation: none; } }
 .pulse { transform-box: fill-box; transform-origin: center; animation: pulse 1.6s ease-out infinite; }
 @keyframes pulse {
   0% { transform: scale(0.6); opacity: 1; }

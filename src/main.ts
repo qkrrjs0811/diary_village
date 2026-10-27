@@ -7,6 +7,7 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
+import { festivalOn } from './core/festival'
 import { recapOf } from './core/recap'
 import { buildVillage } from './core/village'
 import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
@@ -458,6 +459,7 @@ function render(newDate?: string) {
     sign: nextSign(days),
     walks: residentWalks(village, residentsOf(days)),
     decors: decorsOnMap(village, today, save),
+    festival: festivalOn(days, today)?.id,
   })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), recapOf(save.entries, today))
