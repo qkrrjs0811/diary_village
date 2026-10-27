@@ -483,6 +483,19 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
   await page.clock.runFor(6000)
 
+  // 세 건물은 제 그림(식당 가림막·학교 시계·공원 나무)으로 선다
+  await expect(page.getByTestId('house-2026-10-22').locator('.restaurant-cloth')).toHaveCount(3)
+  await expect(page.getByTestId('house-2026-10-23').locator('.school-clock')).toHaveCount(1)
+  await expect(page.getByTestId('house-2026-10-27').locator('.park-tree')).toHaveCount(2)
+  await expect(page.getByTestId('house-2026-10-27').locator('.park-bench')).toHaveCount(1)
+  const mid = (await page.getByTestId('house-2026-10-22').boundingBox())!
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2)
+  for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -200)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/buildings-new.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.mouse.wheel(0, 1000)
+
   await page.getByTestId('house-2026-10-27').click()
   await expect(page.getByTestId('reader-building')).toHaveText("🌳 공원 · '산책'에서 생겼어요")
   await page.getByTestId('reader-close').click()
