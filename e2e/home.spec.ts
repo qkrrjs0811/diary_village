@@ -1490,3 +1490,72 @@ test('새 달 첫 주에는 카드 아래에 지난달 기분 색 띠와 가장 
   expect(Object.keys(saved).sort()).toEqual(['entries', 'version'])
   expect(saved.entries).toEqual(entries)
 })
+
+test('명소 축하·주민 누르기·소품 놓기에도 짧은 소리가 나고, 소리를 끄면 조용하다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const entries = dayEntries('2026-10-10', 6) // 7일째를 쓰면 우물이 생긴다
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  type Heard = { notes: number[]; buzz: unknown[] }
+  const heard = () => page.evaluate(() => ({ notes: (window as unknown as Heard).notes, buzz: (window as unknown as Heard).buzz }))
+  const hush = () => page.evaluate(() => (((window as unknown as Heard).notes = []), ((window as unknown as Heard).buzz = [])))
+
+  // 축하 카드가 뜨는 순간 짓는 가락(네 음) 뒤에 길게 올라가는 축하 가락(다섯 음)이 울린다
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('일주일째 한 줄')
+  await page.clock.pauseAt(new Date('2026-10-27T13:01:00+09:00'))
+  await page.getByTestId('write-submit').click()
+  await page.clock.runFor(4000)
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  let h = await heard()
+  expect(h.notes).toHaveLength(18)
+  const fanfare = h.notes.slice(8).filter((_, i) => i % 2 === 0)
+  expect(fanfare).toEqual([523.25, 659.26, 783.99, 1046.5, 1318.51])
+  expect(h.buzz).toEqual([[30, 40, 50], [20, 40, 20, 40, 20]])
+  await page.getByTestId('celebrate-close').click()
+  await finishAnimations(page)
+
+  // 주민을 누르면 "뾰롱" 두 음, 떨지 않는다. 같은 주민은 같은 목소리
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await hush()
+  const kong = page.getByTestId('resident-kong')
+  await kong.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('콩이')
+  h = await heard()
+  expect(h.notes).toHaveLength(4)
+  expect(h.buzz).toEqual([])
+  await kong.click({ force: true })
+  const again = (await heard()).notes
+  expect(again.slice(4)).toEqual(again.slice(0, 4))
+
+  // 소품을 놓으면 나무 "톡" 한 음과 아주 짧은 떨림
+  await hush()
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-decorate').click()
+  await page.getByTestId('decorate-pick-bench').click()
+  await finishAnimations(page)
+  // 고르기만 해서는 소리가 없다
+  expect((await heard()).notes).toEqual([])
+  const spot = await centerOf(page.getByTestId('spot-2026-10-2-3')) // 10월 20일(지난 빈 날)
+  await page.mouse.click(spot.x, spot.y)
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪑 벤치를 놓았어요')
+  await page.clock.runFor(100)
+  h = await heard()
+  expect(h.notes).toEqual([329.63, 1318.52])
+  expect(h.buzz).toEqual([[15]])
+  await page.getByTestId('decorate-done').click()
+
+  // 소리를 끄면 주민을 눌러도 조용하다
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('sound-toggle').click()
+  await page.getByTestId('settings-close').click()
+  await hush()
+  await kong.click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('콩이')
+  expect(await heard()).toEqual({ notes: [], buzz: [] })
+  // 저장은 기록·소품 자리·소리 설정뿐이다
+  const keys = await page.evaluate(() => Object.keys(localStorage).sort())
+  expect(keys).toEqual(['diary-village:save', 'diary-village:sound'])
+})

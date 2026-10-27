@@ -1,9 +1,9 @@
-import { BUZZ, buildTune, soundOn, type Note } from '../core/sound'
+import { BUZZ, CUE_BUZZ, buildTune, cueTune, soundOn, type Cue, type Note } from '../core/sound'
 import type { KV } from '../core/storage'
 import type { MoodId } from '../core/types'
 
 /**
- * 소리와 떨림을 내는 곳. 소리 파일 없이 Web Audio 로 실로폰 소리를 만든다.
+ * 소리와 떨림을 내는 곳(앱의 모든 소리는 여기서만 낸다). 소리 파일 없이 Web Audio 로 실로폰 소리를 만든다.
  * 소리를 못 내는 폰(AudioContext·vibrate 없음)에서는 조용히 넘어간다
  */
 export function createSound(kv: KV) {
@@ -42,26 +42,36 @@ export function createSound(kv: KV) {
     }
   }
 
+  /** delay ms 뒤에 가락을 울리고 떤다. 소리를 꺼 두었으면 아무것도 하지 않는다 */
+  function play(notes: Note[], buzz: number[], delay: number) {
+    if (!soundOn(kv)) return
+    const a = audio()
+    if (a) {
+      try {
+        const start = a.currentTime + delay / 1000
+        for (const n of notes) ring(a, n, start)
+      } catch {
+        // 소리를 못 내도 하던 일은 그대로 한다
+      }
+    }
+    if (buzz.length === 0) return
+    window.setTimeout(() => {
+      try {
+        navigator.vibrate?.(buzz)
+      } catch {
+        // 떨림이 없는 폰
+      }
+    }, delay)
+  }
+
   return {
     /** 집이 쑥 올라오는 순간(delay ms 뒤) 그날 기분의 가락을 울리고 짧게 떤다 */
     build(mood: MoodId, date: string, delay: number) {
-      if (!soundOn(kv)) return
-      const a = audio()
-      if (a) {
-        try {
-          const start = a.currentTime + delay / 1000
-          for (const n of buildTune(mood, date)) ring(a, n, start)
-        } catch {
-          // 소리를 못 내도 짓기는 그대로 한다
-        }
-      }
-      window.setTimeout(() => {
-        try {
-          navigator.vibrate?.(BUZZ)
-        } catch {
-          // 떨림이 없는 폰
-        }
-      }, delay)
+      play(buildTune(mood, date), BUZZ, delay)
+    },
+    /** 축하 카드·주민 대답·소품 놓기의 짧은 소리(delay ms 뒤). key: 주민 id */
+    cue(cue: Cue, key = '', delay = 0) {
+      play(cueTune(cue, key), CUE_BUZZ[cue], delay)
     },
   }
 }

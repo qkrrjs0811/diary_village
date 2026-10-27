@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUZZ, SOUND_KEY, buildTune, soundOn, setSound } from './sound'
+import { BUZZ, CUE_BUZZ, SOUND_KEY, buildTune, cueTune, soundOn, setSound, type Note } from './sound'
 import { MOODS } from './mood'
 import type { KV } from './storage'
 
@@ -70,5 +70,49 @@ describe('소리 켜기 설정', () => {
     setSound(kv, true)
     expect(soundOn(kv)).toBe(true)
     expect([...kv.m.keys()]).toEqual([SOUND_KEY])
+  })
+})
+
+describe('짧은 소리(축하·주민·소품)', () => {
+  const all = [cueTune('celebrate'), cueTune('resident', 'kong'), cueTune('place')]
+
+  it('모두 귀에 편한 높이이고, 짓는 소리보다 크지 않다', () => {
+    const build = buildTune('calm', '2026-10-28')
+    for (const t of all) {
+      expect(t.length).toBeGreaterThan(0)
+      for (const n of t) {
+        expect(n.freq).toBeGreaterThan(250)
+        expect(n.freq).toBeLessThan(1600)
+        expect(n.gain).toBeLessThanOrEqual(build[0].gain)
+      }
+    }
+  })
+
+  it('축하는 짓는 소리보다 길게 올라가는 가락이다', () => {
+    const t = cueTune('celebrate')
+    const end = (x: Note[]) => Math.max(...x.map((n) => n.at + n.dur))
+    expect(t.length).toBeGreaterThan(4)
+    expect(end(t)).toBeGreaterThan(end(buildTune('great', '2026-10-28')))
+    const freqs = t.map((n) => n.freq)
+    expect(freqs).toEqual([...freqs].sort((a, b) => a - b))
+  })
+
+  it('주민마다 목소리 높이가 다르고, 같은 주민은 늘 같다', () => {
+    expect(cueTune('resident', 'kong')).toEqual(cueTune('resident', 'kong'))
+    const ids = ['kong', 'momo', 'bori', 'dubu', 'hodu', 'somi']
+    const voices = new Set(ids.map((id) => cueTune('resident', id)[0].freq))
+    expect(voices.size).toBeGreaterThan(2)
+    for (const id of ids) expect(cueTune('resident', id).length).toBe(2)
+  })
+
+  it('소품을 놓을 때는 한 음 짧게 톡', () => {
+    const t = cueTune('place')
+    expect(t).toHaveLength(1)
+    expect(t[0].dur).toBeLessThanOrEqual(0.2)
+  })
+
+  it('떨림은 짧고, 주민을 누를 때는 떨지 않는다', () => {
+    expect(CUE_BUZZ.resident).toEqual([])
+    for (const b of Object.values(CUE_BUZZ)) expect(b.reduce((a, x) => a + x, 0)).toBeLessThanOrEqual(150)
   })
 })

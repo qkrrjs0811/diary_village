@@ -171,6 +171,8 @@ function celebrate(before: Dated[], wait: number) {
   clearTimeout(celebrateTimer)
   const text = milestoneCard(landmarks, stages, days)
   celebrateTimer = window.setTimeout(() => celebrateCard.open(text), wait)
+  // 소리는 누른 순간에 예약해야 폰이 막지 않는다. 카드가 뜨는 순간 울린다
+  sound.cue('celebrate', '', wait)
 }
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
 function visitLandmark(l: Landmark) {
@@ -248,6 +250,7 @@ const camera = createCamera(svg, (target, at) => {
   if (resident) {
     const tap = taps.get(resident.id) ?? 0
     taps.set(resident.id, tap + 1)
+    sound.cue('resident', resident.id)
     return showNote(`${resident.name}: “${residentLine(resident, save.entries, dayKey(Date.now()), tap, builtDays(save))}”`, 0)
   }
   const date = target.closest('[data-date]')?.getAttribute('data-date')
@@ -331,6 +334,7 @@ function applyPlace(r: PlaceResult | null, done: string) {
     pick = null
     picked = null
     decorMsg = done
+    sound.cue('place')
   } else if (!r?.ok) decorMsg = '거기에는 놓을 수 없어요. 점선 자리를 골라요'
   render()
 }
