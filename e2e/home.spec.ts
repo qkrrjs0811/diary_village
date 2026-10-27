@@ -1701,6 +1701,84 @@ test('기분 달력 위 찾기 칸에 말을 넣으면 그 말이 든 지난 한
   expect(saved.entries).toEqual(entries)
 })
 
+test('기분 달력을 한 해 보기로 바꾸면 열두 달이 기분 색으로 칠해지고, 해를 넘기고, 달을 누르면 그달 달력이 열린다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  // 2025년 11~12월에 시작해 2026년 1·3·10월에 썼다. 2026년에 카페 2채·공원 1채(카페는 2025년에 먼저 만남)
+  const old = [...monthEntries('2025-11', [20, 21]), ...monthEntries('2025-12', [5])]
+  old[0].text = '커피 한 잔'
+  old.forEach((e) => (e.mood = 'calm'))
+  const now = [...monthEntries('2026-01', [2, 3, 9]), ...monthEntries('2026-03', [14]), ...monthEntries('2026-10', [1, 20, 27])]
+  now[0].text = '라떼를 마셨다'
+  now[1].text = '공원 산책'
+  now[4].text = '카페에서 쉬었다'
+  now.slice(0, 3).forEach((e) => (e.mood = 'great'))
+  now.slice(4).forEach((e) => (e.mood = 'blue'))
+  const entries = [...old, ...now]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await expect(page.getByTestId('calendar-mode-month')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByTestId('calendar-mode-year').click()
+  await expect(page.getByTestId('calendar-mode-year')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 7일')
+  await expect(page.getByTestId('calendar-months').locator('.cal-month')).toHaveCount(12)
+  await expect(page.getByTestId('calm-2026-01')).toHaveAttribute('data-mood', 'great')
+  await expect(page.getByTestId('calm-2026-01')).toContainText('3일')
+  await expect(page.getByTestId('calm-2026-10')).toHaveAttribute('data-mood', 'blue')
+  await expect(page.getByTestId('calm-2026-10')).toHaveClass(/today/)
+  await expect(page.getByTestId('calm-2026-02')).not.toHaveAttribute('data-mood')
+  await expect(page.getByTestId('calm-2026-02')).toBeEnabled()
+  await expect(page.getByTestId('calm-2026-11')).toBeDisabled()
+  await expect(page.getByTestId('calendar-next')).toBeDisabled()
+  await expect(page.getByTestId('calendar-year-top')).toHaveText('가장 많이 지은 건물 · ☕ 카페 2채')
+  await expect(page.getByTestId('calendar-year-found')).toHaveText('처음 만난 건물 · 🌳 공원')
+  await expect(page.getByTestId('calendar-year-first')).toHaveText('그해 첫 한 줄 · 1월 2일')
+  // 칸·버튼이 손가락으로 누를 만하고 화면 안에 들어온다
+  for (const id of ['calendar-mode-year', 'calm-2026-01', 'calm-2026-12', 'calendar-prev', 'calendar-close']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.width).toBeGreaterThanOrEqual(44)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/calendar-year.png' })
+
+  // 지난해(처음 지은 해)로 넘기면 더 넘길 수 없고, 처음 지은 달 전은 누를 수 없다
+  await page.getByTestId('calendar-prev').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2025년')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 3일')
+  await expect(page.getByTestId('calendar-prev')).toBeDisabled()
+  await expect(page.getByTestId('calm-2025-10')).toBeDisabled()
+  await expect(page.getByTestId('calm-2025-11')).toHaveAttribute('data-mood', 'calm')
+  await expect(page.getByTestId('calendar-year-found')).toHaveText('처음 만난 건물 · ☕ 카페')
+  await page.screenshot({ path: 'test-results/screens/calendar-year-2025.png' })
+
+  // 한 달 보기로 돌아가면 그해 마지막 달, 달 칸을 누르면 그달 달력
+  await page.getByTestId('calendar-mode-month').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2025년 12월')
+  await page.getByTestId('calendar-mode-year').click()
+  await page.getByTestId('calendar-next').click()
+  await page.getByTestId('calm-2026-03').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 3월')
+  await expect(page.getByTestId('calendar-mode-month')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('cal-2026-03-14')).toHaveAttribute('data-state', 'written')
+
+  // 찾는 동안에는 보기 바꾸기를 숨긴다
+  await page.getByTestId('calendar-search').fill('커피')
+  await expect(page.getByTestId('calendar-mode-year')).toBeHidden()
+  await page.getByTestId('calendar-search-clear').click()
+  await expect(page.getByTestId('calendar-mode-year')).toBeVisible()
+
+  // 저장에는 기록뿐이다
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'version'])
+  expect(saved.entries).toEqual(entries)
+})
+
 test('새 달 첫 주에는 카드 아래에 지난달 기분 색 띠와 가장 많이 지은 건물을 보이고, 누르면 그달 달력을 연다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-03T21:00:00+09:00') })
   await page.goto('./')

@@ -507,6 +507,19 @@ button { font: inherit; color: inherit; }
 /* 한 달 돌아보기: 새 달 첫 주에 지난달 기분 색 띠와 가장 많이 지은 건물 */
 .recap { gap: 4px; padding: 8px 14px; }
 .recap-band { display: flex; width: 100%; height: 7px; border-radius: 999px; overflow: hidden; background: var(--chip); }
+/* 한 해 보기: 열두 달 칸을 그달 가장 많이 고른 기분 색으로 */
+.cal-modes { display: flex; gap: 4px; margin: -4px 0 12px; padding: 3px; border-radius: 999px; background: var(--chip); }
+.cal-modes[hidden] { display: none; }
+.cal-mode { flex: 1; min-height: 44px; border: none; border-radius: 999px; background: none; color: var(--ink-soft); font: inherit; font-size: 14px; cursor: pointer; }
+.cal-mode[aria-pressed="true"] { background: #fffaf0; color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.cal-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+.cal-month { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; min-height: 64px; padding: 4px 0; border: 1px solid var(--line); border-radius: 18px; background: #fffaf0; color: inherit; font: inherit; cursor: pointer; }
+.cal-month.written { border-color: rgba(90, 70, 54, 0.25); }
+.cal-month:disabled { opacity: 0.4; cursor: default; }
+.cal-month.today { box-shadow: 0 0 0 2px var(--accent); }
+.cal-days { height: 14px; font-size: 11px; line-height: 14px; color: var(--ink-soft); }
+.cal-year { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; font-size: 13px; line-height: 1.5; text-align: center; color: var(--ink-soft); word-break: keep-all; }
+.cal-chip { display: inline-block; margin: 2px 2px 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: #fffaf0; color: var(--ink); font-size: 12px; white-space: nowrap; }
 .cal-recap { margin: -4px 0 10px; font-size: 12px; text-align: center; color: var(--ink-soft); word-break: keep-all; }
 /* 지난 글의 집으로 날아가면 그 집이 살짝 뛰어오른다 */
 .house.remember { transform-box: fill-box; transform-origin: 50% 100%; animation: remember 0.6s ease-in-out 0.75s 2; }
