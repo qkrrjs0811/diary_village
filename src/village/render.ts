@@ -3,6 +3,7 @@
 import { BLOCK_H, BLOCK_W, ROAD, hash, houseLook, type Block, type Lot, type Village } from '../core/village'
 import type { Entry } from '../core/types'
 import { buildingInfo, buildingOf } from '../core/building'
+import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -424,6 +425,232 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   return H
 }
 
+/** 광장의 땅: 구역처럼 두툼한 판에 잔디, 가운데로 엇갈리는 돌길, 모서리 나무 */
+function drawPlazaGround(g: Element, labels: Element) {
+  const { gx: px, gy: py, w, h } = PLAZA
+  const x0 = px - ROAD / 2
+  const y0 = py - ROAD / 2
+  const x1 = x0 + w + ROAD
+  const y1 = y0 + h + ROAD
+  const top = [iso(x0, y0), iso(x1, y0), iso(x1, y1), iso(x0, y1)]
+  const down = (p: Pt) => ({ x: p.x, y: p.y + SLAB_DEPTH })
+  const plaza = el('g', { class: 'plaza', 'data-testid': 'plaza' }, g)
+  poly(plaza, [top[3], top[2], down(top[2]), down(top[3])], shade(SOIL, -0.12))
+  poly(plaza, [top[2], top[1], down(top[1]), down(top[2])], SOIL)
+  poly(plaza, top, PATH)
+  const i = 0.08
+  poly(plaza, [iso(px - i, py - i), iso(px + w + i, py - i), iso(px + w + i, py + h + i), iso(px - i, py + h + i)], '#bfe3a6')
+  // 돌길: 가운데 줄(가로·세로)
+  const stone = '#f4e8d4'
+  const mu = px + w / 2
+  const mv = py + h / 2
+  poly(plaza, [iso(mu - 0.32, py), iso(mu + 0.32, py), iso(mu + 0.32, py + h), iso(mu - 0.32, py + h)], stone, { stroke: 'none' })
+  poly(plaza, [iso(px, mv - 0.32), iso(px + w, mv - 0.32), iso(px + w, mv + 0.32), iso(px, mv + 0.32)], stone, { stroke: 'none' })
+  for (let k = 0; k < h * 2; k++) {
+    const p = iso(mu + (k % 2 ? 0.12 : -0.14), py + 0.25 + k / 2)
+    el('ellipse', { cx: p.x, cy: p.y, rx: 3.2, ry: 1.6, fill: shade(stone, -0.06) }, plaza)
+  }
+  for (let k = 0; k < w * 2; k++) {
+    const p = iso(px + 0.25 + k / 2, mv + (k % 2 ? 0.12 : -0.14))
+    el('ellipse', { cx: p.x, cy: p.y, rx: 3.2, ry: 1.6, fill: shade(stone, -0.06) }, plaza)
+  }
+  // 이름표는 왼쪽 모서리 길 위에(명소·팻말을 가리지 않게)
+  const label = iso(x0 + 0.1, y1 - 0.3)
+  const sign = el('g', { class: 'month-sign', 'data-testid': 'plaza-sign' }, labels)
+  el('rect', { x: label.x - 24, y: label.y - 4, width: 48, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
+  const t = el('text', { x: label.x, y: label.y + 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
+  t.textContent = '⛲ 광장'
+}
+
+function drawWell(lm: Element, c: Pt) {
+  el('ellipse', { cx: c.x, cy: c.y + 2, rx: 17, ry: 7, fill: 'rgba(90,70,54,0.14)' }, lm)
+  el('path', { d: `M${c.x - 12} ${c.y - 11} v11 a12 5.5 0 0 0 24 0 v-11 z`, fill: '#cfc4b8', stroke: LINE }, lm)
+  for (const dx of [-7, 0, 7]) el('path', { d: `M${c.x + dx - 3} ${c.y - 4 + Math.abs(dx) * -0.2} h6`, stroke: '#b6aa9c', 'stroke-width': 1 }, lm)
+  el('ellipse', { cx: c.x, cy: c.y - 11, rx: 12, ry: 5.5, fill: '#e4dcd2', stroke: LINE }, lm)
+  el('ellipse', { cx: c.x, cy: c.y - 11, rx: 8.5, ry: 3.6, fill: '#9fd3ec' }, lm)
+  for (const x of [c.x - 12, c.x + 9.5]) el('rect', { x, y: c.y - 34, width: 2.5, height: 24, rx: 1, fill: '#a7805e' }, lm)
+  el('line', { x1: c.x - 11, y1: c.y - 28, x2: c.x + 11, y2: c.y - 28, stroke: '#8a6a4e', 'stroke-width': 1.6 }, lm)
+  el('line', { x1: c.x + 2, y1: c.y - 28, x2: c.x + 2, y2: c.y - 20, stroke: '#8a6a4e', 'stroke-width': 0.8 }, lm)
+  poly(lm, [{ x: c.x - 1.5, y: c.y - 20 }, { x: c.x + 5.5, y: c.y - 20 }, { x: c.x + 4.5, y: c.y - 15 }, { x: c.x - 0.5, y: c.y - 15 }], '#d9906b', { 'stroke-width': 0.6 })
+  poly(lm, [{ x: c.x - 18, y: c.y - 30 }, { x: c.x, y: c.y - 43 }, { x: c.x + 18, y: c.y - 30 }, { x: c.x + 16, y: c.y - 28 }, { x: c.x - 16, y: c.y - 28 }], '#ef9f86')
+  el('line', { x1: c.x - 9, y1: c.y - 34.5, x2: c.x, y2: c.y - 41, stroke: '#f7c3b2', 'stroke-width': 1.5, 'stroke-linecap': 'round' }, lm)
+}
+
+function drawGarden(lm: Element, P: Place, seed: number) {
+  poly(lm, [P(0.1, 0.1), P(0.9, 0.1), P(0.9, 0.9), P(0.1, 0.9)], '#a6d98f')
+  const colors = ['#ff8fa3', '#ffc15e', '#c4a3d8', '#ffffff', '#ffb3c7', '#8fb8e8']
+  const spots: [number, number][] = []
+  for (const u of [0.25, 0.5, 0.75]) for (const v of [0.25, 0.5, 0.75]) spots.push([u, v])
+  spots.forEach(([u, v], k) => {
+    const p = P(u, v)
+    el('line', { x1: p.x, y1: p.y, x2: p.x, y2: p.y - 5, stroke: '#6bb879', 'stroke-width': 1 }, lm)
+    el('circle', { cx: p.x, cy: p.y - 6.5, r: 3.2, fill: colors[(k + seed) % colors.length], stroke: LINE, 'stroke-width': 0.6 }, lm)
+    el('circle', { cx: p.x, cy: p.y - 6.5, r: 1.1, fill: '#ffe07a' }, lm)
+  })
+  // 낮은 울타리(앞쪽 두 변)
+  const fence = (a: Pt, b: Pt) => {
+    for (let k = 0; k <= 6; k++) {
+      const x = a.x + ((b.x - a.x) * k) / 6
+      const y = a.y + ((b.y - a.y) * k) / 6
+      el('rect', { x: x - 0.9, y: y - 7, width: 1.8, height: 7, rx: 0.9, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.5 }, lm)
+    }
+    el('line', { x1: a.x, y1: a.y - 5, x2: b.x, y2: b.y - 5, stroke: '#fffaf0', 'stroke-width': 1.4 }, lm)
+  }
+  fence(P(0.08, 0.92), P(0.92, 0.92))
+  fence(P(0.92, 0.92), P(0.92, 0.08))
+}
+
+function drawFountain(lm: Element, c: Pt) {
+  el('ellipse', { cx: c.x, cy: c.y + 2, rx: 21, ry: 9, fill: 'rgba(90,70,54,0.14)' }, lm)
+  el('path', { d: `M${c.x - 19} ${c.y - 6} v6 a19 8.5 0 0 0 38 0 v-6 z`, fill: '#e2d6c6', stroke: LINE }, lm)
+  el('ellipse', { cx: c.x, cy: c.y - 6, rx: 19, ry: 8.5, fill: '#f1e8dc', stroke: LINE }, lm)
+  el('ellipse', { cx: c.x, cy: c.y - 6, rx: 15.5, ry: 6.6, fill: '#a8dcf0' }, lm)
+  el('rect', { x: c.x - 2.5, y: c.y - 20, width: 5, height: 14, rx: 1.5, fill: '#e2d6c6', stroke: LINE }, lm)
+  el('path', { d: `M${c.x - 8} ${c.y - 20} a8 3.4 0 0 0 16 0 z`, fill: '#e2d6c6', stroke: LINE }, lm)
+  el('ellipse', { cx: c.x, cy: c.y - 20, rx: 8, ry: 3.4, fill: '#bfe6f7', stroke: LINE }, lm)
+  for (const s of [-1, 1]) el('path', { d: `M${c.x} ${c.y - 27} q${s * 9} -4 ${s * 12} 13`, fill: 'none', stroke: '#bfe6f7', 'stroke-width': 2, 'stroke-linecap': 'round' }, lm)
+  el('path', { d: `M${c.x} ${c.y - 21} v-7`, stroke: '#d8f1fb', 'stroke-width': 2.2, 'stroke-linecap': 'round' }, lm)
+  for (const [dx, dy] of [[-12, -9], [11, -11], [-5, -4], [6, -3]]) el('circle', { cx: c.x + dx, cy: c.y + dy, r: 1.1, fill: '#ffffff', class: 'twinkle' }, lm)
+}
+
+function drawBridge(lm: Element, P: Place) {
+  // 광장을 가로지르는 작은 냇물과 그 위 둥근 나무다리
+  poly(lm, [P(0, 0.3), P(1, 0.3), P(1, 0.7), P(0, 0.7)], '#a8dcf0', { stroke: 'none' })
+  for (const v of [0.42, 0.58]) {
+    const a = P(0.12, v)
+    const b = P(0.32, v)
+    el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#e3f5fc', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, lm)
+    const d = P(0.72, v)
+    const e2 = P(0.9, v)
+    el('line', { x1: d.x, y1: d.y, x2: e2.x, y2: e2.y, stroke: '#e3f5fc', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, lm)
+  }
+  const N = 8
+  const at = (u: number, k: number, up = 0) => P(u, 0.08 + (0.84 * k) / N, Math.sin((Math.PI * k) / N) * 10 + up)
+  const left: Pt[] = []
+  const right: Pt[] = []
+  for (let k = 0; k <= N; k++) {
+    left.push(at(0.34, k))
+    right.push(at(0.66, k))
+  }
+  // 오른쪽 옆면 → 바닥 판
+  poly(lm, [...right, ...right.map((p) => ({ x: p.x, y: p.y + 3 })).reverse()], '#b9875f')
+  poly(lm, [...left, ...[...right].reverse()], '#dcae82')
+  for (const u of [0.34, 0.66]) {
+    const rail: Pt[] = []
+    for (let k = 0; k <= N; k++) {
+      const p = at(u, k, 6)
+      rail.push(p)
+      if (k % 2 === 0) {
+        const q = at(u, k)
+        el('line', { x1: q.x, y1: q.y, x2: p.x, y2: p.y, stroke: '#a7805e', 'stroke-width': 1.3 }, lm)
+      }
+    }
+    el('polyline', { points: pts(rail), fill: 'none', stroke: '#a7805e', 'stroke-width': 1.5, 'stroke-linecap': 'round' }, lm)
+  }
+}
+
+function drawClockTower(lm: Element, P: Place) {
+  const a = 0.26
+  const b = 0.74
+  const H = 54
+  el('ellipse', { cx: P(0.5, 0.5).x, cy: P(0.5, 0.5).y + 3, rx: 16, ry: 7, fill: 'rgba(90,70,54,0.14)' }, lm)
+  drawWalls(lm, P, a, b, H, '#f3dfc6')
+  const m = (a + b) / 2
+  poly(lm, [P(m - 0.08, b), P(m + 0.08, b), P(m + 0.08, b, 11), P(m - 0.08, b, 11)], '#b07f5a')
+  poly(lm, [P(b, m + 0.06, 22), P(b, m - 0.06, 22), P(b, m - 0.06, 29), P(b, m + 0.06, 29)], '#ffe7a3')
+  // 시계: 오른쪽 앞면 위쪽
+  const f = P(b, m, 42)
+  el('ellipse', { cx: f.x, cy: f.y, rx: 5.6, ry: 6.4, fill: '#fffaf0', stroke: '#a7805e', 'stroke-width': 1 }, lm)
+  el('path', { d: `M${f.x} ${f.y} v-4.2 M${f.x} ${f.y} l2.8 1.4`, stroke: '#5a4636', 'stroke-width': 1, 'stroke-linecap': 'round' }, lm)
+  const left = P(a + 0.24, b, 42)
+  el('ellipse', { cx: left.x, cy: left.y, rx: 4.6, ry: 5.6, fill: '#fff3dc', stroke: '#a7805e', 'stroke-width': 0.8 }, lm)
+  const top = drawRoof(lm, P, a, b, H, 'hip', '#8fb8e8', '#f3dfc6')
+  const p = P(m, m, top)
+  el('rect', { x: p.x - 0.7, y: p.y - 10, width: 1.4, height: 10, fill: '#a7805e' }, lm)
+  el('path', { d: `M${p.x + 0.7} ${p.y - 10} l8 3 l-8 3 z`, fill: '#ffc15e', stroke: LINE }, lm)
+}
+
+function drawWindmill(lm: Element, c: Pt) {
+  el('ellipse', { cx: c.x, cy: c.y + 2, rx: 17, ry: 7.5, fill: 'rgba(90,70,54,0.14)' }, lm)
+  const T = 40
+  const half = (h: number) => 12 - (h / T) * 5
+  poly(lm, [{ x: c.x - half(0), y: c.y }, { x: c.x + half(0), y: c.y }, { x: c.x + half(T), y: c.y - T }, { x: c.x - half(T), y: c.y - T }], '#fff4e0')
+  poly(lm, [{ x: c.x, y: c.y }, { x: c.x + half(0), y: c.y }, { x: c.x + half(T), y: c.y - T }, { x: c.x, y: c.y - T }], '#f6e6cc', { stroke: 'none' })
+  el('path', { d: `M${c.x - 3.5} ${c.y} v-7 a3.5 3.5 0 0 1 7 0 v7 z`, fill: '#b07f5a' }, lm)
+  el('rect', { x: c.x - 2.5, y: c.y - 24, width: 5, height: 6, rx: 1.5, fill: '#ffe7a3', stroke: LINE, 'stroke-width': 0.6 }, lm)
+  poly(lm, [{ x: c.x - 9.5, y: c.y - T + 1 }, { x: c.x + 9.5, y: c.y - T + 1 }, { x: c.x, y: c.y - T - 13 }], '#ef9f86')
+  // 날개: 천천히 돈다
+  const hub = { x: c.x - 1, y: c.y - T + 2 }
+  const blades = el('g', { class: 'blades', style: `transform-origin:${hub.x.toFixed(1)}px ${hub.y.toFixed(1)}px` }, lm)
+  for (const r of [20, 110, 200, 290]) {
+    const b = el('g', { transform: `rotate(${r} ${hub.x.toFixed(1)} ${hub.y.toFixed(1)})` }, blades)
+    el('rect', { x: hub.x - 1, y: hub.y - 25, width: 2, height: 25, fill: '#a7805e' }, b)
+    el('rect', { x: hub.x + 1, y: hub.y - 24, width: 6.5, height: 18, rx: 1.5, fill: '#fffaf0', stroke: LINE, 'stroke-width': 0.8 }, b)
+    el('line', { x1: hub.x + 1, y1: hub.y - 15, x2: hub.x + 7.5, y2: hub.y - 15, stroke: LINE, 'stroke-width': 0.6 }, b)
+  }
+  el('circle', { cx: hub.x, cy: hub.y, r: 2.6, fill: '#c98f72', stroke: LINE }, lm)
+}
+
+function drawBigTree(lm: Element, c: Pt) {
+  el('ellipse', { cx: c.x, cy: c.y + 2, rx: 22, ry: 9, fill: 'rgba(90,70,54,0.14)' }, lm)
+  el('path', { d: `M${c.x - 5} ${c.y + 1} q2 -14 1 -30 h8 q-1 16 1 30 q-5 2 -10 0 z`, fill: '#a7805e', stroke: LINE }, lm)
+  const colors = ['#ffb3ba', '#ffd8a8', '#fff1a8', '#bfe8b8', '#b8dcf5', '#d7c4f0']
+  const blobs = [
+    { x: -15, y: -40, r: 12 },
+    { x: 15, y: -40, r: 12 },
+    { x: -8, y: -54, r: 13 },
+    { x: 9, y: -55, r: 13 },
+    { x: 0, y: -42, r: 13 },
+    { x: 0, y: -66, r: 11 },
+  ]
+  blobs.forEach((b, k) => {
+    el('circle', { cx: c.x + b.x, cy: c.y + b.y, r: b.r, fill: colors[k], stroke: LINE }, lm)
+    el('circle', { cx: c.x + b.x - b.r * 0.35, cy: c.y + b.y - b.r * 0.35, r: b.r * 0.35, fill: shade(colors[k], 0.4) }, lm)
+  })
+  for (const [dx, dy] of [[-22, -58], [22, -62], [0, -82]]) {
+    const t = el('text', { x: c.x + dx, y: c.y + dy, 'text-anchor': 'middle', 'font-size': 9, class: 'twinkle' }, lm)
+    t.textContent = '✨'
+  }
+}
+
+/** 명소 하나. 기분과 상관없이 늘 같은 모양이다 */
+function drawLandmark(g: Element, l: Landmark) {
+  const { gx, gy } = landmarkSpot(l)
+  const P: Place = (u, v, h = 0) => iso(gx + u, gy + v, h)
+  const lm = el('g', { class: 'landmark', 'data-testid': `landmark-${l.id}`, 'data-landmark': l.id }, g)
+  const tall = l.id === 'bigTree' ? 90 : l.id === 'clockTower' ? 80 : l.id === 'windmill' ? 66 : 44
+  poly(lm, [P(0, 0, tall), P(1, 0, 0), P(1, 1, 0), P(0, 1, 0)], 'transparent', { stroke: 'none', class: 'hit' })
+  const c = P(0.5, 0.5)
+  if (l.id === 'well') drawWell(lm, c)
+  else if (l.id === 'garden') drawGarden(lm, P, hash(l.id))
+  else if (l.id === 'fountain') drawFountain(lm, c)
+  else if (l.id === 'bridge') drawBridge(lm, P)
+  else if (l.id === 'clockTower') drawClockTower(lm, P)
+  else if (l.id === 'windmill') drawWindmill(lm, c)
+  else drawBigTree(lm, c)
+}
+
+/** 다음 명소가 설 자리: 점선 테두리와 나무 팻말("7일 더 쓰면 / 우물이 생겨요") */
+function drawNextSign(g: Element, l: Landmark, lines: [string, string]) {
+  const { gx, gy } = landmarkSpot(l)
+  const sign = el('g', { class: 'next-sign', 'data-testid': 'next-landmark', 'data-landmark': l.id }, g)
+  const a = 0.14
+  const b = 0.86
+  poly(sign, [iso(gx + a, gy + a), iso(gx + b, gy + a), iso(gx + b, gy + b), iso(gx + a, gy + b)], 'rgba(255,255,255,0.4)', {
+    stroke: '#c9a27e',
+    'stroke-width': 1.2,
+    'stroke-dasharray': '4 3',
+  })
+  const c = iso(gx + 0.5, gy + 0.5)
+  el('ellipse', { cx: c.x, cy: c.y + 1, rx: 5, ry: 2, fill: 'rgba(90,70,54,0.16)' }, sign)
+  el('rect', { x: c.x - 1.5, y: c.y - 22, width: 3, height: 23, rx: 1.5, fill: '#a7805e' }, sign)
+  el('rect', { x: c.x - 40, y: c.y - 50, width: 80, height: 30, rx: 8, fill: '#fff3dc', stroke: '#a7805e', 'stroke-width': 1.2 }, sign)
+  const t1 = el('text', { x: c.x, y: c.y - 38, 'text-anchor': 'middle', 'font-size': 9, 'font-weight': 700, fill: '#7a604a' }, sign)
+  t1.textContent = lines[0]
+  const t2 = el('text', { x: c.x, y: c.y - 26, 'text-anchor': 'middle', 'font-size': 9, 'font-weight': 700, fill: '#7a604a' }, sign)
+  t2.textContent = lines[1]
+}
+
 /** 짓는 순간의 반짝임과 작은 먼지. 집 위에 따로 그려 집과 함께 늘어나지 않게 한다 */
 function drawBuildFx(fx: Element, lot: Lot, H: number) {
   const { gx, gy } = lot
@@ -457,6 +684,10 @@ export interface DrawOptions {
   newDate?: string
   /** 짓는 연출을 이만큼(ms) 기다렸다 시작한다(화면이 다가가는 동안) */
   buildDelay?: number
+  /** 얻은 명소(누적 날 수로 계산) */
+  landmarks?: Landmark[]
+  /** 다음 명소 팻말. 모두 얻었으면 없다 */
+  sign?: { landmark: Landmark; lines: [string, string] } | null
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -467,11 +698,31 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   const things = el('g', { class: 'things', style: delay }, svg)
   const fx = el('g', { class: 'fx', style: delay }, svg)
   const labels = el('g', { class: 'labels' }, svg)
-  const blocks = [...village.blocks].sort((a, b) => a.bx + a.by - (b.bx + b.by))
-  for (const block of blocks) drawSlab(ground, labels, block)
+  // 땅: 뒤 구역부터. 광장은 첫 구역 바로 아래(구역 자리 0,1)라 그 깊이에 끼운다
+  const slabs = [
+    ...village.blocks.map((b) => ({ depth: b.bx + b.by, draw: () => drawSlab(ground, labels, b) })),
+    { depth: 1, draw: () => drawPlazaGround(ground, labels) },
+  ].sort((a, b) => a.depth - b.depth)
+  for (const s of slabs) s.draw()
 
   type Item = { depth: number; draw: () => void }
   const items: Item[] = []
+  // 광장: 명소, 다음 명소 팻말, 모서리 나무
+  for (const l of opt.landmarks ?? []) {
+    const s = landmarkSpot(l)
+    items.push({ depth: s.gx + s.gy, draw: () => drawLandmark(things, l) })
+  }
+  if (opt.sign) {
+    const { landmark, lines } = opt.sign
+    const s = landmarkSpot(landmark)
+    items.push({ depth: s.gx + s.gy, draw: () => drawNextSign(things, landmark, lines) })
+  }
+  for (const [col, row] of [[0, 0], [6, 0], [0, 5]]) {
+    const gx = PLAZA.gx + col
+    const gy = PLAZA.gy + row
+    const seed = hash(`plaza:${col}:${row}`)
+    items.push({ depth: gx + gy, draw: () => drawTree(things, gx, gy, seasonOf(opt.today.slice(0, 7)), seed) })
+  }
   for (const block of village.blocks) {
     const season = seasonOf(block.month)
     const days = new Map(block.lots.map((l) => [`${l.col},${l.row}`, l]))

@@ -253,6 +253,23 @@ button { font: inherit; color: inherit; }
   animation: rise 0.25s ease-out;
 }
 @keyframes rise { from { transform: translateY(30px); opacity: 0; } }
+.celebrate { text-align: center; }
+.celebrate-icons { display: flex; justify-content: center; gap: 6px; font-size: 44px; line-height: 1; margin: 6px 0 10px; }
+.celebrate-icons.many { flex-wrap: wrap; gap: 4px; font-size: 32px; }
+.celebrate-icons span { display: inline-block; animation: bounce-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.celebrate-icons span:nth-child(2) { animation-delay: 0.1s; }
+.celebrate-icons span:nth-child(3) { animation-delay: 0.2s; }
+@keyframes bounce-in { from { transform: scale(0.2); opacity: 0; } }
+.celebrate-title { font-size: 19px; font-weight: 700; }
+.celebrate-body { margin: 10px 0 4px; font-size: 15px; line-height: 1.5; word-break: keep-all; }
+.celebrate-next { margin: 0 0 18px; font-size: 13px; color: var(--ink-soft); word-break: keep-all; }
+.landmark { cursor: pointer; }
+.landmark.pop { transform-box: fill-box; transform-origin: 50% 100%; animation: pop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0s) both; }
+.blades { animation: spin 14s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-icons span, .landmark.pop, .blades { animation: none; }
+}
 .reader-date { font-size: 13px; color: var(--ink-soft); }
 .reader-mood { margin-top: 6px; font-size: 14px; font-weight: 600; }
 .reader-building {

@@ -1,6 +1,6 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { buildUnit, showView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { SHOW, buildUnit, easeInOut, showView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
 
@@ -115,6 +115,22 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
       view = viewAround(center, u, s)
       apply()
       return true
+    },
+    /** center 로 부드럽게 옮겨 가서 그대로 머문다(명소 보러 가기) */
+    glide(center: Pt, u: number) {
+      const s = screen()
+      if (!(s.w > 0 && s.h > 0)) return
+      stopShow()
+      const from = { ...view }
+      const to = viewAround(center, u, s)
+      const start = performance.now()
+      const step = () => {
+        const t = (performance.now() - start) / SHOW.go
+        view = tweenView(from, to, easeInOut(t))
+        apply()
+        showFrame = t >= 1 ? 0 : requestAnimationFrame(step)
+      }
+      showFrame = requestAnimationFrame(step)
     },
     /** 새 집(center)으로 부드럽게 다가가 잠시 머문 뒤 원래 보기로 돌아온다 */
     visit(center: Pt) {

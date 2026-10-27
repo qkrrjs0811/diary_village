@@ -7,6 +7,8 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
+import { LANDMARKS, celebration, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
 import { createSettings } from './ui/settings'
 import { createWriteCard } from './ui/write'
@@ -86,12 +88,37 @@ const settings = createSettings({
     } catch {
       return '저장하지 못했어요. 저장 공간을 확인해 주세요'
     }
+    const before = save.entries
     save = plan.save
     render()
+    celebrate(reachedLandmarks(before, save.entries), 0)
     return null
   },
 })
 document.body.appendChild(settings.root)
+
+const celebrateCard = createCelebration({ onVisit: visitLandmark })
+document.body.appendChild(celebrateCard.root)
+let celebrateTimer = 0
+/** 명소가 생겼으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
+function celebrate(reached: Landmark[], wait: number) {
+  if (reached.length === 0) return
+  clearTimeout(celebrateTimer)
+  const text = celebration(reached, save.entries)
+  celebrateTimer = window.setTimeout(() => celebrateCard.open(reached, text), wait)
+}
+/** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
+function visitLandmark(l: Landmark) {
+  const s = landmarkSpot(l)
+  // 처음 보기보다 조금 멀리: 옆 자리의 다음 명소 팻말까지 함께 보인다
+  camera.glide(iso(s.gx + 0.5, s.gy + 0.5, 26), 0.8)
+  const node = svg.querySelector<SVGGElement>(`[data-landmark="${l.id}"].landmark`)
+  if (!node || calm) return
+  node.classList.remove('pop')
+  node.style.setProperty('--delay', `${SHOW.go}ms`)
+  void node.getBoundingClientRect()
+  node.classList.add('pop')
+}
 app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
 
 const card = createWriteCard({
@@ -104,9 +131,11 @@ const card = createWriteCard({
     } catch {
       return '저장하지 못했어요. 저장 공간을 확인해 주세요'
     }
+    const before = save.entries
     save = r.save
     render(r.entry.date)
     showNote(buildingNote(buildingOf(r.entry)))
+    celebrate(reachedLandmarks(before, save.entries), calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
     return null
   },
   onOpen: (entry) => reader.open(entry),
@@ -114,6 +143,9 @@ const card = createWriteCard({
 app.appendChild(card.root)
 
 const camera = createCamera(svg, (target) => {
+  const id = target.closest('.landmark')?.getAttribute('data-landmark')
+  const landmark = LANDMARKS.find((l) => l.id === id)
+  if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
   const date = target.closest('[data-date]')?.getAttribute('data-date')
   const entry = date ? entryOn(save, date) : undefined
   if (entry) reader.open(entry)
@@ -127,20 +159,26 @@ const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? 
 const note = app.querySelector<HTMLElement>('.build-note')!
 let noteTimer = 0
 note.addEventListener('click', () => (note.hidden = true))
-function showNote(text: string | null) {
+function showNote(text: string | null, delay = SHOW.go) {
   clearTimeout(noteTimer)
   note.hidden = !text
   if (!text) return
   note.textContent = text
-  note.style.setProperty('--delay', `${calm ? 0 : SHOW.go}ms`)
-  noteTimer = window.setTimeout(() => (note.hidden = true), SHOW.go + SHOW.hold + SHOW.back + 2500)
+  note.style.setProperty('--delay', `${calm ? 0 : delay}ms`)
+  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + 2500)
 }
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */
 function render(newDate?: string) {
   const today = dayKey(Date.now())
   const village = buildVillage(save.entries, today)
-  drawVillage(svg, village, { today, newDate, buildDelay: newDate && !calm ? SHOW.go : 0 })
+  drawVillage(svg, village, {
+    today,
+    newDate,
+    buildDelay: newDate && !calm ? SHOW.go : 0,
+    landmarks: earnedLandmarks(save.entries),
+    sign: nextSign(save.entries),
+  })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length

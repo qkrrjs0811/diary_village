@@ -489,3 +489,99 @@ test('한 번 연 뒤에는 인터넷 없이도 열리고, 쓴 한 줄이 남는
   await expect(page.getByTestId('house-count')).toHaveText('🏠 1채')
   await context.setOffline(false)
 })
+
+/** start 부터 n일을 이어서 쓴 기록 */
+function dayEntries(start: string, n: number) {
+  const t0 = Date.parse(`${start}T22:00:00+09:00`)
+  return Array.from({ length: n }, (_, i) => {
+    const date = new Date(t0 + i * 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+    return { date, text: `${date}의 한 줄`, mood: moods[i % moods.length], writtenAt: t0 + i * 86400000 }
+  })
+}
+
+/** 끝이 있는 CSS 연출(쑥 올라옴·카드 등장)을 끝까지 돌려 둔다(가짜 시계를 따르지 않으므로) */
+async function finishAnimations(page: import('@playwright/test').Page) {
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.effect?.getComputedTiming().endTime !== Infinity && a.finish()))
+}
+
+/** 멀리 본 뒤 광장 쪽으로 휠을 굴려 가까이 간다 */
+async function zoomToPlaza(page: import('@playwright/test').Page, steps = 4) {
+  const svg = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 300)
+  const plaza = (await page.getByTestId('plaza').boundingBox())!
+  await page.mouse.move(plaza.x + plaza.width / 2, plaza.y + plaza.height / 2)
+  for (let i = 0; i < steps; i++) await page.mouse.wheel(0, -200)
+}
+
+test('7일째 한 줄을 쓰면 광장에 우물이 생기고 축하 카드가 뜬다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 띄엄띄엄 6일(연속이 아니어도 된다)
+  const entries = monthEntries('2026-10', [2, 5, 9, 14, 20, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('plaza')).toBeAttached()
+  await expect(page.getByTestId('next-landmark')).toHaveText('1일 더 쓰면우물이 생겨요')
+  await expect(page.locator('.landmark')).toHaveCount(0)
+  await zoomToPlaza(page)
+  await page.screenshot({ path: 'test-results/screens/plaza-sign.png' })
+
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('일주일째 한 줄')
+  await page.getByTestId('write-submit').click()
+  // 짓는 연출이 끝난 뒤에 축하 카드가 뜬다
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+  await page.clock.runFor(4000)
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await expect(page.getByTestId('celebrate-title')).toHaveText('🪣 우물이 생겼어요!')
+  await expect(page.getByTestId('celebrate-body')).toHaveText('한 줄을 7일 남겼어요. 광장에 우물이 섰어요.')
+  await expect(page.getByTestId('celebrate-next')).toHaveText('다음은 7일 더 쓰면 꽃 정원이에요')
+  for (const id of ['celebrate-close', 'celebrate-visit']) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/celebrate.png' })
+
+  // 보러 가면 광장의 우물이 가운데 온다
+  await page.getByTestId('celebrate-visit').click()
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+  await page.clock.runFor(1500)
+  const well = page.getByTestId('landmark-well')
+  const box = (await well.boundingBox())!
+  const svg = (await page.getByTestId('village').boundingBox())!
+  expect(Math.abs(box.x + box.width / 2 - (svg.x + svg.width / 2))).toBeLessThan(40)
+  await expect(page.getByTestId('next-landmark')).toHaveText('7일 더 쓰면꽃 정원이 생겨요')
+  await page.waitForTimeout(1700) // 우물이 쑥 올라오는 연출(실제 시간)이 끝나면 찍는다
+  await page.screenshot({ path: 'test-results/screens/plaza-well.png' })
+
+  // 우물을 누르면 언제 생겼는지 알려 준다
+  await well.click()
+  await expect(page.getByTestId('build-note')).toHaveText('🪣 우물 · 한 줄을 7일 남겨 생겼어요')
+
+  // 다시 열어도 그대로이고, 축하 카드는 다시 뜨지 않는다
+  await page.reload()
+  await expect(page.getByTestId('landmark-well')).toBeAttached()
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+})
+
+test('365일을 쓴 마을에는 명소 7곳이 모두 서고, 가져오기로 한꺼번에 넘으면 함께 축하한다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2025-10-27', 365)
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ version: 1, entries })) })
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await expect(page.getByTestId('celebrate-title')).toHaveText('🎉 명소 7곳이 생겼어요!')
+  await expect(page.getByTestId('celebrate-body')).toHaveText('한 줄을 365일 남겼어요. 광장에 우물, 꽃 정원, 분수, 다리, 시계탑, 풍차, 무지개 큰 나무가 섰어요.')
+  await expect(page.getByTestId('celebrate-next')).toHaveText('명소를 모두 모았어요. 고마워요!')
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/celebrate-many.png' })
+  await page.getByTestId('celebrate-close').click()
+  await page.getByTestId('settings-close').click()
+
+  for (const id of ['well', 'garden', 'fountain', 'bridge', 'clockTower', 'windmill', 'bigTree']) await expect(page.getByTestId(`landmark-${id}`)).toBeAttached()
+  await expect(page.getByTestId('next-landmark')).toHaveCount(0)
+  await zoomToPlaza(page, 3)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/plaza-all.png' })
+})

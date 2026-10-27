@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextLandmark, reachedLandmarks, writtenDays } from './landmark'
+import { LANDMARKS, PLAZA, celebration, earnedLandmarks, landmarkSpot, nextLandmark, nextSign, reachedLandmarks, writtenDays } from './landmark'
 import { buildVillage, BLOCK_W, BLOCK_H } from './village'
 import { addDays } from './date'
 import type { Entry } from './types'
@@ -69,5 +69,24 @@ describe('마을 명소', () => {
     const lots = new Set(buildVillage(entries).blocks.flatMap((b) => b.lots.map((l) => `${l.gx},${l.gy}`)))
     for (let x = PLAZA.gx; x < PLAZA.gx + BLOCK_W; x++)
       for (let y = PLAZA.gy; y < PLAZA.gy + BLOCK_H; y++) expect(lots.has(`${x},${y}`)).toBe(false)
+  })
+
+  it('다음 명소 팻말: 남은 날과 받침에 맞는 이/가', () => {
+    expect(nextSign([])).toEqual({ landmark: LANDMARKS[0], lines: ['7일 더 쓰면', '우물이 생겨요'] })
+    expect(nextSign(days(29))!.lines).toEqual(['1일 더 쓰면', '분수가 생겨요'])
+    expect(nextSign(days(50))!.lines).toEqual(['50일 더 쓰면', '시계탑이 생겨요'])
+    expect(nextSign(days(365))).toBeNull()
+  })
+
+  it('축하 카드: 하나면 그 이름, 여럿이면 몇 곳인지와 다음 명소', () => {
+    const one = celebration(reachedLandmarks(days(6), days(7)), days(7))
+    expect(one.title).toBe('🪣 우물이 생겼어요!')
+    expect(one.body).toBe('한 줄을 7일 남겼어요. 광장에 우물이 섰어요.')
+    expect(one.next).toBe('다음은 7일 더 쓰면 꽃 정원이에요')
+    const many = celebration(reachedLandmarks(days(5), days(35)), days(35))
+    expect(many.title).toBe('🎉 명소 3곳이 생겼어요!')
+    expect(many.body).toBe('한 줄을 35일 남겼어요. 광장에 우물, 꽃 정원, 분수가 섰어요.')
+    expect(many.next).toBe('다음은 15일 더 쓰면 다리예요')
+    expect(celebration([LANDMARKS[6]], days(365)).next).toBeNull()
   })
 })

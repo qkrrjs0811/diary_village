@@ -76,7 +76,7 @@ export function buildingInfo(id: BuildingId): Building {
 }
 
 /** 마지막 글자에 받침이 있으면 true(한글이 아니면 false) */
-function hasFinal(word: string): boolean {
+export function hasFinal(word: string): boolean {
   const c = word.charCodeAt(word.length - 1) - 0xac00
   return c >= 0 && c < 11172 && c % 28 !== 0
 }
