@@ -15,7 +15,7 @@ import { createSettings } from './ui/settings'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
-import { weatherOf } from './core/weather'
+import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
 import { SHOW, START_UNIT } from './core/view'
 import { blockView, drawVillage, iso } from './village/render'
 
@@ -200,11 +200,8 @@ function render(newDate?: string) {
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
-  // 하늘 색과 날씨는 오늘 기분을 따른다. 오늘 자리가 비었으면 구름 조금 낀 평온한 하늘이다
+  paintSky()
   const mood = moodOf(todayEntry?.mood ?? 'calm')
-  scene.style.setProperty('--sky-top', mood.sky[0])
-  scene.style.setProperty('--sky-bottom', mood.sky[1])
-  drawSky(skyBack, skyFront, weatherOf(save.entries, today))
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'
   // 날이 바뀌었을 때만 오늘 구역으로 화면을 옮긴다(둘러보던 자리를 지킨다)
   // 처음엔 오늘 자리를 가운데에 두고 집이 또렷이 보이게 가까이 본다
@@ -219,11 +216,29 @@ function render(newDate?: string) {
   }
 }
 
+/**
+ * 하늘 색과 날씨는 오늘 기분을 따르고, 지금 때(낮·저녁·밤)로 물든다.
+ * 오늘 자리가 비었으면 구름 조금 낀 평온한 하늘이다. 저녁·밤에는 창문에 불이 켜진다
+ */
+function paintSky() {
+  const now = Date.now()
+  const today = dayKey(now)
+  const part = dayPart(now)
+  const [top, bottom] = skyColors(entryOn(save, today)?.mood ?? 'calm', part)
+  scene.style.setProperty('--sky-top', top)
+  scene.style.setProperty('--sky-bottom', bottom)
+  scene.dataset.time = part
+  scene.classList.toggle('lit', windowsLit(part))
+  drawSky(skyBack, skyFront, weatherOf(save.entries, today), part)
+}
+
 render()
-// 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그린다
-setInterval(() => {
+// 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다
+function refresh() {
   if (dayKey(Date.now()) !== shownDay) render()
-}, 30_000)
+  else paintSky()
+}
+setInterval(refresh, 30_000)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && dayKey(Date.now()) !== shownDay) render()
+  if (!document.hidden) refresh()
 })

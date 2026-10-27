@@ -636,7 +636,8 @@ test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한�
 })
 
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
-  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  // 낮 하늘(저녁·밤은 아래 테스트)
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
   // 오늘 자리가 비었으면 구름 조금 낀 하늘
   await expect(page.getByTestId('sky').locator('.sun')).toHaveCount(1)
@@ -644,7 +645,7 @@ test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 
   await expect(page.getByTestId('rain').locator('.drop')).toHaveCount(0)
 
   const today = (mood: string, text = '오늘의 한 줄') =>
-    JSON.stringify({ version: 1, entries: [{ date: '2026-10-27', text, mood, writtenAt: Date.parse('2026-10-27T20:00:00+09:00') }] })
+    JSON.stringify({ version: 1, entries: [{ date: '2026-10-27', text, mood, writtenAt: Date.parse('2026-10-27T12:00:00+09:00') }] })
   const shots: [string, string][] = [['great', 'sunny'], ['meh', 'cloudy'], ['blue', 'rain'], ['tired', 'starry']]
   for (const [mood, name] of shots) {
     await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, today(mood)])
@@ -677,4 +678,64 @@ test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 
     const overlap = r.x < chip.x + chip.width && r.x + r.width > chip.x && r.y < chip.y + chip.height && r.y + r.height > chip.y
     expect(overlap).toBe(false)
   }
+})
+
+test('지금 시각에 따라 낮·저녁·밤 하늘이 되고, 저녁·밤에는 창문에 불이 켜진다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  const entries = monthEntries('2026-10', [1, 3, 4, 6, 8, 9, 11, 13, 15, 16, 18, 20, 21, 23, 24, 26])
+  entries.push({ date: '2026-10-27', text: '좋은 하루', mood: 'great', writtenAt: Date.parse('2026-10-27T12:00:00+09:00') })
+  await page.addInitScript(([k, s]) => localStorage.getItem(k) || localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.goto('./')
+  const scene = page.getByTestId('scene')
+  const sky = page.getByTestId('sky')
+  const win = page.locator('.house .win').first()
+  const winFill = () => win.evaluate((n) => getComputedStyle(n).fill)
+  const top = () => scene.evaluate((n) => n.style.getPropertyValue('--sky-top'))
+  const shot = async (name: string) => {
+    await page.waitForTimeout(700)
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/${name}.png` })
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  }
+
+  // 낮: 맑은 하늘에 해, 창문은 맑은 유리
+  await expect(scene).toHaveAttribute('data-time', 'day')
+  await expect(sky.locator('.sun')).toHaveCount(1)
+  await expect(sky.locator('.sun.dusk')).toHaveCount(0)
+  expect(await winFill()).toBe('rgb(220, 236, 238)')
+  const noon = await top()
+  await shot('time-day')
+
+  // 켜 둔 채 저녁이 되면 노을 하늘에 낮은 해, 창문에 불
+  await page.clock.fastForward('05:00:00')
+  await expect(scene).toHaveAttribute('data-time', 'evening')
+  await expect(sky.locator('.sun.dusk')).toHaveCount(1)
+  await expect.poll(winFill).toBe('rgb(255, 213, 110)')
+  const evening = await top()
+  expect(evening).not.toBe(noon)
+  await shot('time-evening')
+
+  // 밤: 해 대신 달과 별, 창문 불빛은 그대로. 날씨 이름표는 오늘 기분 그대로다
+  await page.clock.fastForward('03:00:00')
+  await expect(scene).toHaveAttribute('data-time', 'night')
+  await expect(sky.locator('.sun')).toHaveCount(0)
+  await expect(sky.locator('.moon')).toHaveCount(1)
+  expect(await sky.locator('.star').count()).toBeGreaterThanOrEqual(8)
+  await expect.poll(winFill).toBe('rgb(255, 213, 110)')
+  expect(await top()).not.toBe(evening)
+  await expect(page.getByTestId('weather')).toHaveText('☀️ 오늘은 맑음')
+  await shot('time-night')
+
+  // 밤에도 집은 그대로 눌린다
+  await page.getByTestId('house-2026-10-27').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('좋은 하루')
+  await page.getByTestId('reader-close').click()
+
+  // 다시 열어도 밤 하늘(시각으로 계산한다). 비 오는 밤엔 비가 그대로 내린다
+  const rainy = { version: 1, entries: [{ date: '2026-10-27', text: '비', mood: 'blue', writtenAt: Date.parse('2026-10-27T21:00:00+09:00') }] }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(rainy)])
+  await page.reload()
+  await expect(scene).toHaveAttribute('data-time', 'night')
+  expect(await page.getByTestId('rain').locator('.drop').count()).toBeGreaterThanOrEqual(20)
+  await shot('time-night-rain')
 })

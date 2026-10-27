@@ -1,21 +1,23 @@
-import { skyBits, type SkyBit, type WeatherKind } from '../core/weather'
+import { skyBits, type DayPart, type SkyBit, type WeatherKind } from '../core/weather'
 
 /** 하늘 그림 하나(작은 SVG). 모두 둥근 도형에 얇은 테두리다 */
 function bitSvg(b: SkyBit): string {
   switch (b.kind) {
     case 'sun': {
+      // 저녁 해는 노을빛 주황
+      const [ray, body, line, glint] = b.tone === 'dusk' ? ['#ffc49a', '#ffa572', '#e07f55', '#ffd9bd'] : ['#ffe08a', '#ffd166', '#e8a94a', '#fff1bf']
       const rays = Array.from({ length: 10 }, (_, i) => `<rect x="47" y="2" width="6" height="15" rx="3" transform="rotate(${i * 36} 50 50)"/>`).join('')
-      return `<svg viewBox="0 0 100 100"><g class="rays" fill="#ffe08a">${rays}</g>
-        <circle cx="50" cy="50" r="27" fill="#ffd166" stroke="#e8a94a" stroke-width="2.5"/>
-        <circle cx="41" cy="42" r="8" fill="#fff1bf" opacity="0.8"/></svg>`
+      return `<svg viewBox="0 0 100 100"><g class="rays" fill="${ray}">${rays}</g>
+        <circle cx="50" cy="50" r="27" fill="${body}" stroke="${line}" stroke-width="2.5"/>
+        <circle cx="41" cy="42" r="8" fill="${glint}" opacity="0.8"/></svg>`
     }
     case 'moon':
       return `<svg viewBox="0 0 100 100"><path d="M62 10 A42 42 0 1 0 90 72 A34 34 0 1 1 62 10 Z" fill="#fff3b8" stroke="#d9b85c" stroke-width="3" stroke-linejoin="round"/>
         <circle cx="34" cy="62" r="5" fill="#f2e2a0"/><circle cx="48" cy="80" r="3.5" fill="#f2e2a0"/></svg>`
     case 'cloud': {
       const grey = b.tone === 'grey'
-      const fill = grey ? '#e6eaf0' : '#ffffff'
-      const line = grey ? '#b9c0cb' : '#d8cfc3'
+      const fill = grey ? '#e6eaf0' : b.tone === 'dusk' ? '#ffe9e0' : b.tone === 'night' ? '#cfd0ea' : '#ffffff'
+      const line = grey ? '#b9c0cb' : b.tone === 'dusk' ? '#e8bfae' : b.tone === 'night' ? '#9e9cc8' : '#d8cfc3'
       // 동그라미 셋과 납작한 바닥으로 만든 뭉게구름
       return `<svg viewBox="0 0 100 60"><path d="M18 52 A14 14 0 0 1 20 25 A18 18 0 0 1 50 14 A20 20 0 0 1 84 28 A12 12 0 0 1 84 52 Z" fill="${fill}" stroke="${line}" stroke-width="2.5" stroke-linejoin="round"/>
         <path d="M34 26 A12 12 0 0 1 48 20" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="${grey ? 0.8 : 0}"/></svg>`
@@ -28,15 +30,16 @@ function bitSvg(b: SkyBit): string {
 }
 
 /**
- * 오늘 기분 날씨를 마을 하늘에 그린다. back: 마을 뒤(해·달·구름·별), front: 마을 앞(빗방울).
+ * 오늘 기분 날씨를 지금 때(낮·저녁·밤)에 맞게 마을 하늘에 그린다. back: 마을 뒤(해·달·구름·별), front: 마을 앞(빗방울).
  * 누르기를 막지 않도록 둘 다 손가락을 통과시킨다.
  */
-export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind) {
-  if (back.dataset.kind === kind) return
+export function drawSky(back: HTMLElement, front: HTMLElement, kind: WeatherKind, part: DayPart) {
+  if (back.dataset.kind === kind && back.dataset.part === part) return
   back.dataset.kind = kind
+  back.dataset.part = part
   back.innerHTML = ''
   front.innerHTML = ''
-  for (const b of skyBits(kind)) {
+  for (const b of skyBits(kind, part)) {
     const node = document.createElement('span')
     node.className = `sky-bit ${b.kind}${b.tone ? ` ${b.tone}` : ''}`
     node.style.left = `${b.x}%`

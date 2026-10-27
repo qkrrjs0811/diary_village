@@ -1,3 +1,4 @@
+import { moodOf } from './mood'
 import type { Entry, MoodId } from './types'
 
 /** 마을 하늘의 날씨. 기분은 등급이 아니라 색깔·날씨다(어떤 날씨든 예쁘게 그린다) */
@@ -27,8 +28,37 @@ export interface SkyBit {
   y: number
   size: number
   delay: number
-  /** 구름 색: 맑은 날은 흰 구름, 흐리고 비 오는 날은 회색 구름 */
-  tone?: 'white' | 'grey'
+  /** 구름 색: 맑은 날은 흰 구름, 흐리고 비 오는 날은 회색 구름. 저녁엔 노을빛(해도), 밤엔 밤빛 구름 */
+  tone?: 'white' | 'grey' | 'dusk' | 'night'
+}
+
+/** 지금 시각의 때. 하늘 색과 창문 불빛이 바뀐다 */
+export type DayPart = 'day' | 'evening' | 'night'
+
+/** 사용자 기준 시간대로 6~17시는 낮, 17~20시는 저녁, 20~6시는 밤 */
+export function dayPart(ms: number): DayPart {
+  const h = new Date(ms).getHours()
+  return h >= 6 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'
+}
+
+/** 저녁과 밤에는 집 창문에 불이 켜진다 */
+export function windowsLit(part: DayPart): boolean {
+  return part !== 'day'
+}
+
+function mix(a: string, b: string, t: number): string {
+  const ca = parseInt(a.slice(1), 16)
+  const cb = parseInt(b.slice(1), 16)
+  const ch = (s: number) => Math.round(((ca >> s) & 255) * (1 - t) + ((cb >> s) & 255) * t)
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`
+}
+
+/** 하늘 위·아래 색. 낮은 기분 하늘 그대로, 저녁은 노을빛, 밤은 밤빛으로 같은 기분 하늘을 물들인다 */
+export function skyColors(mood: MoodId, part: DayPart): [string, string] {
+  const [top, bottom] = moodOf(mood).sky
+  if (part === 'day') return [top, bottom]
+  if (part === 'evening') return [mix(top, '#f3a7a2', 0.5), mix(bottom, '#ffd8a6', 0.6)]
+  return [mix(top, '#28306a', 0.7), mix(bottom, '#6f6aa8', 0.65)]
 }
 
 /** 같은 자리에 늘 같게 흩뿌리는 0~1 수 */
@@ -62,8 +92,23 @@ function drops(n: number): SkyBit[] {
   }))
 }
 
-/** 날씨마다 하늘에 그릴 것(해·달·구름·별·빗방울) */
-export function skyBits(kind: WeatherKind): SkyBit[] {
+/** 날씨마다 하늘에 그릴 것(해·달·구름·별·빗방울). 저녁엔 해가 낮게 노을빛으로, 밤엔 해 대신 달이 뜬다 */
+export function skyBits(kind: WeatherKind, part: DayPart = 'day'): SkyBit[] {
+  const bits = daySky(kind)
+  if (part === 'day') return bits
+  if (part === 'evening') {
+    return bits.map((b) =>
+      b.kind === 'sun' ? { ...b, y: 30, size: b.size + 6, tone: 'dusk' } : b.kind === 'cloud' && b.tone === 'white' ? { ...b, tone: 'dusk' } : b,
+    )
+  }
+  if (kind === 'starry') return bits
+  // 밤: 해 자리에 달. 맑은 밤일수록 별이 많다(별은 구름 뒤에 그린다)
+  const moon = (b: SkyBit): SkyBit => (b.kind === 'sun' ? { kind: 'moon', x: b.x, y: b.y, size: 34, delay: 0 } : b.kind === 'cloud' && b.tone === 'white' ? { ...b, tone: 'night' } : b)
+  const n = kind === 'sunny' ? 10 : kind === 'partly' ? 6 : 0
+  return [...stars(n), ...bits.map(moon)]
+}
+
+function daySky(kind: WeatherKind): SkyBit[] {
   switch (kind) {
     case 'sunny':
       return [{ kind: 'sun', x: 16, y: 9, size: 46, delay: 0 }, ...clouds([[52, 14, 44]], 'white')]

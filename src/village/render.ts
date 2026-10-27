@@ -13,6 +13,9 @@ export const TH = 24
 const FLOOR_H = 17
 const SLAB_DEPTH = 12
 const LINE = 'rgba(90, 70, 54, 0.35)'
+/** 낮의 창문(맑은 유리). 저녁·밤에는 CSS가 .win에 불을 켠다 */
+const WIN = '#dcecee'
+const win = { class: 'win' }
 
 type Pt = { x: number; y: number }
 
@@ -146,15 +149,15 @@ function drawWalls(house: Element, P: Place, a: number, b: number, H: number, wa
   poly(house, [P(b, b), P(b, a), P(b, a, H), P(b, b, H)], wall)
 }
 
-/** 문(왼쪽 앞면 가운데)과 층마다 따뜻한 불빛 창문 */
+/** 문(왼쪽 앞면 가운데)과 층마다 창문(저녁·밤엔 불이 켜진다) */
 function drawDoorWindows(house: Element, P: Place, a: number, b: number, floors: number) {
   const m = (a + b) / 2
   const doorW = 0.16
   poly(house, [P(m - doorW / 2, b), P(m + doorW / 2, b), P(m + doorW / 2, b, 11), P(m - doorW / 2, b, 11)], '#b07f5a')
   for (let f = 0; f < floors; f++) {
     const h0 = f * FLOOR_H + 6
-    poly(house, [P(b, m + 0.09, h0), P(b, m - 0.09, h0), P(b, m - 0.09, h0 + 7), P(b, m + 0.09, h0 + 7)], '#ffe7a3')
-    if (f > 0) poly(house, [P(m - 0.08, b, h0), P(m + 0.08, b, h0), P(m + 0.08, b, h0 + 7), P(m - 0.08, b, h0 + 7)], '#ffe7a3')
+    poly(house, [P(b, m + 0.09, h0), P(b, m - 0.09, h0), P(b, m - 0.09, h0 + 7), P(b, m + 0.09, h0 + 7)], WIN, win)
+    if (f > 0) poly(house, [P(m - 0.08, b, h0), P(m + 0.08, b, h0), P(m + 0.08, b, h0 + 7), P(m - 0.08, b, h0 + 7)], WIN, win)
   }
 }
 
@@ -341,7 +344,7 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
       el('path', { d: `M${d.x - 4} ${d.y + 0.5} v-4 a4 4 0 0 1 8 0 v4 z`, fill: '#6b5240' }, house)
     } else {
       poly(house, [P(m - 0.07, b), P(m + 0.07, b), P(m + 0.07, b, 9), P(m - 0.07, b, 9)], '#b07f5a')
-      poly(house, [P(b, m + 0.07, 5), P(b, m - 0.07, 5), P(b, m - 0.07, 11), P(b, m + 0.07, 11)], '#ffe7a3')
+      poly(house, [P(b, m + 0.07, 5), P(b, m - 0.07, 5), P(b, m - 0.07, 11), P(b, m + 0.07, 11)], WIN, win)
     }
     drawRoof(house, P, a, b, H, kind === 'catHouse' ? 'hip' : 'gable', look.roof, look.wall)
     const pets = kind === 'catHouse' ? ['#f2b277', '#c9c1b8', '#fff4e0'] : ['#d9a46b', '#f5e6cf', '#a07858']
@@ -558,7 +561,7 @@ function drawClockTower(lm: Element, P: Place) {
   drawWalls(lm, P, a, b, H, '#f3dfc6')
   const m = (a + b) / 2
   poly(lm, [P(m - 0.08, b), P(m + 0.08, b), P(m + 0.08, b, 11), P(m - 0.08, b, 11)], '#b07f5a')
-  poly(lm, [P(b, m + 0.06, 22), P(b, m - 0.06, 22), P(b, m - 0.06, 29), P(b, m + 0.06, 29)], '#ffe7a3')
+  poly(lm, [P(b, m + 0.06, 22), P(b, m - 0.06, 22), P(b, m - 0.06, 29), P(b, m + 0.06, 29)], WIN, win)
   // 시계: 오른쪽 앞면 위쪽
   const f = P(b, m, 42)
   el('ellipse', { cx: f.x, cy: f.y, rx: 5.6, ry: 6.4, fill: '#fffaf0', stroke: '#a7805e', 'stroke-width': 1 }, lm)
@@ -578,7 +581,7 @@ function drawWindmill(lm: Element, c: Pt) {
   poly(lm, [{ x: c.x - half(0), y: c.y }, { x: c.x + half(0), y: c.y }, { x: c.x + half(T), y: c.y - T }, { x: c.x - half(T), y: c.y - T }], '#fff4e0')
   poly(lm, [{ x: c.x, y: c.y }, { x: c.x + half(0), y: c.y }, { x: c.x + half(T), y: c.y - T }, { x: c.x, y: c.y - T }], '#f6e6cc', { stroke: 'none' })
   el('path', { d: `M${c.x - 3.5} ${c.y} v-7 a3.5 3.5 0 0 1 7 0 v7 z`, fill: '#b07f5a' }, lm)
-  el('rect', { x: c.x - 2.5, y: c.y - 24, width: 5, height: 6, rx: 1.5, fill: '#ffe7a3', stroke: LINE, 'stroke-width': 0.6 }, lm)
+  el('rect', { x: c.x - 2.5, y: c.y - 24, width: 5, height: 6, rx: 1.5, fill: WIN, stroke: LINE, 'stroke-width': 0.6, ...win }, lm)
   poly(lm, [{ x: c.x - 9.5, y: c.y - T + 1 }, { x: c.x + 9.5, y: c.y - T + 1 }, { x: c.x, y: c.y - T - 13 }], '#ef9f86')
   // 날개: 천천히 돈다
   const hub = { x: c.x - 1, y: c.y - T + 2 }
