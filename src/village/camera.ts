@@ -1,6 +1,6 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { buildUnit, showView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
 
@@ -41,7 +41,15 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
     }
   }
 
+  /** 짓는 연출로 움직이는 중이면 그 번호. 손을 대면 멈추고 그 자리에 둔다 */
+  let showFrame = 0
+  const stopShow = () => {
+    if (showFrame) cancelAnimationFrame(showFrame)
+    showFrame = 0
+  }
+
   svg.addEventListener('pointerdown', (e) => {
+    stopShow()
     if (pointers.size === 0) moved = false
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     restart()
@@ -85,6 +93,7 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
     'wheel',
     (e) => {
       e.preventDefault()
+      stopShow()
       const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
       view = zoomAt(view, Math.exp(Math.max(-100, Math.min(100, step)) * 0.002), toView({ x: e.clientX, y: e.clientY }, view), screen())
       apply()
@@ -94,6 +103,7 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
 
   return {
     show(v: View) {
+      stopShow()
       view = v
       apply()
     },
@@ -101,9 +111,26 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element) => voi
     focus(center: Pt, u: number) {
       const s = screen()
       if (!(s.w > 0 && s.h > 0)) return false
+      stopShow()
       view = viewAround(center, u, s)
       apply()
       return true
+    },
+    /** 새 집(center)으로 부드럽게 다가가 잠시 머문 뒤 원래 보기로 돌아온다 */
+    visit(center: Pt) {
+      const s = screen()
+      if (!(s.w > 0 && s.h > 0)) return
+      stopShow()
+      const from = { ...view }
+      const near = viewAround(center, buildUnit(unitOf(from, s)), s)
+      const start = performance.now()
+      const step = () => {
+        const r = showView(from, near, performance.now() - start)
+        view = r.view
+        apply()
+        showFrame = r.done ? 0 : requestAnimationFrame(step)
+      }
+      showFrame = requestAnimationFrame(step)
     },
   }
 }

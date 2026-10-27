@@ -32,7 +32,7 @@ test('처음 열면 오늘 자리가 비어 있고, 한 줄을 쓰면 집이 생
   await expect(page.getByTestId('house-count')).toHaveText('🏠 1채')
   await expect(page.getByTestId('today-line')).toContainText('퇴근길에 노을이 예뻤다')
   await expect(page.getByTestId('weather')).toHaveText('☀️ 오늘은 맑음')
-  await page.clock.runFor(1500)
+  await page.clock.runFor(4000) // 짓는 연출이 끝날 때까지
   await page.screenshot({ path: 'test-results/screens/home-first-house.png' })
 
   await page.getByTestId('house-2026-10-27').click()
@@ -132,6 +132,63 @@ test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대�
   // 확대한 채로 집을 누르면 그날 글이 열린다
   await house.click()
   await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+})
+
+test('집을 지으면 그 집으로 다가가 짓는 연출을 보이고 원래 보기로 돌아온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [6, 9, 13, 15, 20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  // 조금 멀리 본 상태에서 짓는다
+  const svg = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 200)
+  const viewBox = () => page.getByTestId('village').getAttribute('viewBox')
+  const before = await viewBox()
+  const old = page.getByTestId('house-2026-10-26')
+  const oldWidth = (await old.boundingBox())!.width
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('따뜻한 차 한 잔')
+  await page.getByTestId('write-submit').click()
+  const house = page.getByTestId('house-2026-10-27')
+  await expect(house).toBeAttached()
+  await expect(page.getByTestId('build-fx')).toBeAttached()
+
+  // 다가가서 머무는 동안: 새 집이 가운데 가까이 크게 보인다
+  await page.clock.runFor(1500)
+  const near = (await house.boundingBox())!
+  expect(near.width).toBeGreaterThan(oldWidth * 1.5)
+  const mid = near.x + near.width / 2
+  expect(Math.abs(mid - (svg.x + svg.width / 2))).toBeLessThan(40)
+  // CSS 연출은 가짜 시계를 따르지 않으니 같은 순간(1.5초)에 멈춰 찍는다
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-show.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 잠시 뒤 원래 보기로 돌아온다
+  await page.clock.runFor(2500)
+  expect(await viewBox()).toBe(before)
+  expect((await old.boundingBox())!.width).toBeCloseTo(oldWidth, 0)
+  await page.screenshot({ path: 'test-results/screens/build-back.png' })
+  await house.click()
+  await expect(page.getByTestId('reader-text')).toHaveText('따뜻한 차 한 잔')
+})
+
+test('짓는 연출 중에 손을 대면 그 자리에서 멈춘다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('산책')
+  await page.getByTestId('write-submit').click()
+  await page.clock.runFor(400)
+  const svg = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2)
+  await page.mouse.wheel(0, 100)
+  const stopped = await page.getByTestId('village').getAttribute('viewBox')
+  await page.clock.runFor(4000)
+  expect(await page.getByTestId('village').getAttribute('viewBox')).toBe(stopped)
 })
 
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {

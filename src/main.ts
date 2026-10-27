@@ -8,7 +8,7 @@ import { buildVillage } from './core/village'
 import { createReader } from './ui/reader'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
-import { START_UNIT } from './core/view'
+import { SHOW, START_UNIT } from './core/view'
 import { blockView, drawVillage, iso } from './village/render'
 
 /** 브라우저 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 메모리에만 둔다 */
@@ -82,11 +82,13 @@ const camera = createCamera(svg, (target) => {
 
 let shownDay = ''
 
-/** newDate: 방금 지은 집이 있으면 짓는 연출을 보인다 */
+const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+/** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */
 function render(newDate?: string) {
   const today = dayKey(Date.now())
   const village = buildVillage(save.entries, today)
-  drawVillage(svg, village, { today, newDate })
+  drawVillage(svg, village, { today, newDate, buildDelay: newDate && !calm ? SHOW.go : 0 })
   const todayEntry = entryOn(save, today)
   card.render(today, todayEntry)
   const count = save.entries.length
@@ -104,6 +106,9 @@ function render(newDate?: string) {
     const lot = block.lots.find((l) => l.date === today)!
     if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT)) camera.show(blockView(block))
     shownDay = today
+  } else if (newDate && !calm) {
+    const lot = village.blocks.flatMap((b) => b.lots).find((l) => l.date === newDate)
+    if (lot) camera.visit(iso(lot.gx + 0.5, lot.gy + 0.5, 22))
   }
 }
 

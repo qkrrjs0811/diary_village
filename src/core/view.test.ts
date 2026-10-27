@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_UNIT, MIN_UNIT, unitOf, viewAround, zoomAt } from './view'
+import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, showView, tweenView, unitOf, viewAround, zoomAt } from './view'
 
 const screen = { w: 360, h: 480 }
 
@@ -39,5 +39,44 @@ describe('마을 보기 확대·축소', () => {
   it('화면 크기를 모르면(0) 보기를 바꾸지 않는다', () => {
     const v = { x: 1, y: 2, w: 3, h: 4 }
     expect(zoomAt(v, 0.5, { x: 0, y: 0 }, { w: 0, h: 0 })).toEqual(v)
+  })
+})
+
+describe('짓는 연출 보기', () => {
+  const from = { x: 0, y: 0, w: 400, h: 400 }
+  const near = { x: 300, y: 100, w: 100, h: 100 }
+
+  it('천천히 시작해 천천히 멈춘다', () => {
+    expect(easeInOut(0)).toBe(0)
+    expect(easeInOut(0.5)).toBeCloseTo(0.5)
+    expect(easeInOut(1)).toBe(1)
+    expect(easeInOut(0.1)).toBeLessThan(0.1)
+    expect(easeInOut(-1)).toBe(0)
+    expect(easeInOut(2)).toBe(1)
+  })
+
+  it('두 보기 사이를 가운데는 곧게, 크기는 배율로 잇는다', () => {
+    expect(tweenView(from, near, 0)).toEqual(from)
+    expect(tweenView(from, near, 1)).toEqual(near)
+    const mid = tweenView(from, near, 0.5)
+    expect(mid.x + mid.w / 2).toBeCloseTo(275) // 가운데 200 → 350 의 절반
+    expect(mid.y + mid.h / 2).toBeCloseTo(175)
+    expect(mid.w).toBeCloseTo(200) // 400 과 100 의 배율 가운데
+  })
+
+  it('원래 보기 → 새 집 가까이 → 잠시 머묾 → 원래 보기로 돌아온다', () => {
+    expect(showView(from, near, 0)).toEqual({ view: from, done: false })
+    expect(showView(from, near, SHOW.go).view).toEqual(near)
+    expect(showView(from, near, SHOW.go + SHOW.hold / 2).view).toEqual(near)
+    const back = showView(from, near, SHOW.go + SHOW.hold + SHOW.back / 2).view
+    expect(back.w).toBeGreaterThan(near.w)
+    expect(back.w).toBeLessThan(from.w)
+    expect(showView(from, near, SHOW.go + SHOW.hold + SHOW.back)).toEqual({ view: from, done: true })
+    expect(showView(from, near, 99999)).toEqual({ view: from, done: true })
+  })
+
+  it('이미 더 가까이 보고 있었으면 멀어지지 않는다', () => {
+    expect(buildUnit(0.6)).toBe(BUILD_UNIT)
+    expect(buildUnit(0.35)).toBe(0.35)
   })
 })

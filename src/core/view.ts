@@ -10,6 +10,11 @@ export const MAX_UNIT = 3
 /** 처음 열 때: 칸 하나가 약 80px 로 집이 또렷이 보인다 */
 export const START_UNIT = 0.6
 
+/** 집을 지을 때 다가가는 거리: 칸 하나가 약 107px */
+export const BUILD_UNIT = 0.45
+/** 짓는 연출 시간(ms): 다가가기 → 머물기(쑥 올라옴·반짝임) → 돌아오기 */
+export const SHOW = { go: 800, hold: 1800, back: 900 }
+
 /** 화면 1px 이 viewBox 로 몇인지(preserveAspectRatio meet 기준) */
 export function unitOf(view: View, screen: Size): number {
   return Math.max(view.w / screen.w, view.h / screen.h)
@@ -35,4 +40,34 @@ export function zoomAt(view: View, factor: number, anchor: Pt, screen: Size): Vi
     w: view.w * f,
     h: view.h * f,
   }
+}
+
+/** 천천히 시작해 천천히 멈추는 곡선(0~1) */
+export function easeInOut(t: number): number {
+  const s = Math.min(1, Math.max(0, t))
+  return s < 0.5 ? 2 * s * s : 1 - (-2 * s + 2) ** 2 / 2
+}
+
+/** a → b 사이 t(0~1) 지점의 보기. 가운데는 곧게, 크기는 배율로 이어 확대가 고르게 느껴진다 */
+export function tweenView(a: View, b: View, t: number): View {
+  if (t <= 0) return a
+  if (t >= 1) return b
+  const cx = a.x + a.w / 2 + (b.x + b.w / 2 - a.x - a.w / 2) * t
+  const cy = a.y + a.h / 2 + (b.y + b.h / 2 - a.y - a.h / 2) * t
+  const w = a.w * (b.w / a.w) ** t
+  const h = a.h * (b.h / a.h) ** t
+  return { x: cx - w / 2, y: cy - h / 2, w, h }
+}
+
+/** 짓는 연출이 시작되고 ms 가 지났을 때의 보기 */
+export function showView(from: View, near: View, ms: number): { view: View; done: boolean } {
+  if (ms >= SHOW.go + SHOW.hold + SHOW.back) return { view: from, done: true }
+  if (ms <= SHOW.go) return { view: tweenView(from, near, easeInOut(ms / SHOW.go)), done: false }
+  if (ms <= SHOW.go + SHOW.hold) return { view: near, done: false }
+  return { view: tweenView(near, from, easeInOut((ms - SHOW.go - SHOW.hold) / SHOW.back)), done: false }
+}
+
+/** 지을 때 다가갈 거리. 이미 더 가까이 보고 있었으면 그대로 */
+export function buildUnit(current: number): number {
+  return Math.min(current, BUILD_UNIT)
 }

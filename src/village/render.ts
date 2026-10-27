@@ -134,7 +134,7 @@ function drawTodaySpot(g: Element, gx: number, gy: number) {
 }
 
 /** 집 한 채. 기분 색 지붕, 날짜로 정한 층·지붕 모양·굴뚝 */
-function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean) {
+function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean): number {
   const look = houseLook(entry)
   const house = el('g', { class: isNew ? 'house pop' : 'house', 'data-testid': `house-${entry.date}`, 'data-date': entry.date }, g)
   const { gx, gy } = lot
@@ -200,10 +200,33 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean) {
     const pot = P(0.42, 0.42, H + 4)
     el('circle', { cx: pot.x, cy: pot.y - 5, r: 4.5, fill: '#8fd18a', stroke: LINE }, house)
   }
-  if (isNew) {
-    const c = P(0.5, 0.5, H + 24)
-    const s = el('text', { x: c.x, y: c.y, 'text-anchor': 'middle', 'font-size': 16, class: 'sparkle' }, house)
-    s.textContent = '✨'
+  return H
+}
+
+/** 짓는 순간의 반짝임과 작은 먼지. 집 위에 따로 그려 집과 함께 늘어나지 않게 한다 */
+function drawBuildFx(fx: Element, lot: Lot, H: number) {
+  const { gx, gy } = lot
+  const show = el('g', { class: 'build-fx', 'data-testid': 'build-fx' }, fx)
+  // 바닥 둘레로 퍼지는 먼지
+  const base = iso(gx + 0.5, gy + 0.5)
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.3
+    const dx = Math.cos(a) * 26
+    const dy = Math.sin(a) * 12
+    el('circle', { cx: base.x + dx * 0.4, cy: base.y + dy * 0.4 + 2, r: 3.2 + (i % 3), fill: '#f3e6d0', stroke: LINE, 'stroke-width': 0.6, class: 'dust', style: `--dx:${dx.toFixed(1)}px;--dy:${dy.toFixed(1)}px;--i:${i % 3}` }, show)
+  }
+  // 지붕 둘레의 반짝임
+  const top = iso(gx + 0.5, gy + 0.5, H + 14)
+  const stars = [
+    { x: 0, y: -16, s: 16, i: 0 },
+    { x: -22, y: -2, s: 12, i: 1 },
+    { x: 22, y: -6, s: 13, i: 2 },
+    { x: -12, y: -26, s: 9, i: 3 },
+    { x: 14, y: -24, s: 10, i: 4 },
+  ]
+  for (const st of stars) {
+    const t = el('text', { x: top.x + st.x, y: top.y + st.y, 'text-anchor': 'middle', 'font-size': st.s, class: 'sparkle', style: `--i:${st.i}` }, show)
+    t.textContent = '✨'
   }
 }
 
@@ -211,13 +234,17 @@ export interface DrawOptions {
   today: string
   /** 방금 지은 집(짓는 연출) */
   newDate?: string
+  /** 짓는 연출을 이만큼(ms) 기다렸다 시작한다(화면이 다가가는 동안) */
+  buildDelay?: number
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
 export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptions) {
   svg.replaceChildren()
   const ground = el('g', { class: 'ground' }, svg)
-  const things = el('g', { class: 'things' }, svg)
+  const delay = `--delay:${opt.buildDelay ?? 0}ms`
+  const things = el('g', { class: 'things', style: delay }, svg)
+  const fx = el('g', { class: 'fx', style: delay }, svg)
   const labels = el('g', { class: 'labels' }, svg)
   const blocks = [...village.blocks].sort((a, b) => a.bx + a.by - (b.bx + b.by))
   for (const block of blocks) drawSlab(ground, labels, block)
@@ -241,7 +268,14 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
         }
         if (lot.entry) {
           const entry = lot.entry
-          items.push({ depth, draw: () => drawHouse(things, lot, entry, entry.date === opt.newDate) })
+          const isNew = entry.date === opt.newDate
+          items.push({
+            depth,
+            draw: () => {
+              const H = drawHouse(things, lot, entry, isNew)
+              if (isNew) drawBuildFx(fx, lot, H)
+            },
+          })
         } else if (lot.date === opt.today) {
           items.push({ depth, draw: () => drawTodaySpot(things, gx, gy) })
         } else if (lot.date < opt.today && seed % 3 === 0) {
