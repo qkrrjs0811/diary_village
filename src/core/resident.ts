@@ -1,4 +1,5 @@
-import { buildingInfo, buildingOf, hasFinal } from './building'
+import { buildingInfo, buildingOf, hasFinal, type BuildingId } from './building'
+import { memoryDates } from './memory'
 import { PLAZA, writtenDays } from './landmark'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
 import type { Dated, Entry } from './types'
@@ -116,8 +117,88 @@ export function residentWalks(village: Village, residents: Resident[]): Walk[] {
   })
 }
 
-/** 주민을 누르면 하는 짧은 한마디. tap 은 지금까지 누른 횟수(0부터) */
-/** days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다. 잔치 날에는 두 번째에 잔치 한마디를 한다 */
+/** 주민 한마디. date 가 있으면 그날 집 이야기(말풍선에서 그 집을 보러 갈 수 있다) */
+export interface Talk {
+  text: string
+  date?: string
+}
+
+/**
+ * 주민이 꺼낼 지난날. 주민·오늘 날짜로 정해 같은 날 같은 주민은 같은 날을 꺼내고, 저장하지 않는다.
+ * 오늘·"N일 전 오늘"이 보여 주는 날은 고르지 않는다. 지운 날은 entries 에 글이 없으니 꺼내지 않는다
+ */
+export function storyDay(r: Resident, entries: readonly Entry[], today: string): Entry | null {
+  const shown = new Set(memoryDates(today).map((m) => m.date))
+  const pool = entries.filter((x) => x.date < today && !shown.has(x.date)).sort((a, b) => (a.date < b.date ? -1 : 1))
+  if (pool.length === 0) return null
+  return pool[hash(`${r.id}:${today}`) % pool.length]
+}
+
+/** 건물마다 짧은 이야기 말. 이름 뒤에 붙는다. 기분·글 길이는 보지 않는다 */
+const STORY: Record<BuildingId, string> = {
+  cafe: '아직도 커피 향이 나요.',
+  bookstore: '가끔 책장 넘기는 소리가 나요.',
+  field: '저도 거기서 한 바퀴 뛰었어요.',
+  catHouse: '고양이가 낮잠 자고 있었어요.',
+  dogHouse: '강아지가 꼬리를 흔들었어요.',
+  flowerShop: '꽃 냄새가 아직 남아 있어요.',
+  bakery: '아직도 고소한 냄새가 나요.',
+  lighthouse: '파도 소리가 들리는 것 같아요.',
+  musicHall: '노랫소리가 아직 귀에 남아요.',
+  cinema: '팝콘 냄새가 솔솔 나요.',
+  restaurant: '따끈한 밥 냄새가 났어요.',
+  park: '벤치에 앉아 쉬다 왔어요.',
+  school: '종소리가 땡땡 울렸어요.',
+  station: '기차가 칙칙폭폭 지나갔어요.',
+  gallery: '그림 앞에서 한참 서 있었어요.',
+  farm: '새싹이 쑥 자라 있었어요.',
+}
+
+const sayDate = (date: string, today: string) => {
+  const [y, m, d] = date.split('-').map(Number)
+  return `${y === Number(today.slice(0, 4)) ? '' : `${y}년 `}${m}월 ${d}일`
+}
+
+/** 지난날 집 이야기. 글은 옮기지 않고 날짜·건물 이름만 말한다. 꺼낼 날이 없으면 null */
+export function storyTalk(r: Resident, entries: readonly Entry[], today: string): Talk | null {
+  const day = storyDay(r, entries, today)
+  if (!day) return null
+  const when = sayDate(day.date, today)
+  const b = buildingOf(day)
+  const text = b
+    ? `${when}에 생긴 ${buildingInfo(b.id).name}, ${STORY[b.id]}`
+    : `${when}에 지은 집 앞을 지나왔어요. 창문이 반짝였어요.`
+  return { text, date: day.date }
+}
+
+/**
+ * 주민을 누르면 하는 짧은 한마디. tap 은 지금까지 누른 횟수(0부터).
+ * days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다.
+ * 차례: 오늘 이야기 → (잔치 날이면) 잔치 한마디 → (지난 글이 있으면) 지난 이야기 → 여느 때 말
+ */
+export function residentTalk(
+  r: Resident,
+  entries: Entry[],
+  today: string,
+  tap: number,
+  days: Dated[] = entries,
+  festival: Festival | null = null,
+): Talk {
+  if (festival && tap >= 1) {
+    if (tap === 1) return { text: festivalLine(festival, r.id) }
+    tap -= 1
+  }
+  if (tap >= 1) {
+    const story = storyTalk(r, entries, today)
+    if (story) {
+      if (tap === 1) return story
+      tap -= 1
+    }
+  }
+  return { text: usualLine(r, entries, today, tap, days) }
+}
+
+/** residentTalk 의 글만 */
 export function residentLine(
   r: Resident,
   entries: Entry[],
@@ -126,10 +207,11 @@ export function residentLine(
   days: Dated[] = entries,
   festival: Festival | null = null,
 ): string {
-  if (festival && tap >= 1) {
-    if (tap === 1) return festivalLine(festival, r.id)
-    tap -= 1
-  }
+  return residentTalk(r, entries, today, tap, days, festival).text
+}
+
+/** 오늘 이야기(tap 0)와 여느 때 말 */
+function usualLine(r: Resident, entries: Entry[], today: string, tap: number, days: Dated[]): string {
   if (tap === 0) {
     const todays = entries.find((x) => x.date === today)
     if (!todays) return '오늘은 어떤 하루였어요?'
