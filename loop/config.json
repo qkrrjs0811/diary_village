@@ -1,0 +1,1 @@
+{"model": "claude-opus-5-5", "weeklyStopAt": 0.9, "pushIntervalMinutes": 60, "iterationTimeoutMinutes": 90, "maxIterations": null, "maxConsecutiveFailures": 3, "checkTimeoutMinutes": 20, "idleWaitMinutes": 60, "failurePauseMinutes": 30, "keepLogs": 300}

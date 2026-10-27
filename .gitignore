@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+loop/logs/
+IDLE
+STOP
+.superpowers/
+시작메모.md
