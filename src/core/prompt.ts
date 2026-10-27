@@ -1,5 +1,6 @@
 import type { BuildingId } from './building'
 import { collectionOf } from './collection'
+import { seasonOf, type Season } from './season'
 import type { Entry } from './types'
 
 /**
@@ -43,8 +44,6 @@ export const PROMPTS: string[] = [
   '오늘 오래 본 것은?',
   '오늘 걸음은 가벼웠나요?',
 ]
-
-export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 
 /** 계절 물음. 계절마다 수가 같아야 계절이 바뀌는 날에도 이웃한 날 물음이 겹치지 않는다 */
 export const SEASON_PROMPTS: Record<Season, string[]> = {
@@ -96,11 +95,6 @@ export interface Prompt {
 function dayNumber(date: string): number {
   const [y, m, d] = date.split('-').map(Number)
   return Math.round(Date.UTC(y, m - 1, d) / 86400000)
-}
-
-function seasonOf(date: string): Season {
-  const m = Number(date.slice(5, 7))
-  return m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'
 }
 
 /**

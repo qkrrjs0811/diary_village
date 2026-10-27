@@ -9,6 +9,7 @@ import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import type { Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_TREES, blockScenery } from '../core/scenery'
+import { seasonOf, type Season } from '../core/season'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -60,21 +61,11 @@ export function shade(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
 }
 
-type Season = 'spring' | 'summer' | 'fall' | 'winter'
-
-function seasonOf(month: string): Season {
-  const m = Number(month.slice(5, 7))
-  if (m >= 3 && m <= 5) return 'spring'
-  if (m >= 6 && m <= 8) return 'summer'
-  if (m >= 9 && m <= 11) return 'fall'
-  return 'winter'
-}
-
-const GRASS: Record<Season, string> = { spring: '#c4e6a5', summer: '#a9d98c', fall: '#d8d58f', winter: '#e6eef0' }
+const GRASS: Record<Season, string> = { spring: '#c4e6a5', summer: '#a9d98c', autumn: '#d8d58f', winter: '#e6eef0' }
 const LEAVES: Record<Season, string[]> = {
   spring: ['#ffc2d4', '#b8e0a0', '#ffd6e2'],
   summer: ['#7cc47f', '#93d18a', '#6bb879'],
-  fall: ['#f2a65a', '#f5c45e', '#e88f5a'],
+  autumn: ['#f2a65a', '#f5c45e', '#e88f5a'],
   winter: ['#8fbfa8', '#a3c9b5', '#7fb39b'],
 }
 const PATH = '#efe2c8'
