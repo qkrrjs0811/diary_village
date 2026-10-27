@@ -138,7 +138,8 @@ test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대�
 test('집을 지으면 그 집으로 다가가 짓는 연출을 보이고 원래 보기로 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
-  const entries = monthEntries('2026-10', [6, 9, 13, 15, 20, 22, 24, 25, 26])
+  // 8일 → 9일째(명소·단계가 오르지 않아 축하 카드가 뜨지 않는 날)
+  const entries = monthEntries('2026-10', [9, 13, 15, 20, 22, 24, 25, 26])
   await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
   await page.reload()
   // 조금 멀리 본 상태에서 짓는다
@@ -563,6 +564,47 @@ test('7일째 한 줄을 쓰면 광장에 우물이 생기고 축하 카드가 �
   await expect(page.getByTestId('celebrate')).toBeHidden()
 })
 
+test('10일째 한 줄을 쓰면 작은 동네가 마을로 자라고, 머리줄 단계가 바뀐다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  await expect(page.getByTestId('village-stage')).toHaveText('🏡 작은 동네')
+  // 띄엄띄엄 9일(우물은 이미 생겼다)
+  const entries = monthEntries('2026-10', [1, 3, 6, 9, 12, 15, 19, 22, 25])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('village-stage')).toHaveText('🏡 작은 동네')
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('열흘째 한 줄')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
+  await page.clock.runFor(4000)
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await expect(page.getByTestId('celebrate-title')).toHaveText('🏘️ 마을이 되었어요!')
+  await expect(page.getByTestId('celebrate-body')).toHaveText('한 줄을 10일 남겼어요. 작은 동네가 마을로 자랐어요.')
+  await expect(page.getByTestId('celebrate-next')).toHaveText('다음은 20일 더 쓰면 큰 마을이 돼요')
+  // 단계만 오르면 보러 갈 명소가 없어 버튼은 하나
+  await expect(page.getByTestId('celebrate-visit')).toHaveCount(0)
+  await expect(page.getByTestId('celebrate-close')).toHaveText('좋아요')
+  expect((await page.getByTestId('celebrate-close').boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/stage-up.png' })
+  await page.getByTestId('celebrate-close').click()
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+
+  // 머리줄: 이름·단계·집 수·설정이 한 줄에 겹치지 않는다
+  const boxes = await Promise.all(['village-name', 'village-stage', 'house-count', 'settings-open'].map(async (id) => (await page.getByTestId(id).boundingBox())!))
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i].x).toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].width - 1)
+  expect(boxes[3].x + boxes[3].width).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'test-results/screens/stage-header.png' })
+
+  // 다시 열어도 단계는 그대로이고 카드는 다시 뜨지 않는다
+  await page.reload()
+  await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
+  await expect(page.getByTestId('celebrate')).toBeHidden()
+})
+
 test('365일을 쓴 마을에는 명소 7곳이 모두 서고, 가져오기로 한꺼번에 넘으면 함께 축하한다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
@@ -571,8 +613,10 @@ test('365일을 쓴 마을에는 명소 7곳이 모두 서고, 가져오기로 �
   await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ version: 1, entries })) })
   await page.getByTestId('import-ok').click()
   await expect(page.getByTestId('celebrate')).toBeVisible()
-  await expect(page.getByTestId('celebrate-title')).toHaveText('🎉 명소 7곳이 생겼어요!')
-  await expect(page.getByTestId('celebrate-body')).toHaveText('한 줄을 365일 남겼어요. 광장에 우물, 꽃 정원, 분수, 다리, 시계탑, 풍차, 무지개 큰 나무가 섰어요.')
+  // 마을 단계도 끝까지 올라 한 카드에 함께 축하한다
+  await expect(page.getByTestId('celebrate-title')).toHaveText('✨ 동화 나라가 되었어요!')
+  await expect(page.getByTestId('celebrate-body')).toHaveText('한 줄을 365일 남겼어요. 작은 동네가 동화 나라로 자랐어요. 광장에 우물, 꽃 정원, 분수, 다리, 시계탑, 풍차, 무지개 큰 나무가 섰어요.')
+  await expect(page.getByTestId('village-stage')).toHaveText('✨ 동화 나라')
   await expect(page.getByTestId('celebrate-next')).toHaveText('명소를 모두 모았어요. 고마워요!')
   await finishAnimations(page)
   await page.screenshot({ path: 'test-results/screens/celebrate-many.png' })

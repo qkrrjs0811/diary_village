@@ -7,7 +7,8 @@ import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
-import { LANDMARKS, celebration, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
 import { createCelebration } from './ui/celebrate'
 import { createReader } from './ui/reader'
@@ -44,7 +45,7 @@ try {
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
+  <header class="top"><b data-testid="village-name">한 줄 마을</b><span class="stage" data-testid="village-stage"></span><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
     <div class="sky sky-back" data-testid="sky" aria-hidden="true"></div>
@@ -98,7 +99,7 @@ const settings = createSettings({
     const before = save.entries
     save = plan.save
     render()
-    celebrate(reachedLandmarks(before, save.entries), 0)
+    celebrate(before, 0)
     return null
   },
 })
@@ -107,12 +108,14 @@ document.body.appendChild(settings.root)
 const celebrateCard = createCelebration({ onVisit: visitLandmark })
 document.body.appendChild(celebrateCard.root)
 let celebrateTimer = 0
-/** 명소가 생겼으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
-function celebrate(reached: Landmark[], wait: number) {
-  if (reached.length === 0) return
+/** before → 지금 기록으로 명소가 생기거나 마을 단계가 올랐으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
+function celebrate(before: SaveData['entries'], wait: number) {
+  const landmarks = reachedLandmarks(before, save.entries)
+  const stages = reachedStages(before, save.entries)
+  if (landmarks.length === 0 && stages.length === 0) return
   clearTimeout(celebrateTimer)
-  const text = celebration(reached, save.entries)
-  celebrateTimer = window.setTimeout(() => celebrateCard.open(reached, text), wait)
+  const text = milestoneCard(landmarks, stages, save.entries)
+  celebrateTimer = window.setTimeout(() => celebrateCard.open(text), wait)
 }
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
 function visitLandmark(l: Landmark) {
@@ -142,7 +145,7 @@ const card = createWriteCard({
     save = r.save
     render(r.entry.date)
     showNote(buildingNote(buildingOf(r.entry)))
-    celebrate(reachedLandmarks(before, save.entries), calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
+    celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
     return null
   },
   onOpen: (entry) => reader.open(entry),
@@ -200,6 +203,7 @@ function render(newDate?: string) {
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()))
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
+  app.querySelector('[data-testid="village-stage"]')!.textContent = stageLabel(save.entries)
   paintSky()
   const mood = moodOf(todayEntry?.mood ?? 'calm')
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'

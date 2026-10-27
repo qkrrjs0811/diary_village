@@ -31,6 +31,7 @@ button { font: inherit; color: inherit; }
 
 .top { display: flex; align-items: center; gap: 4px; padding: 6px 8px 4px 18px; }
 .top b { font-size: 19px; }
+.top .stage { margin-left: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--chip); font-size: 12px; white-space: nowrap; }
 .top .count { margin-left: auto; font-size: 13px; color: var(--ink-soft); }
 .gear {
   width: 44px;
