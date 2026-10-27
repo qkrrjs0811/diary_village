@@ -387,6 +387,7 @@ test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async
   await page.getByTestId('settings-open').click()
   await expect(page.getByTestId('backup-import')).toBeDisabled()
   await expect(page.getByTestId('backup-export')).toBeDisabled()
+  await expect(page.getByTestId('name-input')).toBeDisabled()
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe('{broken')
 })
 
@@ -603,6 +604,58 @@ test('10일째 한 줄을 쓰면 작은 동네가 마을로 자라고, 머리줄
   await page.reload()
   await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
   await expect(page.getByTestId('celebrate')).toBeHidden()
+})
+
+test('설정 창에서 마을 이름을 짓고, 다시 열어도 머리줄에 그 이름이 남는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-07-01', 120)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('village-name')).toHaveText('한 줄 마을')
+
+  await page.getByTestId('settings-open').click()
+  const input = page.getByTestId('name-input')
+  const save = page.getByTestId('name-save')
+  await expect(input).toHaveValue('')
+  await expect(save).toBeDisabled()
+  for (const el of [input, save]) expect((await el.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await input.fill('햇살 언덕 마을')
+  await expect(save).toBeEnabled()
+  await save.click()
+  await expect(page.getByTestId('name-msg')).toHaveText('🏡 마을에 새 이름을 지었어요')
+  await expect(save).toBeDisabled()
+  await expect(page.getByTestId('village-name')).toHaveText('햇살 언덕 마을')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/settings-name.png' })
+
+  // 백업 파일에도 이름이 담긴다
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  expect(JSON.parse(readFileSync(await download.path(), 'utf8')).villageName).toBe('햇살 언덕 마을')
+  await page.getByTestId('settings-close').click()
+
+  // 가장 긴 이름과 긴 단계 이름표도 머리줄 한 줄에 겹치지 않는다
+  const boxes = await Promise.all(['village-name', 'village-stage', 'house-count', 'settings-open'].map(async (id) => (await page.getByTestId(id).boundingBox())!))
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i].x).toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].width - 1)
+  expect(boxes[3].x + boxes[3].width).toBeLessThanOrEqual(390)
+  expect(boxes[0].height).toBeLessThan(30)
+  await page.screenshot({ path: 'test-results/screens/name-header.png' })
+
+  // 다시 열어도 이름과 글이 그대로
+  await page.reload()
+  await expect(page.getByTestId('village-name')).toHaveText('햇살 언덕 마을')
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.entries).toEqual(entries)
+  expect(stored.villageName).toBe('햇살 언덕 마을')
+
+  // 비우면 처음 이름으로 돌아간다
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('name-input')).toHaveValue('햇살 언덕 마을')
+  await page.getByTestId('name-input').fill('  ')
+  await page.getByTestId('name-input').press('Enter')
+  await expect(page.getByTestId('name-msg')).toHaveText('🏡 처음 이름으로 돌아왔어요')
+  await expect(page.getByTestId('village-name')).toHaveText('한 줄 마을')
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!).villageName).toBeUndefined()
 })
 
 test('365일을 쓴 마을에는 명소 7곳이 모두 서고, 가져오기로 한꺼번에 넘으면 함께 축하한다', async ({ page }) => {

@@ -8,6 +8,7 @@ import { loadSave, writeSave, type KV } from './core/storage'
 import type { MoodId, SaveData } from './core/types'
 import { buildVillage } from './core/village'
 import { LANDMARKS, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
+import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, residentLine, residentWalks, residentsOf } from './core/resident'
 import { createCelebration } from './ui/celebrate'
@@ -87,6 +88,21 @@ const reader = createReader({
 document.body.appendChild(reader.root)
 
 const settings = createSettings({
+  villageName: () => save.villageName ?? '',
+  rename: readOnly
+    ? null
+    : (input) => {
+        const r = renameVillage(save, input)
+        if (!r.ok) return `이름은 ${NAME_MAX}자까지 지을 수 있어요`
+        try {
+          writeSave(kv, r.save)
+        } catch {
+          return '저장하지 못했어요. 저장 공간을 확인해 주세요'
+        }
+        save = r.save
+        render()
+        return null
+      },
   exportFile: readOnly ? null : () => ({ name: backupFileName(dayKey(Date.now())), text: backupText(save) }),
   planImport: readOnly ? null : (text) => planImport(save, text),
   applyImport(plan) {
@@ -204,6 +220,7 @@ function render(newDate?: string) {
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   app.querySelector('[data-testid="village-stage"]')!.textContent = stageLabel(save.entries)
+  app.querySelector('[data-testid="village-name"]')!.textContent = villageTitle(save)
   paintSky()
   const mood = moodOf(todayEntry?.mood ?? 'calm')
   app.querySelector('[data-testid="weather"]')!.textContent = todayEntry ? `${mood.emoji} 오늘은 ${mood.weather}` : '✨ 오늘 자리가 비어 있어요'

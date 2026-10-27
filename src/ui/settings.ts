@@ -1,7 +1,12 @@
 import type { ImportPlan } from '../core/backup'
+import { DEFAULT_NAME, NAME_MAX } from '../core/name'
 
-/** 위쪽 ⚙️ 로 여는 설정 창. 지금은 백업 내려받기·가져오기만 있다 */
+/** 위쪽 ⚙️ 로 여는 설정 창. 마을 이름 짓기와 백업 내려받기·가져오기가 있다 */
 export function createSettings(handlers: {
+  /** 지금 지어 둔 이름(없으면 빈 글) */
+  villageName: () => string
+  /** 이름을 바꾼다. 성공하면 null, 실패하면 이유. 저장을 못 읽는 상태면 null(덮어쓰지 않도록 막는다) */
+  rename: ((input: string) => string | null) | null
   /** 내려받을 파일. 저장을 못 읽는 상태면 null */
   exportFile: (() => { name: string; text: string }) | null
   /** 저장을 못 읽는 상태면 null(덮어쓰지 않도록 가져오기를 막는다) */
@@ -23,6 +28,15 @@ export function createSettings(handlers: {
     sheet.innerHTML = `
       <div class="edit-title">⚙️ 설정</div>
       <div class="settings-group">
+        <div class="settings-label">마을 이름</div>
+        <p class="settings-help">비워 두면 "${DEFAULT_NAME}"로 불러요.</p>
+        <div class="name-row">
+          <input class="line-input" data-testid="name-input" type="text" maxlength="${NAME_MAX}" enterkeyhint="done" autocomplete="off" placeholder="${DEFAULT_NAME}" aria-label="마을 이름" ${handlers.rename ? '' : 'disabled'} />
+          <button type="button" class="build" data-testid="name-save" disabled>이름 짓기</button>
+        </div>
+        <div class="settings-msg" data-testid="name-msg" role="status"></div>
+      </div>
+      <div class="settings-group">
         <div class="settings-label">백업</div>
         <p class="settings-help">쓴 글을 파일로 받아 두면 폰을 바꿔도 마을을 다시 지을 수 있어요.</p>
         <button type="button" class="settings-btn" data-testid="backup-export" ${handlers.exportFile ? '' : 'disabled'}>📦 백업 파일 내려받기</button>
@@ -33,10 +47,35 @@ export function createSettings(handlers: {
       <div class="sheet-buttons">
         <button type="button" class="sheet-btn close" data-testid="settings-close">닫기</button>
       </div>`
-    const msg = sheet.querySelector<HTMLElement>('.settings-msg')!
+    const msg = sheet.querySelector<HTMLElement>('[data-testid="settings-msg"]')!
     msg.textContent = message
     msg.classList.toggle('err', error)
     sheet.querySelector('.close')!.addEventListener('click', close)
+    const nameInput = sheet.querySelector<HTMLInputElement>('[data-testid="name-input"]')!
+    const nameSave = sheet.querySelector<HTMLButtonElement>('[data-testid="name-save"]')!
+    const nameMsg = sheet.querySelector<HTMLElement>('[data-testid="name-msg"]')!
+    nameInput.value = handlers.villageName()
+    // 지금 이름과 같으면 누를 것이 없다
+    const same = () => nameInput.value.trim().replace(/\s+/g, ' ') === handlers.villageName()
+    nameInput.addEventListener('input', () => {
+      nameSave.disabled = !handlers.rename || same()
+      nameMsg.textContent = ''
+    })
+    const rename = () => {
+      if (!handlers.rename || same()) return
+      const error = handlers.rename(nameInput.value)
+      nameMsg.classList.toggle('err', !!error)
+      if (error) return void (nameMsg.textContent = error)
+      const name = handlers.villageName()
+      nameInput.value = name
+      nameSave.disabled = true
+      nameInput.blur()
+      nameMsg.textContent = name ? '🏡 마을에 새 이름을 지었어요' : '🏡 처음 이름으로 돌아왔어요'
+    }
+    nameSave.addEventListener('click', rename)
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) rename()
+    })
     sheet.querySelector('[data-testid="backup-export"]')!.addEventListener('click', () => {
       if (!handlers.exportFile) return
       const { name, text } = handlers.exportFile()

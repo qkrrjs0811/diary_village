@@ -30,7 +30,7 @@ button { font: inherit; color: inherit; }
 }
 
 .top { display: flex; align-items: center; gap: 4px; padding: 6px 8px 4px 18px; }
-.top b { font-size: 19px; }
+.top b { min-width: 0; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .stage { margin-left: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--chip); font-size: 12px; white-space: nowrap; }
 .top .count { margin-left: auto; font-size: 13px; color: var(--ink-soft); }
 .gear {
@@ -60,6 +60,9 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .settings-btn:disabled { opacity: 0.45; cursor: default; }
+.name-row { display: flex; gap: 8px; }
+.sheet .name-row .line-input { width: auto; }
+.line-input:disabled { background: var(--chip); }
 .settings-msg { min-height: 18px; margin-top: 10px; font-size: 13px; color: #5f9a72; text-align: center; word-break: keep-all; }
 .settings-msg:empty { margin-top: 0; }
 .settings-msg.err { color: #c0695e; }

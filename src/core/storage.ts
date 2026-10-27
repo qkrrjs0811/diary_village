@@ -1,5 +1,6 @@
 import { isDate } from './date'
 import { isMoodId } from './mood'
+import { isVillageName } from './name'
 import type { Entry, SaveData } from './types'
 
 /**
@@ -40,7 +41,10 @@ export function parseSave(text: string): SaveData | null {
   })
   if (new Set(entries.map((e) => e.date)).size !== entries.length) return null
   entries.sort((a, b) => a.date.localeCompare(b.date))
-  return { version: 1, entries }
+  const save: SaveData = { version: 1, entries }
+  // 이름이 이상하면 그 칸만 버린다(글은 지킨다)
+  if (isVillageName(x.villageName)) save.villageName = x.villageName
+  return save
 }
 
 /** 저장이 깨져 있으면 던진다. 빈 기록으로 덮어써서 일기를 잃지 않게 */

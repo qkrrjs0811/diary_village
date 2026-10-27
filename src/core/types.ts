@@ -15,4 +15,6 @@ export interface Entry {
 export interface SaveData {
   version: 1
   entries: Entry[]
+  /** 사용자가 지은 마을 이름. 없으면 기본 이름. 이 칸이 없는 이전 저장도 그대로 읽는다 */
+  villageName?: string
 }

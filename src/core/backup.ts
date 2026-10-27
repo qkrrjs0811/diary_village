@@ -31,5 +31,9 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   const have = new Set(current.entries.map((e) => e.date))
   const fresh = backup.entries.filter((e) => !have.has(e.date))
   const entries = [...current.entries, ...fresh].sort((a, b) => a.date.localeCompare(b.date))
-  return { ok: true, save: { version: 1, entries }, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length }
+  const save: SaveData = { version: 1, entries }
+  // 마을 이름도 폰에 있는 이름을 지키고, 폰에 이름이 없을 때만 백업 이름을 쓴다
+  const villageName = current.villageName ?? backup.villageName
+  if (villageName) save.villageName = villageName
+  return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length }
 }
