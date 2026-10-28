@@ -118,6 +118,8 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
     toVillage: (p: Pt) => toView(p, view),
     /** 지금 화면 1px 이 마을 그림에서 몇인지 */
     unit: () => unitOf(view, screen()) || 1,
+    /** 지금 보고 있는 자리(나중에 그대로 돌아오려고) */
+    current: (): View => ({ ...view }),
     /** 마을(섬 전체) 자리를 알려 준다(그릴 때마다) */
     setWorld(v: View | null) {
       world = v

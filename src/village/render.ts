@@ -1139,7 +1139,7 @@ function drawTreasureFlag(g: Element, lot: Lot, date: string) {
 function drawYardTrace(g: Element, lot: Lot, date: string, id: YardTraceId) {
   const c = iso(lot.gx + 0.99, lot.gy + 0.7)
   const { x, y } = c
-  const t = el('g', { class: `yard-trace ${id}`, 'data-testid': `yard-${date}`, 'data-yard': id }, g)
+  const t = el('g', { class: `yard-trace ${id}`, 'data-testid': `yard-${date}`, 'data-yard': id, 'data-date': date }, g)
   const shadow = (rx: number, dx = 0) => el('ellipse', { cx: x + dx, cy: y, rx, ry: rx * 0.42, fill: 'rgba(90,70,54,0.16)' }, t)
   const stick = (x1: number, y1: number, x2: number, y2: number, w = 1.1, color = '#a7805e') =>
     el('line', { x1, y1, x2, y2, stroke: color, 'stroke-width': w, 'stroke-linecap': 'round' }, t)

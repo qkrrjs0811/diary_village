@@ -27,6 +27,9 @@ import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { FIRST_GIFTS, firstSignDate, giftCard, reachedGifts } from './core/gift'
 import { createReader } from './ui/reader'
+import { createGrowth } from './ui/growth'
+import { growthSteps } from './core/growth'
+import type { View } from './village/camera'
 import { dateLabel } from './ui/format'
 import { createSettings } from './ui/settings'
 import { createSound } from './ui/sound'
@@ -386,8 +389,26 @@ const book = createBook({
   onCalendar: () => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now())),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
   onEntry: (entry) => visitMemory(entry),
+  onGrowth: () => growth.play(svg, growthSteps(save)),
 })
 document.body.appendChild(book.root)
+
+/** 마을이 자라 온 길: 멀리 보기로 물러나 첫 집부터 다시 보고, 끝나면 보던 자리·지금 마을로 돌아온다 */
+let beforeGrowth: View | null = null
+const growth = createGrowth({
+  onStart() {
+    showNote(null)
+    beforeGrowth = camera.current()
+    const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()
+    camera.glide([{ x: land.x, y: land.y, w: land.width, h: land.height }], START_UNIT)
+  },
+  onEnd() {
+    render()
+    if (beforeGrowth) camera.show(beforeGrowth)
+    beforeGrowth = null
+  },
+})
+document.body.appendChild(growth.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
 
 const card = createWriteCard({
@@ -817,6 +838,8 @@ function paintSky() {
 render()
 // 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다
 function refresh() {
+  // 자라 온 길을 보는 동안은 다시 그리지 않는다(끝나면 다시 그린다)
+  if (growth.playing) return
   if (dayKey(Date.now()) !== shownDay || dayPart(Date.now()) !== drawnPart) render()
   else paintSky()
 }

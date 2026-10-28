@@ -867,6 +867,90 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .celebrate-icons span, .landmark.pop, .blades { animation: none; }
 }
+
+/* 마을이 자라 온 길: 아직 오지 않은 날의 집·명소·이웃은 감췄다가(그림은 그대로) 차례로 올라온다 */
+svg.growing :is(.house, .smoke, .yard-trace, .treasure-flag, .first-sign, .landmark, .resident, .guest, .decor, .today-spot, .next-sign, .festival, .bunting):not(.grown) { visibility: hidden; }
+svg.growing .labels { opacity: 0.75; }
+.scene:has(svg.growing) :is(.weather, .backup-ask, .build-note) { visibility: hidden; }
+.growth { position: fixed; inset: 0; z-index: 9; cursor: pointer; }
+.growth[hidden] { display: none; }
+.growth-top {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.growth-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 22px;
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: 0 4px 14px rgba(90, 70, 54, 0.12);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.growth-caption:empty, .growth-caption:has(b:empty) { visibility: hidden; }
+.growth-caption span { font-size: 13px; color: var(--ink-soft); }
+.growth-note, .growth-end {
+  padding: 9px 16px;
+  border-radius: 18px;
+  background: #fff6d9;
+  border: 1px solid #ecd9a4;
+  box-shadow: 0 4px 14px rgba(90, 70, 54, 0.12);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+  word-break: keep-all;
+  animation: note-pop 0.35s ease-out both;
+}
+.growth-note[hidden], .growth-end[hidden] { display: none; }
+.growth-end {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 40px);
+  padding: 14px 22px;
+  border-radius: 22px;
+  background: rgba(255, 253, 248, 0.96);
+  border-color: var(--line);
+  font-size: 17px;
+}
+@keyframes note-pop { from { opacity: 0; transform: translateY(6px); } }
+.growth-end { animation-name: end-pop; }
+@keyframes end-pop { from { opacity: 0; transform: translate(-50%, 8px); } to { transform: translate(-50%, 0); } }
+.growth-skip {
+  position: absolute;
+  right: 16px;
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+  min-width: 112px;
+  height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.95);
+  box-shadow: 0 4px 14px rgba(90, 70, 54, 0.14);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) { .growth-note, .growth-end { animation: none; } }
+.sheet-btn.book-growth { width: 100%; margin: -4px 0 10px; color: var(--accent-ink); background: var(--accent); }
 /* 읽기 창 위 그날의 방 그림: 누르기·밀어 넘기기는 창으로 통과한다 */
 .reader-room {
   display: block;

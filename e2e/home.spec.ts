@@ -5,6 +5,7 @@ import { roomOf } from '../src/core/interior'
 import { birdFlock, critters } from '../src/core/critter'
 import { buildVillage } from '../src/core/village'
 import { yardOf } from '../src/core/yard'
+import { growthDelays, growthNote, growthSteps } from '../src/core/growth'
 import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
@@ -4560,4 +4561,98 @@ test('숲가에 토끼·다람쥐, 봄 낮엔 나비가 나오고 하늘엔 새 
   await expect(page.locator('.critter')).toHaveCount(0)
   await expect(page.getByTestId('bird-flock')).toHaveCount(0)
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
+test('마을 수첩 "마을이 자라 온 길" — 첫 집부터 날짜 순으로 집이 올라오고, 축하 날 한 줄, 끝 문장 뒤 지금 마을로', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  // 집이 없으면 단추가 없다
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book')).toBeVisible()
+  await expect(page.getByTestId('book-growth')).toHaveCount(0)
+  await page.getByTestId('book-close').click()
+
+  // 9월 20일부터 10월 26일까지 37일을 지었고 10월 15일은 지웠다
+  const sept = Array.from({ length: 11 }, (_, i) => 20 + i)
+  const oct = Array.from({ length: 26 }, (_, i) => i + 1).filter((d) => d !== 15)
+  const entries = [...monthEntries('2026-09', sept), ...monthEntries('2026-10', oct)] as Entry[]
+  const erased = [{ date: '2026-10-15', erasedAt: Date.parse('2026-10-16T09:00:00+09:00') }]
+  const data = { version: 1 as const, entries, erased }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.reload()
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+  const steps = growthSteps(data)
+  const delays = growthDelays(steps)
+  expect(steps).toHaveLength(37)
+
+  await page.getByTestId('village-stage').click()
+  const open = page.getByTestId('book-growth')
+  await expect(open).toHaveText('▶ 마을이 자라 온 길')
+  expect((await open.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.clock.runFor(1000)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/book-growth.png' })
+  await open.click()
+  await expect(page.getByTestId('book')).toBeHidden()
+  await expect(page.getByTestId('growth')).toBeVisible()
+  const skip = page.getByTestId('growth-skip')
+  const sb = (await skip.boundingBox())!
+  expect(sb.height).toBeGreaterThanOrEqual(44)
+  expect(sb.x + sb.width).toBeLessThanOrEqual(390)
+  // 처음엔 빈 섬: 집·명소·주민·오늘 자리가 감춰진다(그림은 그대로 있다)
+  await expect(page.getByTestId('house-2026-09-20')).toBeHidden()
+  await expect(page.getByTestId('house-2026-10-26')).toBeHidden()
+  await expect(page.getByTestId('landmark-fountain')).toBeHidden()
+  await expect(page.getByTestId('today-spot')).toBeHidden()
+  await expect(page.locator('.resident:visible')).toHaveCount(0)
+
+  // 첫 집이 오른다
+  await page.clock.runFor(650)
+  await expect(page.getByTestId('house-2026-09-20')).toBeVisible()
+  await expect(page.getByTestId('house-2026-09-21')).toBeHidden()
+  await expect(page.getByTestId('growth-caption')).toHaveText('9월 20일첫 집')
+
+  // 30일째(분수가 생긴 날)까지 간다. 그날 한 줄이 뜨고, 그 뒤 날 집은 아직 없다
+  const at = steps.findIndex((s) => s.day === 30)
+  expect(growthNote(steps[at])).toContain('분수')
+  await page.clock.runFor(delays.slice(0, at).reduce((a, b) => a + b, 0))
+  await expect(page.getByTestId('growth-note')).toHaveText(growthNote(steps[at])!)
+  await expect(page.getByTestId('growth-caption')).toContainText(`${steps[at].house}번째 집`)
+  await expect(page.getByTestId('landmark-fountain')).toBeVisible()
+  await expect(page.getByTestId(`house-${steps[at].date}`)).toBeVisible()
+  await expect(page.getByTestId(`house-${steps[at + 1].date}`)).toBeHidden()
+  // 지운 날은 집이 서지 않는다
+  await expect(page.getByTestId('house-2026-10-15')).toHaveCount(0)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/growth-middle.png' })
+
+  // 끝 문장(지금 서 있는 집 36채)
+  await page.clock.runFor(delays.slice(at).reduce((a, b) => a + b, 0) + 50)
+  await expect(page.getByTestId('growth-end')).toHaveText('🏡 오늘까지 36채의 집이 모였어요')
+  await expect(page.getByTestId('house-2026-10-26')).toBeVisible()
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/growth-end.png' })
+  // 잠시 뒤 지금 마을로 돌아온다
+  await page.clock.runFor(2700)
+  await expect(page.getByTestId('growth')).toBeHidden()
+  await expect(page.getByTestId('today-spot')).toBeVisible()
+  await expect(page.getByTestId('weather')).toBeVisible()
+  await expect(page.locator('svg.growing')).toHaveCount(0)
+
+  // "건너뛰기"로 바로 끝난다
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('growth-caption')).toContainText('9월')
+  await skip.click()
+  await expect(page.getByTestId('growth')).toBeHidden()
+  await expect(page.getByTestId('house-2026-10-26')).toBeVisible()
+  // 화면 아무 곳이나 눌러도 끝난다
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.mouse.click(195, 400)
+  await expect(page.getByTestId('growth')).toBeHidden()
+  await expect(page.getByTestId('house-2026-09-20')).toBeVisible()
+  // 보기만 했을 뿐 저장은 그대로다
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
 })

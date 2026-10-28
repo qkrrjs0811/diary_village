@@ -21,6 +21,8 @@ export function createBook(handlers: {
   onBuilding: (id: BuildingId) => void
   /** 이웃 칸 아래 "이사 온 날 글 보기"로 그날 집으로 날아가 글을 연다 */
   onEntry: (entry: Entry) => void
+  /** 단계 칸 아래 "마을이 자라 온 길"로 첫 집부터 오늘까지 다시 보는 장면을 연다 */
+  onGrowth: () => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -48,6 +50,7 @@ export function createBook(handlers: {
         <span class="book-stage-icon" aria-hidden="true">${stage.icon}</span>
         <div><b></b><p></p></div>
       </div>
+      ${built.length ? `<button type="button" class="sheet-btn book-growth" data-testid="book-growth">▶ 마을이 자라 온 길</button>` : ''}
       <button type="button" class="sheet-btn book-calendar" data-testid="book-calendar">📅 기분 달력 · 🔍 찾기</button>
       <div class="settings-group">
         <div class="settings-label">건물 도감 <span class="book-count" data-testid="book-count">${found} / ${items.length}</span></div>
@@ -113,6 +116,10 @@ export function createBook(handlers: {
     sheet.querySelector('.book-calendar')!.addEventListener('click', () => {
       close()
       handlers.onCalendar()
+    })
+    sheet.querySelector('.book-growth')?.addEventListener('click', () => {
+      close()
+      handlers.onGrowth()
     })
     sheet.querySelector('.book-decorate')?.addEventListener('click', () => {
       close()
