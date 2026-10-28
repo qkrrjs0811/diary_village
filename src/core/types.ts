@@ -43,6 +43,8 @@ export interface SaveData {
   decor?: PlacedDecor[]
   /** 미래의 나에게 부친 편지(쓴 순서). 없으면 쓴 적이 없다. 일기가 아니라 마을 계산에 들어가지 않는다. 이 칸이 없는 이전 저장도 그대로 읽는다 */
   letters?: Letter[]
+  /** 사용자가 달(YYYY-MM)마다 붙인 이름. 없으면 붙인 적이 없다. 글을 지워도 남는다. 이 칸이 없는 이전 저장도 그대로 읽는다 */
+  monthTitles?: Record<string, string>
 }
 
 /** 미래의 나에게 쓴 편지 하나. 쓴 시각(ms)이 편지를 가리키는 이름이다 */

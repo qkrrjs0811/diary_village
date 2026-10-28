@@ -1,6 +1,7 @@
 import { addDays, dayKey } from './date'
 import { mergeLetters } from './letter'
 import { parseSave, type KV } from './storage'
+import { mergeMonthTitles } from './title'
 import type { Erased, SaveData } from './types'
 
 /** 내려받는 백업 파일 이름. 날짜를 넣어 여러 번 받아도 헷갈리지 않게 */
@@ -50,7 +51,10 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   // 편지는 사용자가 쓴 글이라 두 쪽을 합친다. 폰에 있는 편지(읽은 표시 포함)는 그대로 둔다
   const letters = mergeLetters(current.letters ?? [], backup.letters ?? [])
   if (letters.length) save.letters = letters
-  const lettersAdded = letters.length - (current.letters?.length ?? 0)
+  // 달 이름도 두 쪽을 합친다. 같은 달은 폰의 이름을 지킨다
+  const monthTitles = mergeMonthTitles(current.monthTitles, backup.monthTitles)
+  if (Object.keys(monthTitles).length) save.monthTitles = monthTitles
+  const lettersAdded =letters.length - (current.letters?.length ?? 0)
   return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length, lettersAdded }
 }
 

@@ -3,6 +3,7 @@ import { readLetters } from './letter'
 import { isMoodId } from './mood'
 import { isVillageName } from './name'
 import { isPlacedDecor } from './placing'
+import { readMonthTitles } from './title'
 import type { Entry, Erased, PlacedDecor, SaveData } from './types'
 
 /**
@@ -74,6 +75,9 @@ export function parseSave(text: string): SaveData | null {
   // 이상한 편지는 그 편지만 버린다(일기와 다른 편지는 지킨다)
   const letters = readLetters(x.letters)
   if (letters.length) save.letters = letters
+  // 이상한 달 이름은 그 달만 버린다
+  const monthTitles = readMonthTitles(x.monthTitles)
+  if (Object.keys(monthTitles).length) save.monthTitles = monthTitles
   return save
 }
 
