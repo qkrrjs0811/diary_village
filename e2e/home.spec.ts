@@ -4,6 +4,7 @@ import { BUILDING_PROMPTS, PROMPTS, SEASON_PROMPTS, YESTERDAY_PROMPTS, todayProm
 import { roomOf } from '../src/core/interior'
 import { birdFlock, critters } from '../src/core/critter'
 import { buildVillage } from '../src/core/village'
+import { yardOf } from '../src/core/yard'
 import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
@@ -1086,6 +1087,81 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
   await expect(page.getByTestId('build-note')).toBeHidden()
+})
+
+test('건물이 없는 날은 한 줄의 말로 마당에 작은 흔적이 남고, 읽기 창에 한 줄로 알려 준다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T21:00:00+09:00') })
+  await page.goto('./')
+  const texts: [number, string, string | null][] = [
+    [17, '빨래를 개고 하루를 마쳤다', 'laundry'],
+    [18, '우산을 챙겨 나갔다', 'umbrella'],
+    [19, '바람이 시원한 날', 'kite'],
+    [20, '첫눈이 왔다', 'snowman'],
+    [21, '편의점에 들렀다', 'basket'],
+    [22, '택배가 도착했다', 'mail'],
+    [23, '친구랑 수다를 떨었다', 'chairs'],
+    [24, '늦잠을 푹 잤다', 'hammock'],
+    [25, '따릉이 타고 출근', 'bicycle'],
+    [26, '새 신발을 샀다', 'shoes'],
+    [27, '커피 한 잔', null],
+  ]
+  const entries = texts.map(([d, text], i) => ({
+    date: `2026-10-${d}`,
+    text,
+    mood: moods[i % moods.length],
+    writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`),
+  }))
+  for (const [i, [, , id]] of texts.entries()) expect(yardOf(entries[i] as Entry)?.id ?? null).toBe(id)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  for (const [d, , id] of texts) {
+    if (id) await expect(page.getByTestId(`yard-2026-10-${d}`)).toHaveAttribute('data-yard', id)
+    else await expect(page.getByTestId(`yard-2026-10-${d}`)).toHaveCount(0)
+  }
+  await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
+
+  const mid = (await page.getByTestId('house-2026-10-22').boundingBox())!
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2)
+  for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -200)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/yard-traces.png' })
+  // 흔적마다 가까이 본 사진(집과 흔적을 함께)
+  await page.addStyleTag({ content: '.tree, .resident, .critter { visibility: hidden }' })
+  for (const [d, , id] of texts.filter(([, , id]) => id)) {
+    const house = page.getByTestId(`house-2026-10-${d}`)
+    const b = (await house.boundingBox())!
+    const dx = 195 - (b.x + b.width / 2)
+    const dy = 330 - (b.y + b.height / 2)
+    const from = { x: dx < 0 ? 370 : 20, y: dy < 0 ? 560 : 120 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + dx, from.y + dy, { steps: 8 })
+    await page.mouse.up()
+    const h = (await house.boundingBox())!
+    const t = (await page.getByTestId(`yard-2026-10-${d}`).boundingBox())!
+    const x = Math.min(h.x, t.x) - 6
+    const y = Math.min(h.y, t.y) - 6
+    const clip = { x, y, width: Math.max(h.x + h.width, t.x + t.width) + 6 - x, height: Math.max(h.y + h.height, t.y + t.height) + 6 - y }
+    await page.screenshot({ path: `test-results/screens/yard-${id}.png`, clip })
+  }
+  await page.evaluate(() => document.querySelectorAll('style').forEach((s) => s.textContent?.includes('.tree, .resident, .critter') && s.remove()))
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 흔적은 누르기를 받지 않고 아래(집)로 넘긴다
+  const trace = (await page.getByTestId('yard-2026-10-20').boundingBox())!
+  const hit = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.yard-trace'), [trace.x + trace.width / 2, trace.y + trace.height * 0.7])
+  expect(hit).toBe(false)
+  await page.getByTestId('house-2026-10-20').click()
+  await expect(page.getByTestId('reader-date')).toContainText('10월 20일')
+  await expect(page.getByTestId('reader-yard')).toHaveText("⛄ '첫눈'을 찾아 마당에 눈사람이 섰어요")
+  await page.waitForTimeout(400) // 창이 올라오는 연출이 끝날 때까지
+  await page.screenshot({ path: 'test-results/screens/reader-yard.png' })
+  await page.getByTestId('reader-close').click()
+
+  // 건물이 선 날은 흔적 줄이 없다
+  await page.getByTestId('house-2026-10-27').click()
+  await expect(page.getByTestId('reader-building')).toBeVisible()
+  await expect(page.getByTestId('reader-yard')).toBeHidden()
 })
 
 test('저장이 깨져 있으면 덮어쓰지 않고 쓰기를 막는다', async ({ page }) => {

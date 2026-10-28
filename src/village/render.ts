@@ -13,6 +13,7 @@ import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSi
 import { seasonOf, smokePuff, type Season } from '../core/season'
 import type { Critter } from '../core/critter'
 import { agingOf, agingTurnedToday, type AgingStage } from '../core/aging'
+import { yardOf, type YardTraceId } from '../core/yard'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -1132,6 +1133,99 @@ function drawTreasureFlag(g: Element, lot: Lot, date: string) {
 }
 
 /**
+ * 건물이 없는 날 보통 집 마당(오른쪽 앞 가장자리)의 작은 흔적. 한 줄에 나온 말로 정한다(`core/yard`).
+ * 누르기는 집으로 통과한다
+ */
+function drawYardTrace(g: Element, lot: Lot, date: string, id: YardTraceId) {
+  const c = iso(lot.gx + 0.99, lot.gy + 0.7)
+  const { x, y } = c
+  const t = el('g', { class: `yard-trace ${id}`, 'data-testid': `yard-${date}`, 'data-yard': id }, g)
+  const shadow = (rx: number, dx = 0) => el('ellipse', { cx: x + dx, cy: y, rx, ry: rx * 0.42, fill: 'rgba(90,70,54,0.16)' }, t)
+  const stick = (x1: number, y1: number, x2: number, y2: number, w = 1.1, color = '#a7805e') =>
+    el('line', { x1, y1, x2, y2, stroke: color, 'stroke-width': w, 'stroke-linecap': 'round' }, t)
+  const line = { stroke: LINE, 'stroke-width': 0.6 }
+  if (id === 'bicycle') {
+    shadow(7)
+    for (const dx of [-4.5, 4.5]) el('circle', { cx: x + dx, cy: y - 3.4, r: 3.2, fill: 'none', stroke: '#6b5240', 'stroke-width': 1.1 }, t)
+    el('path', { d: `M${x - 4.5} ${y - 3.4} L${x - 1} ${y - 7.4} L${x + 3} ${y - 7.4} L${x + 4.5} ${y - 3.4} M${x - 1} ${y - 7.4} L${x} ${y - 3.4} L${x + 3} ${y - 7.4}`, fill: 'none', stroke: '#7bb88f', 'stroke-width': 1.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, t)
+    el('ellipse', { cx: x - 1.4, cy: y - 8.4, rx: 1.8, ry: 0.8, fill: '#8a6a50' }, t)
+    stick(x + 3, y - 7.4, x + 2.4, y - 9.6, 1, '#6b5240')
+  } else if (id === 'laundry') {
+    shadow(8)
+    stick(x - 7, y, x - 7, y - 13)
+    stick(x + 7, y - 1, x + 7, y - 14)
+    el('path', { d: `M${x - 7} ${y - 12} Q${x} ${y - 9.5} ${x + 7} ${y - 13}`, fill: 'none', stroke: '#c9b8a2', 'stroke-width': 0.6 }, t)
+    // 작은 셔츠와 수건
+    el('path', { d: `M${x - 4.6} ${y - 11} l-1.4 1.4 l1 1 l0.6 -0.6 v4 h4 v-4 l0.6 0.6 l1 -1 l-1.4 -1.4 z`, fill: '#ffd7de', ...line }, t)
+    el('rect', { x: x + 1.6, y: y - 11.4, width: 3.6, height: 5, rx: 0.8, fill: '#cfe4f5', ...line }, t)
+  } else if (id === 'umbrella') {
+    shadow(6)
+    // 마당에 펼쳐 말리는 우산
+    el('path', { d: `M${x - 6.5} ${y - 4} Q${x} ${y - 13} ${x + 6.5} ${y - 4} q-1.6 -1.4 -3.2 0 q-1.6 -1.4 -3.3 0 q-1.6 -1.4 -3.3 0 q-1.6 -1.4 -3.2 0 z`, fill: '#ffb3a1', stroke: LINE, 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, t)
+    el('path', { d: `M${x} ${y - 4} q0 3 1.8 3`, fill: 'none', stroke: '#6b5240', 'stroke-width': 1, 'stroke-linecap': 'round' }, t)
+    el('circle', { cx: x, cy: y - 8.8, r: 0.8, fill: '#fff6e0' }, t)
+  } else if (id === 'kite') {
+    shadow(2.5)
+    stick(x, y, x, y - 3, 1.2)
+    // 지붕보다 높이 뜬 연과 늘어진 실
+    const kx = x + 8
+    const ky = y - 40
+    el('path', { d: `M${x} ${y - 3} Q${x + 10} ${y - 18} ${kx} ${ky + 7}`, fill: 'none', stroke: '#c9b8a2', 'stroke-width': 0.5 }, t)
+    const body = el('g', { class: 'kite-body' }, t)
+    el('polygon', { points: pts([{ x: kx, y: ky - 6 }, { x: kx + 4.5, y: ky }, { x: kx, y: ky + 7 }, { x: kx - 4.5, y: ky }]), fill: '#ffd36b', stroke: '#d9a94a', 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, body)
+    el('path', { d: `M${kx} ${ky - 6} V${ky + 7} M${kx - 4.5} ${ky} H${kx + 4.5}`, stroke: '#e88f8f', 'stroke-width': 0.5 }, body)
+    el('path', { d: `M${kx} ${ky + 7} q2 2.5 0 4.5 q-2 2 0 4.5`, fill: 'none', stroke: '#e88f8f', 'stroke-width': 0.7 }, body)
+  } else if (id === 'snowman') {
+    shadow(5)
+    el('circle', { cx: x, cy: y - 4, r: 4.4, fill: '#ffffff', ...line }, t)
+    el('circle', { cx: x, cy: y - 10.5, r: 3, fill: '#ffffff', ...line }, t)
+    el('path', { d: `M${x - 2.6} ${y - 8.6} q2.6 1.2 5.2 0`, fill: 'none', stroke: '#e88f8f', 'stroke-width': 1.2, 'stroke-linecap': 'round' }, t)
+    el('path', { d: `M${x + 0.4} ${y - 10.6} l2.4 0.6 l-2.4 0.5 z`, fill: '#f2a25e' }, t)
+    el('circle', { cx: x - 1, cy: y - 11.4, r: 0.5, fill: '#5a4636' }, t)
+    el('rect', { x: x - 2.4, y: y - 15.6, width: 4.8, height: 2.6, rx: 1, fill: '#8fb8e8', ...line }, t)
+  } else if (id === 'basket') {
+    shadow(5.5)
+    el('path', { d: `M${x - 4.6} ${y - 6} Q${x} ${y - 13} ${x + 4.6} ${y - 6}`, fill: 'none', stroke: '#b98a5e', 'stroke-width': 1.1 }, t)
+    el('circle', { cx: x - 1.6, cy: y - 7, r: 1.8, fill: '#ff9f7a' }, t)
+    el('path', { d: `M${x + 1.5} ${y - 6} q1 -4 2.5 -4.5`, fill: 'none', stroke: '#9ed39b', 'stroke-width': 1.4, 'stroke-linecap': 'round' }, t)
+    el('path', { d: `M${x - 5.2} ${y - 6.2} h10.4 l-1.2 5.6 q-0.2 0.8 -1 0.8 h-6 q-0.8 0 -1 -0.8 z`, fill: '#e8c48f', stroke: '#b98a5e', 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, t)
+    el('path', { d: `M${x - 4.4} ${y - 3.6} h8.8`, stroke: '#c9a06e', 'stroke-width': 0.6 }, t)
+  } else if (id === 'mail') {
+    shadow(3.5)
+    stick(x, y, x, y - 8, 1.6)
+    el('path', { d: `M${x - 4} ${y - 8} v-3.6 a4 3.4 0 0 1 8 0 v3.6 z`, fill: '#ff9f8f', stroke: '#c9746a', 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, t)
+    el('path', { d: `M${x + 3.6} ${y - 12} v-4 h3 v1.8 h-3`, fill: '#ffd36b', stroke: '#a7805e', 'stroke-width': 0.6 }, t)
+    el('rect', { x: x - 2, y: y - 10.4, width: 4, height: 1, rx: 0.5, fill: '#c9746a' }, t)
+  } else if (id === 'chairs') {
+    shadow(8)
+    // 마주 보는 둥근 의자 두 개
+    for (const [dx, color, dir] of [[-4.5, '#cfe4f5', -1], [4.5, '#ffd7de', 1]] as const) {
+      const cx = x + dx
+      stick(cx - 2, y - 4, cx - 2, y, 0.9)
+      stick(cx + 2, y - 4, cx + 2, y, 0.9)
+      el('rect', { x: cx - 3, y: y - 5.4, width: 6, height: 1.8, rx: 0.9, fill: color, ...line }, t)
+      el('rect', { x: cx + dir * 2.2 - 1, y: y - 11, width: 2, height: 6.2, rx: 1, fill: color, ...line }, t)
+    }
+  } else if (id === 'hammock') {
+    shadow(8)
+    stick(x - 7, y, x - 7, y - 11)
+    stick(x + 7, y - 1, x + 7, y - 12)
+    el('path', { d: `M${x - 7} ${y - 9} Q${x} ${y - 1} ${x + 7} ${y - 10} Q${x} ${y - 4.5} ${x - 7} ${y - 9} z`, fill: '#bfe0c8', stroke: '#7a9f86', 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, t)
+    const z = el('text', { x: x + 1, y: y - 11, 'font-size': 5, 'font-weight': 700, fill: '#8fa3c4', class: 'twinkle' }, t)
+    z.textContent = 'z'
+  } else {
+    shadow(6)
+    // 가지런히 벗어 둔 운동화 한 켤레
+    for (const [dx, dy] of [[-2.6, 0], [2.4, -1]] as const) {
+      const sx = x + dx
+      const sy = y + dy
+      el('path', { d: `M${sx - 3} ${sy - 0.4} v-2.2 q0 -1.4 1.4 -1.4 h1.2 q0.8 1.6 2.4 1.6 q1.4 0.2 1.4 1.6 v0.4 z`, fill: '#fffaf0', stroke: '#c9746a', 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, t)
+      el('path', { d: `M${sx - 3} ${sy - 0.6} h6.4`, stroke: '#ff9f8f', 'stroke-width': 0.9 }, t)
+    }
+  }
+}
+
+/**
  * 첫 주 선물: 처음 집을 지은 날 자리(오른쪽 앞 모서리)의 작은 나무 기념 팻말("첫 집" + 별).
  * 그날 글을 지워도 자리에 남는다. 누르기는 집으로 통과한다
  */
@@ -2151,6 +2245,8 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
           depth,
           draw: () => {
             const H = drawHouse(things, lot, entry, isNew, opt.today, smokes)
+            const yard = yardOf(entry)
+            if (yard) drawYardTrace(things, lot, entry.date, yard.id)
             if (entry.treasured) drawTreasureFlag(things, lot, entry.date)
             if (isNew) drawBuildFx(fx, lot, H)
           },

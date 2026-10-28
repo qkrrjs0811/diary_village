@@ -6,6 +6,7 @@ import { MOODS, moodOf } from '../core/mood'
 import { roomLight, roomOf } from '../core/interior'
 import type { Entry, MoodId } from '../core/types'
 import { dayPart } from '../core/weather'
+import { yardNote, yardOf } from '../core/yard'
 import { roomSvg } from '../village/room'
 import { dateLabel, fullDateLabel } from './format'
 import { createMoreField } from './more'
@@ -96,6 +97,7 @@ export function createReader(handlers: {
         ${handlers.onBuilding
           ? '<button type="button" class="reader-building-btn" data-testid="reader-building" hidden><span class="reader-building"></span></button>'
           : '<span class="reader-building" data-testid="reader-building" hidden></span>'}
+        <span class="reader-yard" data-testid="reader-yard" hidden></span>
         <span class="reader-aging" data-testid="reader-aging" hidden></span>
         <span class="reader-edited" data-testid="reader-edited" hidden></span>
         <span class="reader-edge" data-testid="reader-edge" hidden></span>
@@ -129,6 +131,13 @@ export function createReader(handlers: {
         close()
         handlers.onBuilding(found.id)
       })
+    }
+    // 건물이 없는 날의 마당 흔적. 글에서 찾은 말이 있을 때만 알려 준다
+    const yard = yardNote(yardOf(entry))
+    if (yard) {
+      const line = sheet.querySelector<HTMLElement>('.reader-yard')!
+      line.textContent = yard
+      line.hidden = false
     }
     // 집 나이는 그날 날짜와 오늘로만 센다. 30일 전 새 집에는 말하지 않는다
     const age = agingLine(entry.date, dayKey(Date.now()))

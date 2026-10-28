@@ -848,6 +848,9 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .labels, .sign-post { transition: none; } }
 /* 소중한 날 하트 깃발: 누르기는 집으로 통과하고, 하트가 살랑인다 */
 .treasure-flag { pointer-events: none; }
+.yard-trace { pointer-events: none; }
+.yard-trace.kite .kite-body { transform-box: fill-box; transform-origin: 50% 100%; animation: flutter 3.2s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .yard-trace.kite .kite-body { animation: none; } }
 .treasure-flag .heart { transform-box: fill-box; transform-origin: 100% 40%; animation: flutter 2.8s ease-in-out infinite alternate; }
 @keyframes flutter { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
 @media (prefers-reduced-motion: reduce) { .treasure-flag .heart { animation: none; } }
@@ -912,15 +915,16 @@ button { font: inherit; color: inherit; }
 /* 건물·집 나이·고친 날·처음 한마디는 글 아래 작은 한 묶음으로 */
 .reader-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 12px; }
 .reader-tags[hidden] { display: none; }
-.reader-building, .reader-aging {
+.reader-building, .reader-aging, .reader-yard {
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 13px;
   line-height: 1.5;
 }
 .reader-building { background: var(--chip); }
+.reader-yard { background: #fbf0dc; color: #7a604a; }
 .reader-aging { background: #eef5e4; color: #5f7d4c; }
-.reader-building[hidden], .reader-aging[hidden] { display: none; }
+.reader-building[hidden], .reader-aging[hidden], .reader-yard[hidden] { display: none; }
 /* 누를 수 있는 건물 꼬리표: 보이는 모양은 작은 알약 그대로, 누르는 자리는 44px */
 .reader-tags:has(.reader-building-btn:not([hidden])) { margin-top: -8px; margin-bottom: 4px; }
 .reader-building-btn {
