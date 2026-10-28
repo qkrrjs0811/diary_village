@@ -2,12 +2,14 @@ import { hasFinal, type BuildingId } from '../core/building'
 import { collectionOf, landmarkBook } from '../core/collection'
 import { decorBook } from '../core/decor'
 import { writtenDays } from '../core/landmark'
+import { arrivalsOf } from '../core/resident'
 import { nextStage, stageOf } from '../core/stage'
 import type { Dated, Entry } from '../core/types'
+import { residentIcon } from '../village/render'
 import { dateLabel } from './format'
 
 /**
- * 머리줄 단계 이름표를 누르면 여는 마을 수첩. 지금 단계, 건물 도감, 명소, 꾸밈 소품을 한 창에 모았다.
+ * 머리줄 단계 이름표를 누르면 여는 마을 수첩. 지금 단계, 건물 도감, 명소, 우리 이웃, 꾸밈 소품을 한 창에 모았다.
  * 모두 기록에서 계산한다. 칸을 누르면 아래에 그 칸 이야기가 보인다
  */
 export function createBook(handlers: {
@@ -17,6 +19,8 @@ export function createBook(handlers: {
   onCalendar: () => void
   /** 도감 칸 아래 "선 날 보기"로 그 건물이 선 날 모아 보기를 연다 */
   onBuilding: (id: BuildingId) => void
+  /** 이웃 칸 아래 "이사 온 날 글 보기"로 그날 집으로 날아가 글을 연다 */
+  onEntry: (entry: Entry) => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -37,6 +41,7 @@ export function createBook(handlers: {
     const found = items.filter((c) => c.found).length
     const marks = landmarkBook(built)
     const decors = decorBook(built)
+    const arrivals = arrivalsOf(built)
     sheet.innerHTML = `
       <div class="edit-title">📖 마을 수첩</div>
       <div class="book-stage" data-testid="book-stage">
@@ -70,6 +75,20 @@ export function createBook(handlers: {
             .join('')}
         </div>
         <div class="book-detail" data-testid="book-landmark-detail" role="status">칸을 누르면 이야기가 보여요</div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-label">우리 이웃 <span class="book-count" data-testid="book-neighbor-count">${arrivals.filter((a) => a.date).length} / ${arrivals.length}</span></div>
+        <div class="book-grid six" data-testid="book-neighbors">
+          ${arrivals
+            .map(
+              (a) => `<button type="button" class="book-cell${a.date ? '' : ' unknown'}" data-testid="book-neighbor-${a.resident.id}" data-found="${!!a.date}">
+                <span class="book-icon" aria-hidden="true"></span><span class="book-name">${a.date ? a.resident.name : `${a.resident.days}일`}</span>
+              </button>`,
+            )
+            .join('')}
+        </div>
+        <div class="book-detail" data-testid="book-neighbor-detail" role="status">칸을 누르면 이야기가 보여요</div>
+        <button type="button" class="sheet-btn book-days" data-testid="book-neighbor-day" hidden>📖 이사 온 날 글 보기</button>
       </div>
       <div class="settings-group">
         <div class="settings-label">꾸밈 소품 <span class="book-count" data-testid="book-decor-count">${decors.filter((d) => d.unlocked).length} / ${decors.length}</span></div>
@@ -129,6 +148,27 @@ export function createBook(handlers: {
         markDetail.textContent = m.earned
           ? `${m.landmark.icon} ${m.landmark.name} · 한 줄을 ${m.landmark.days}일 남겨 생겼어요`
           : `❔ ${m.left}일 더 쓰면 광장에 새 명소가 생겨요`
+      })
+    })
+    const neighborDetail = sheet.querySelector<HTMLElement>('[data-testid="book-neighbor-detail"]')!
+    const dayBtn = sheet.querySelector<HTMLButtonElement>('[data-testid="book-neighbor-day"]')!
+    let arrivedEntry: Entry | null = null
+    dayBtn.addEventListener('click', () => {
+      if (!arrivedEntry) return
+      close()
+      handlers.onEntry(arrivedEntry)
+    })
+    sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-neighbors"] .book-cell').forEach((cell, i) => {
+      const a = arrivals[i]
+      cell.querySelector('.book-icon')!.appendChild(residentIcon(a.resident))
+      cell.addEventListener('click', () => {
+        select(cell)
+        // 이사 온 날 글이 남아 있을 때만 다시 읽으러 간다(지운 날이면 숨긴다)
+        arrivedEntry = (a.date && entries.find((e) => e.date === a.date)) || null
+        dayBtn.hidden = !arrivedEntry
+        neighborDetail.textContent = a.date
+          ? `${a.resident.name} · ${dateLabel(a.date).replace(/ .요일$/, '')}에 이사 왔어요 · 좋아하는 것: ${a.resident.likes}`
+          : `❔ ${a.left}일 더 쓰면 새 이웃이 와요`
       })
     })
     const decorDetail = sheet.querySelector<HTMLElement>('[data-testid="book-decor-detail"]')!

@@ -3859,3 +3859,53 @@ test('읽기 창에 집 나이 한 줄이 보이고, 세월 단계를 넘는 날
   await expect(glint).toBeHidden()
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
+
+test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아하는 것, 안 온 주민은 그림자, 이사 온 날 글로 날아간다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  // 여덟 날을 지었고 10월 3일(모모가 온 날)은 지웠다. 지워도 모모는 그대로다
+  const entries = monthEntries('2026-10', [1, 2, 4, 5, 6, 7, 8]) as Entry[]
+  entries[5] = { ...entries[5], text: '두부가 온 날의 한 줄' }
+  const erased = [{ date: '2026-10-03', erasedAt: Date.parse('2026-10-04T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-neighbor-count')).toHaveText('4 / 23')
+  await expect(page.getByTestId('book-neighbors').locator('.book-cell')).toHaveCount(23)
+  for (const id of ['kong', 'momo', 'bori', 'dubu']) await expect(page.getByTestId(`book-neighbor-${id}`)).toHaveAttribute('data-found', 'true')
+  await expect(page.getByTestId('book-neighbor-hodu')).toHaveAttribute('data-found', 'false')
+  await expect(page.getByTestId('book-neighbor-hodu')).toContainText('10일')
+  await expect(page.getByTestId('book-neighbor-dubu').locator('svg circle').first()).toBeVisible()
+
+  const day = page.getByTestId('book-neighbor-day')
+  await expect(day).toBeHidden()
+  // 안 온 주민은 남은 날만, 재촉하지 않는다
+  await page.getByTestId('book-neighbor-hodu').click()
+  await expect(page.getByTestId('book-neighbor-detail')).toHaveText('❔ 2일 더 쓰면 새 이웃이 와요')
+  await expect(day).toBeHidden()
+  // 이사 온 날 글이 지워졌으면 보기 단추가 없다
+  await page.getByTestId('book-neighbor-momo').click()
+  await expect(page.getByTestId('book-neighbor-detail')).toHaveText('모모 · 10월 3일에 이사 왔어요 · 좋아하는 것: 복숭아 우유')
+  await expect(day).toBeHidden()
+  await page.getByTestId('book-neighbor-dubu').click()
+  await expect(page.getByTestId('book-neighbor-detail')).toHaveText('두부 · 10월 7일에 이사 왔어요 · 좋아하는 것: 따끈한 두부 부침')
+  await expect(day).toBeVisible()
+  for (const id of ['book-neighbor-dubu', 'book-neighbor-day']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.x).toBeGreaterThanOrEqual(0)
+    expect(b.x + b.width).toBeLessThanOrEqual(390)
+  }
+  await day.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/book-neighbors.png' })
+
+  await day.click()
+  await expect(page.getByTestId('book')).toBeHidden()
+  await page.clock.runFor(2000)
+  await expect(page.getByTestId('reader')).toBeVisible()
+  await expect(page.getByTestId('reader-text')).toHaveText('두부가 온 날의 한 줄')
+  // 수첩은 계산만 하고 저장을 바꾸지 않는다
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
+})

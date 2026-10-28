@@ -325,6 +325,7 @@ const book = createBook({
   onDecorate: readOnly ? null : () => setDecorating(true),
   onCalendar: () => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now())),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
+  onEntry: (entry) => visitMemory(entry),
 })
 document.body.appendChild(book.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))

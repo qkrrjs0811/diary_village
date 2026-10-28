@@ -1657,6 +1657,13 @@ function drawResident(g: Element, walk: Walk) {
   drawBody(body, r, a)
 }
 
+/** 이웃 수첩 칸에 넣는 주민 얼굴 그림(마을의 주민과 같은 모양) */
+export function residentIcon(r: Resident): SVGSVGElement {
+  const svg = el('svg', { viewBox: '-9 -22 18 23', width: 30, height: 38, 'aria-hidden': 'true', class: 'resident-icon' })
+  drawBody(el('g', {}, svg), r, { x: 0, y: 0 })
+  return svg
+}
+
 /** 둥근 주민의 몸(귀·발·얼굴). a 는 발밑 땅 자리. 얼굴은 오른쪽을 본다 */
 function drawBody(body: Element, r: Resident, a: Pt) {
   const c = { x: a.x, y: a.y - 7.5 }
