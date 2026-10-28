@@ -14,6 +14,7 @@ import { seasonOf, smokePuff, type Season } from '../core/season'
 import type { Critter } from '../core/critter'
 import { agingOf, agingTurnedToday, type AgingStage } from '../core/aging'
 import { yardOf, type YardTraceId } from '../core/yard'
+import { monthLabel } from '../core/title'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -76,7 +77,7 @@ const PATH = '#efe2c8'
 const SOIL = '#c99f78'
 
 /** 구역 하나의 땅: 길 테두리가 있는 두툼한 판 */
-function drawSlab(g: Element, labels: Element, block: Block) {
+function drawSlab(g: Element, labels: Element, block: Block, title?: string) {
   const x0 = block.bx * (BLOCK_W + ROAD) - ROAD / 2
   const y0 = block.by * (BLOCK_H + ROAD) - ROAD / 2
   const x1 = x0 + BLOCK_W + ROAD
@@ -104,11 +105,21 @@ function drawSlab(g: Element, labels: Element, block: Block) {
   const post = el('g', { class: 'sign-post' }, g)
   el('rect', { x: foot.x - 1.5, y: signTop, width: 3, height: SIGN_LIFT, rx: 1.5, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, post)
   el('ellipse', { cx: foot.x, cy: foot.y, rx: 4, ry: 2, fill: 'rgba(90,70,54,0.18)' }, post)
-  const m = Number(block.month.slice(5, 7))
+  // 사용자가 붙인 달 이름은 "10월 · 이사한 달"처럼 한 줄로 잇고 팻말판을 옆으로 늘린다(위로 쌓으면 뒤 구역 지붕을 가린다)
+  const label = monthLabel(block.month, title)
+  const w = title ? Math.max(40, Math.ceil(textWidth(label, 11)) + 18) : 40
   const sign = el('g', { class: 'month-sign', 'data-testid': `month-${block.month}` }, labels)
-  el('rect', { x: foot.x - 20, y: signTop - 18, width: 40, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
+  if (title) sign.setAttribute('data-title', title)
+  el('rect', { x: foot.x - w / 2, y: signTop - 18, width: w, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
   const t = el('text', { x: foot.x, y: signTop - 5, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)
-  t.textContent = `${m}월`
+  t.textContent = label
+}
+
+/** 글자 폭 어림(한글은 글자 크기만큼, 영문·숫자는 그 0.6, 빈칸은 0.3) */
+function textWidth(text: string, size: number): number {
+  let w = 0
+  for (const ch of text) w += ch === ' ' ? size * 0.3 : /[\u0000-ɏ]/.test(ch) ? size * 0.6 : size
+  return w
 }
 
 const TUFT: Record<Season, string> = { spring: '#8fc879', summer: '#76b866', autumn: '#b9b56a', winter: '#a9c4b6' }
@@ -2147,6 +2158,8 @@ export interface DrawOptions {
   firstSign?: string | null
   /** 오늘 숲가에 나온 토끼·다람쥐와 나비(날짜·때·날씨로 계산) */
   critters?: Critter[]
+  /** 사용자가 붙인 달 이름(달 → 이름). 구역 이름표에 함께 쓴다 */
+  titles?: Record<string, string>
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -2169,7 +2182,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     drawIslandEdge(ground, slab, outerSides(island, slab), mine(edge.rim), mine(edge.cliff), season)
   }
   const slabs = [
-    ...village.blocks.map((b, i) => ({ depth: b.bx + b.by, draw: () => (drawSlab(ground, labels, b), drawEdge(island[i])) })),
+    ...village.blocks.map((b, i) => ({ depth: b.bx + b.by, draw: () => (drawSlab(ground, labels, b, opt.titles?.[b.month]), drawEdge(island[i])) })),
     { depth: 1, draw: () => (drawPlazaGround(ground, labels), drawEdge(island[island.length - 1])) },
   ].sort((a, b) => a.depth - b.depth)
   for (const s of slabs) s.draw()

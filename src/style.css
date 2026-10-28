@@ -730,6 +730,17 @@ button { font: inherit; color: inherit; }
 /* 한 달 돌아보기: 새 달 첫 주에 지난달 기분 색 띠와 가장 많이 지은 건물 */
 .recap { gap: 4px; padding: 8px 14px; }
 .recap-band { display: flex; width: 100%; height: 7px; border-radius: 999px; overflow: hidden; background: var(--chip); }
+/* 지난달 돌아보기 쪽지 머리줄 오른쪽에 겹친 "✏️ 이 달에 이름 붙이기"(누르는 자리는 44px, 카드 높이는 그대로) */
+.recap-wrap { position: relative; display: flow-root; }
+.recap-name { position: absolute; top: 4px; right: 4px; height: 44px; padding: 0 10px; border: none; border-radius: 22px; background: none; color: var(--ink-soft); font: inherit; font-size: 11px; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+/* 기분 달력 달 머리 아래 달 이름 */
+.cal-name { margin: -6px 0 10px; text-align: center; font-size: 14px; font-weight: 600; color: var(--ink); word-break: keep-all; }
+.cal-name[hidden] { display: none; }
+.cal-name-btn { min-height: 44px; padding: 0 16px; border: 1.5px dashed #e0cfb4; border-radius: 22px; background: #fffaf0; color: var(--ink-soft); font: inherit; font-size: 13px; cursor: pointer; }
+.cal-name-btn.named { border-style: solid; border-color: var(--line); color: var(--ink); font-size: 14px; font-weight: 600; }
+.cal-name .name-row { text-align: left; }
+.cal-name-msg { margin-top: 6px; font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+.cal-name-msg.err { color: #c0695e; }
 /* 한 해 보기: 열두 달 칸을 그달 가장 많이 고른 기분 색으로 */
 .cal-modes { display: flex; gap: 4px; margin: -4px 0 12px; padding: 3px; border-radius: 999px; background: var(--chip); }
 .cal-modes[hidden] { display: none; }

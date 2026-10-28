@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TITLE_MAX, checkMonthTitle, isMonth, monthTitleOf, setMonthTitle } from './title'
+import { TITLE_MAX, checkMonthTitle, isMonth, monthLabel, monthTitleOf, setMonthTitle } from './title'
 import { planImport } from './backup'
 import { editEntry, eraseEntry, writeEntry } from './entries'
 import { writeLetter } from './letter'
@@ -108,5 +108,14 @@ describe('달 이름 저장', () => {
     expect(r.ok && r.save.monthTitles).toEqual({ '2026-09': '백업 가을', '2026-10': '폰 10월' })
     const none = planImport(save(), JSON.stringify({ version: 1, entries: [] }))
     expect(none.ok && 'monthTitles' in none.save).toBe(false)
+  })
+})
+
+describe('달 이름표 글', () => {
+  it('이름이 없으면 "10월", 있으면 "10월 · 이름"', () => {
+    expect(monthLabel('2026-10')).toBe('10월')
+    expect(monthLabel('2026-01', '새해 첫 달')).toBe('1월 · 새해 첫 달')
+    expect(monthLabel('2026-10', '')).toBe('10월')
+    expect(monthLabel('2026-10', null)).toBe('10월')
   })
 })

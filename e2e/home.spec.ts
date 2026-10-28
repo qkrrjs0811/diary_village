@@ -2959,6 +2959,93 @@ test('새 달 첫 주에는 카드 아래에 지난달 기분 색 띠와 가장 
   expect(saved.entries).toEqual(entries)
 })
 
+test('지난달 돌아보기에서 달에 이름을 붙이면 달력 머리·쪽지·구역 이름표에 보이고, 달력에서 고치거나 비울 수 있다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-03T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-10', [3, 8, 15, 22, 30]), ...monthEntries('2026-11', [1])]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, villageName: '햇살 마을' })])
+  await page.reload()
+
+  // 쪽지 아래 작게 "✏️ 이 달에 이름 붙이기"(44px). 누르면 10월 달력이 이름 칸을 펼친 채 열린다
+  const ask = page.getByTestId('recap-name')
+  await expect(ask).toHaveText('✏️ 이 달에 이름 붙이기')
+  expect((await ask.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(page.getByTestId('write-submit')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/recap-name-ask.png' })
+  await ask.click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  const input = page.getByTestId('calendar-name-input')
+  await expect(input).toBeFocused()
+  await expect(page.getByTestId('calendar-name-msg')).toHaveText('20자까지, 비우면 "10월"로 돌아가요')
+  // 너무 길면 다정하게 알리고 저장하지 않는다
+  await input.fill('가'.repeat(21))
+  await page.getByTestId('calendar-name-save').click()
+  await expect(page.getByTestId('calendar-name-msg')).toHaveText('20자까지 지을 수 있어요')
+  expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!).monthTitles, KEY)).toBeUndefined()
+  await input.fill('  이사한   달 ')
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/calendar-name-edit.png' })
+  await input.press('Enter')
+  const named = page.getByTestId('calendar-name-open')
+  await expect(named).toHaveText('「이사한 달」 ✏️')
+  expect((await named.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/calendar-name.png' })
+  // 저장에는 글·마을 이름과 함께 달 이름이 남는다
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.monthTitles).toEqual({ '2026-10': '이사한 달' })
+  expect(saved.entries).toEqual(entries)
+  expect(saved.villageName).toBe('햇살 마을')
+  // 다른 달로 넘기면 그달은 아직 이름이 없다
+  await page.getByTestId('calendar-next').click()
+  await expect(page.getByTestId('calendar-name-open')).toHaveText('✏️ 이 달에 이름 붙이기')
+  await page.getByTestId('calendar-close').click()
+
+  // 쪽지 머리에 이름이 붙고 "이름 붙이기"는 들어간다. 구역 이름표도 "10월 · 이사한 달"
+  await expect(page.getByTestId('recap')).toContainText('🗓️ 10월 「이사한 달」 돌아보기 · 한 줄 5일')
+  await expect(ask).toHaveCount(0)
+  await expect(page.getByTestId('month-2026-10')).toHaveText('10월 · 이사한 달')
+  await expect(page.getByTestId('month-2026-11')).toHaveText('11월')
+  // 다시 열어도 그대로
+  await page.reload()
+  await expect(page.getByTestId('month-2026-10')).toHaveText('10월 · 이사한 달')
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(300)
+  await expect(page.getByTestId('month-2026-10')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/month-sign-title.png' })
+
+  // 수첩 달력에서 고치고, 비우면 원래대로 "10월"
+  await page.getByTestId('recap').click()
+  await page.getByTestId('calendar-name-open').click()
+  await expect(page.getByTestId('calendar-name-input')).toHaveValue('이사한 달')
+  await page.getByTestId('calendar-name-input').fill('')
+  await page.getByTestId('calendar-name-save').click()
+  await expect(page.getByTestId('calendar-name-open')).toHaveText('✏️ 이 달에 이름 붙이기')
+  await page.getByTestId('calendar-close').click()
+  await expect(page.getByTestId('month-2026-10')).toHaveText('10월')
+  const after = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect('monthTitles' in after).toBe(false)
+  expect(after.entries).toEqual(entries)
+})
+
+test('일요일에 시작해 날마다 쓴 달에 긴 달 이름을 붙여도 구역 이름표가 그 달 집을 가리지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-30T12:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-11', Array.from({ length: 30 }, (_, i) => i + 1)).map((e, i) => (i < 7 || i % 7 === 0 ? { ...e, text: `바닷가 ${e.text}` } : e))
+  const monthTitles = { '2026-11': '바다를 매일 보러 간 한 달 내내' }
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, monthTitles })])
+  await page.reload()
+  await expect(page.getByTestId('month-2026-11')).toHaveText('11월 · 바다를 매일 보러 간 한 달 내내')
+  await expectSignClear(page, 'month-2026-11')
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(300)
+  await expectSignClear(page, 'month-2026-11')
+  await page.screenshot({ path: 'test-results/screens/month-sign-title-dense.png' })
+})
+
 test('새해 첫 주에는 지난달 대신 지난해 돌아보기 쪽지를 보이고, 누르면 달력 한 해 보기를 연다', async ({ page }) => {
   await page.clock.install({ time: new Date('2027-01-03T21:00:00+09:00') })
   await page.goto('./')

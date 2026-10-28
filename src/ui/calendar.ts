@@ -6,6 +6,7 @@ import { treasuredDays } from '../core/treasure'
 import { buildingInfo, hasFinal, type BuildingId } from '../core/building'
 import { daysOfBuilding } from '../core/collection'
 import { monthRecap, yearRecap } from '../core/recap'
+import { TITLE_MAX } from '../core/title'
 import type { Entry } from '../core/types'
 import { dateLabel, recapLine, softMood as soft } from './format'
 
@@ -22,7 +23,13 @@ const monthDay = (date: string) => dateLabel(date).replace(/ \S+요일$/, '')
  * "소중한 날"로 바꾸면 사용자가 표시한 날만 날짜 순으로 모아 보이고, 누르면 그 집으로 간다
  * 마을 수첩 도감에서 건물을 골라 열면 그 건물이 선 날만 날짜 순으로 같은 쪽지 목록에 모아 보인다
  */
-export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
+export function createCalendar(handlers: {
+  onOpen: (entry: Entry) => void
+  /** 사용자가 붙인 달 이름(달 → 이름) */
+  titles?: () => Record<string, string>
+  /** 달 이름을 붙이거나 고친다(비우면 걷기). 실패하면 이유. 저장을 못 읽은 때는 null(이름 단추가 없다) */
+  onTitle?: ((month: string, input: string) => string | null) | null
+}) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
   back.hidden = true
@@ -91,6 +98,10 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   let kind: BuildingId | null = null
   /** 소중한 날·건물 모아 보기를 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
   let before: 'month' | 'year' = 'month'
+  /** 달 머리에서 이름 칸을 펼쳐 둔 달 */
+  let naming = ''
+
+  const titleOf = (m: string) => handlers.titles?.()[m] ?? ''
 
   function show() {
     const { first, last } = calendarRange(entries, erased, today)
@@ -101,6 +112,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
         <div class="cal-title"><b data-testid="calendar-title">${m.title}</b><span data-testid="calendar-count">${m.written ? `한 줄 ${m.written}일` : '아직 쓴 날이 없어요'}</span></div>
         <button type="button" class="cal-move" data-testid="calendar-next" aria-label="다음 달" ${month >= last ? 'disabled' : ''}>›</button>
       </div>
+      <div class="cal-name" data-testid="calendar-name"></div>
       <div class="cal-band" data-testid="calendar-band" aria-hidden="true">
         ${m.moods.map((x) => `<span style="flex:${x.count};background:${soft(x.mood, 0.8)}"></span>`).join('')}
       </div>
@@ -123,6 +135,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       <div class="book-detail" data-testid="calendar-detail" role="status">${m.written ? '칠한 날을 누르면 그날 한 줄을 열어요' : '한 줄을 쓰면 그날이 기분 색으로 물들어요'}</div>`
     sheet.querySelector('[data-testid="calendar-prev"]')!.addEventListener('click', () => go(-1))
     sheet.querySelector('[data-testid="calendar-next"]')!.addEventListener('click', () => go(1))
+    showName(sheet.querySelector<HTMLElement>('[data-testid="calendar-name"]')!)
     const detail = sheet.querySelector<HTMLElement>('[data-testid="calendar-detail"]')!
     sheet.querySelectorAll<HTMLButtonElement>('.cal-day').forEach((cell) => {
       const date = cell.dataset.testid!.slice(4)
@@ -136,6 +149,63 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
         detail.textContent =
           cell.dataset.state === 'erased' ? `🌱 ${day} · 지운 날이에요. 집을 지었던 날로 세어요` : date === today ? '✏️ 오늘 자리가 비어 있어요' : `🌿 ${day} · 쉬어 간 날이에요`
       })
+    })
+  }
+
+  /**
+   * 달 머리 아래 달 이름. 붙인 이름은 「이사한 달」 ✏️, 없으면 "✏️ 이 달에 이름 붙이기". 누르면 그 자리에서 이름 칸이 펼쳐진다.
+   * 이름은 textContent로만 넣는다
+   */
+  function showName(box: HTMLElement) {
+    const title = titleOf(month)
+    box.replaceChildren()
+    if (naming !== month) {
+      if (!handlers.onTitle) {
+        box.hidden = !title
+        box.textContent = title ? `「${title}」` : ''
+        return
+      }
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = `cal-name-btn${title ? ' named' : ''}`
+      b.dataset.testid = 'calendar-name-open'
+      b.textContent = title ? `「${title}」 ✏️` : '✏️ 이 달에 이름 붙이기'
+      b.setAttribute('aria-label', title ? `달 이름 ${title} 고치기` : '이 달에 이름 붙이기')
+      b.addEventListener('click', () => {
+        naming = month
+        showName(box)
+        box.querySelector<HTMLInputElement>('input')?.focus()
+      })
+      box.appendChild(b)
+      return
+    }
+    box.innerHTML = `
+      <div class="name-row">
+        <input class="line-input" data-testid="calendar-name-input" type="text" maxlength="${TITLE_MAX + 10}" enterkeyhint="done" autocomplete="off" placeholder="예: 이사한 달" aria-label="이 달의 이름" />
+        <button type="button" class="build" data-testid="calendar-name-save">붙이기</button>
+      </div>
+      <div class="cal-name-msg" data-testid="calendar-name-msg" role="status">${TITLE_MAX}자까지, 비우면 "${Number(month.slice(5, 7))}월"로 돌아가요</div>`
+    const input = box.querySelector<HTMLInputElement>('input')!
+    const msg = box.querySelector<HTMLElement>('.cal-name-msg')!
+    input.value = title
+    const help = msg.textContent
+    input.addEventListener('input', () => {
+      msg.textContent = help
+      msg.classList.remove('err')
+    })
+    const keep = () => {
+      const err = handlers.onTitle?.(month, input.value) ?? null
+      if (err) {
+        msg.textContent = err
+        msg.classList.add('err')
+        return
+      }
+      naming = ''
+      showName(box)
+    }
+    box.querySelector('[data-testid="calendar-name-save"]')!.addEventListener('click', keep)
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) keep()
     })
   }
 
@@ -273,13 +343,17 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
 
   function go(n: number) {
     month = shiftMonth(month, n)
+    naming = ''
     show()
   }
 
   return {
     root: back,
-    /** 처음 열면 찾기 칸을 비우고 이번 달을 보인다. at에 달("2026-10")을 주면 그달, 해("2026")를 주면 그해 한 해 보기 */
-    open(list: Entry[], erasedDates: string[], now: string, at?: string) {
+    /**
+     * 처음 열면 찾기 칸을 비우고 이번 달을 보인다. at에 달("2026-10")을 주면 그달, 해("2026")를 주면 그해 한 해 보기.
+     * name: 그달 이름 칸을 펼친 채 연다(돌아보기 쪽지의 "✏️ 이 달에 이름 붙이기")
+     */
+    open(list: Entry[], erasedDates: string[], now: string, at?: string, name = false) {
       entries = list
       erased = erasedDates
       today = now
@@ -287,9 +361,11 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       before = mode
       month = at && mode === 'month' ? at : monthKey(now)
       year = mode === 'year' ? Number(at) : Number(month.slice(0, 4))
+      naming = name && mode === 'month' && handlers.onTitle ? month : ''
       input.value = ''
       render()
       back.hidden = false
+      if (naming) sheet.querySelector<HTMLInputElement>('[data-testid="calendar-name-input"]')?.focus()
     },
     /** 그 건물이 선 날 모아 보기로 연다. 한 달·한 해를 누르면 이번 달·올해 달력으로 간다 */
     openBuilding(list: Entry[], erasedDates: string[], now: string, id: BuildingId) {

@@ -29,7 +29,11 @@ export function createWriteCard(handlers: {
   /** "N일 전 오늘"을 누르면 그 집으로 간다 */
   onMemory(entry: Entry): void
   /** 지난달 돌아보기를 누르면 그달 달력을, 지난해 돌아보기를 누르면 그해 한 해 보기를 연다("2026-10" 또는 "2026") */
-  onRecap(at: string): void
+  onRecap(at: string, name?: boolean): void
+  /** 그달에 붙인 이름(없으면 빈 글) */
+  monthTitle?(month: string): string
+  /** 지난달 돌아보기에 "✏️ 이 달에 이름 붙이기"를 둘지(저장을 못 읽은 때는 두지 않는다) */
+  canName?: boolean
 }): WriteCard {
   const root = document.createElement('section')
   root.className = 'card'
@@ -180,8 +184,29 @@ export function createWriteCard(handlers: {
     b.innerHTML = `<span class="k">🗓️ ${r.label} 돌아보기 · 한 줄 ${r.written}일</span>
       <span class="recap-band" data-testid="recap-band" aria-hidden="true">${band}</span>
       <span class="t">${recapLine(r)}</span>`
-    b.addEventListener('click', () => handlers.onRecap(at))
     root.appendChild(b)
+    b.addEventListener('click', () => handlers.onRecap(at))
+    if ('year' in r) return
+    // 지난달에 붙인 이름은 쪽지 머리에 함께, 아직 없으면 쪽지 아래에 작게 "✏️ 이 달에 이름 붙이기"(누르면 이름 칸을 펼친 달력)
+    const title = handlers.monthTitle?.(r.month) ?? ''
+    if (title) {
+      const k = b.querySelector('.k')!
+      k.textContent = `🗓️ ${r.label} 「${title}」 돌아보기 · 한 줄 ${r.written}일`
+      b.dataset.title = title
+    } else if (handlers.canName) {
+      // 쪽지 머리줄 오른쪽에 겹쳐 둔다(카드 높이가 늘면 마을이 작아진다). 쪽지 안에 단추를 넣을 수 없어 감싼다
+      const wrap = document.createElement('div')
+      wrap.className = 'recap-wrap'
+      root.replaceChild(wrap, b)
+      wrap.appendChild(b)
+      const name = document.createElement('button')
+      name.type = 'button'
+      name.className = 'recap-name'
+      name.dataset.testid = 'recap-name'
+      name.textContent = '✏️ 이 달에 이름 붙이기'
+      name.addEventListener('click', () => handlers.onRecap(at, true))
+      wrap.appendChild(name)
+    }
   }
 
   function draw() {

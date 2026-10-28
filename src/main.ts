@@ -6,6 +6,7 @@ import { dayKey } from './core/date'
 import { builtDays, editEntry, entryOn, eraseEntry, neighborDays, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
 import { loadSave, writeSave, type KV } from './core/storage'
+import { TITLE_MAX, setMonthTitle } from './core/title'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { toggleTreasured } from './core/treasure'
@@ -454,7 +455,9 @@ const card = createWriteCard({
   },
   onOpen: readEntry,
   onMemory: visitMemory,
-  onRecap: (at) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), at),
+  onRecap: (at, name) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), at, name),
+  monthTitle: (month) => save.monthTitles?.[month] ?? '',
+  canName: !readOnly,
 })
 
 /**
@@ -517,7 +520,18 @@ function visitMemory(entry: Entry) {
 app.appendChild(card.root)
 
 /** 마을 수첩에서 여는 기분 달력. 쓴 날을 누르면 그 집으로 날아가 글을 연다 */
-const calendar = createCalendar({ onOpen: visitMemory })
+const calendar = createCalendar({
+  onOpen: visitMemory,
+  titles: () => save.monthTitles ?? {},
+  // 달 이름은 사용자가 정한 것이라 저장한다. 구역 이름표가 바로 바뀌게 다시 그린다
+  onTitle: readOnly
+    ? null
+    : (month, input) => {
+        const r = setMonthTitle(save, month, input)
+        if (!r.ok) return `${TITLE_MAX}자까지 지을 수 있어요`
+        return keepLetters(r.save)
+      },
+})
 document.body.appendChild(calendar.root)
 
 const camera = createCamera(svg, (target, at) => {
@@ -783,6 +797,7 @@ function render(newDate?: string, comers: string[] = []) {
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
     firstSign: firstSignDate(days),
     critters: critters(village, today, drawnPart, weatherOf(save.entries, today), new Set(decors.map((d) => `${d.gx},${d.gy}`))),
+    titles: save.monthTitles,
   })
   // 가장 멀리 볼 때 화면 가운데로 데려올 마을(섬 전체) 자리
   const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()

@@ -23,6 +23,12 @@ export function checkMonthTitle(raw: string): TitleCheck {
 /** 그달에 붙인 이름. 없으면 null */
 export const monthTitleOf = (save: SaveData, month: string): string | null => save.monthTitles?.[month] ?? null
 
+/** 구역 이름표·달 칸에 쓰는 글: "10월", 이름이 있으면 "10월 · 이사한 달" */
+export const monthLabel = (month: string, title?: string | null): string => {
+  const m = `${Number(month.slice(5, 7))}월`
+  return title ? `${m} · ${title}` : m
+}
+
 /** 달 이름을 붙이거나 고친다. 비우면 걷는다. 달 이름 칸 말고는 건드리지 않는다 */
 export function setMonthTitle(save: SaveData, month: string, input: string): { ok: true; save: SaveData } | { ok: false } {
   const checked = checkMonthTitle(input)
