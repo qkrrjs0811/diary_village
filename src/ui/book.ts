@@ -29,7 +29,18 @@ export function createBook(handlers: {
   back.hidden = true
   back.innerHTML = `<div class="sheet book" data-testid="book" role="dialog" aria-modal="true" aria-label="마을 수첩"></div>`
   const sheet = back.querySelector<HTMLElement>('.sheet')!
-  const close = () => (back.hidden = true)
+  /** 지금 보는 책갈피. 수첩 안 단추로 다른 창에 다녀오면 다음에 열 때 이 칸으로 돌아온다(저장하지 않는다) */
+  let pane = 'buildings'
+  let resume: string | null = null
+  const close = () => {
+    resume = null
+    back.hidden = true
+  }
+  /** 수첩 안 단추로 다른 창(달력·꾸미기·글 보기·자라 온 길)에 갈 때. 보던 책갈피를 기억해 둔다 */
+  const leave = () => {
+    back.hidden = true
+    resume = pane
+  }
   back.addEventListener('click', (e) => {
     if (e.target === back) close()
   })
@@ -115,24 +126,26 @@ export function createBook(handlers: {
     sheet.querySelector('.book-stage b')!.textContent = `${stage.name} · 한 줄을 ${days}일 남겼어요`
     sheet.querySelector('.book-stage p')!.textContent = next ? `${next.left}일 더 쓰면 ${next.stage.icon} ${next.stage.name}` : '가장 큰 마을이 되었어요'
     sheet.querySelector('.close')!.addEventListener('click', close)
-    // 모은 것 네 칸은 책갈피로 넘겨 한 번에 한 칸만 본다. 열 때마다 건물부터(보던 칸은 저장하지 않는다)
+    // 모은 것 네 칸은 책갈피로 넘겨 한 번에 한 칸만 본다. 열 때마다 건물부터, 수첩 안 단추로 다른 창에 다녀왔을 때만 보던 칸(저장하지 않는다)
     const tabs = sheet.querySelectorAll<HTMLButtonElement>('.book-tab')
-    const turn = (pane: string) => {
-      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.pane === pane)))
-      sheet.querySelectorAll<HTMLElement>('.book-pane').forEach((p) => (p.hidden = p.dataset.pane !== pane))
+    const turn = (to: string) => {
+      pane = to
+      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.pane === to)))
+      sheet.querySelectorAll<HTMLElement>('.book-pane').forEach((p) => (p.hidden = p.dataset.pane !== to))
     }
     tabs.forEach((t) => t.addEventListener('click', () => turn(t.dataset.pane!)))
-    turn('buildings')
+    turn(resume ?? 'buildings')
+    resume = null
     sheet.querySelector('.book-calendar')!.addEventListener('click', () => {
-      close()
+      leave()
       handlers.onCalendar()
     })
     sheet.querySelector('.book-growth')?.addEventListener('click', () => {
-      close()
+      leave()
       handlers.onGrowth()
     })
     sheet.querySelector('.book-decorate')?.addEventListener('click', () => {
-      close()
+      leave()
       handlers.onDecorate?.()
     })
 
@@ -141,7 +154,7 @@ export function createBook(handlers: {
     let picked: BuildingId | null = null
     daysBtn.addEventListener('click', () => {
       if (!picked) return
-      close()
+      leave()
       handlers.onBuilding(picked)
     })
     sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-buildings"] .book-cell').forEach((cell, i) => {
@@ -172,7 +185,7 @@ export function createBook(handlers: {
     let arrivedEntry: Entry | null = null
     dayBtn.addEventListener('click', () => {
       if (!arrivedEntry) return
-      close()
+      leave()
       handlers.onEntry(arrivedEntry)
     })
     sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-neighbors"] .book-cell').forEach((cell, i) => {

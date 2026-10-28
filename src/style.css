@@ -147,7 +147,10 @@ button { font: inherit; color: inherit; }
 .sound-toggle + .settings-msg:empty { display: none; }
 .sheet[data-testid='settings'] { max-height: 92vh; overflow-y: auto; }
 
-.sheet.book { max-height: 92vh; overflow-y: auto; }
+/* 마을 수첩은 폰 한 화면에 맞춘다. 위쪽과 "닫기"는 그대로, 책갈피 칸이 길면 그 칸 안에서만 스크롤 */
+.sheet.book { display: flex; flex-direction: column; max-height: 92vh; max-height: 92dvh; overflow: hidden; }
+.sheet.book > * { flex: none; }
+.sheet.book > .book-pane { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* 편지 창(광장 우체통) */
 .sheet.letters { max-height: 92vh; overflow-y: auto; }
 .sheet .letter-input { display: block; height: auto; min-height: 84px; padding: 10px 14px; line-height: 1.5; resize: none; }

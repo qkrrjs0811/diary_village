@@ -4694,7 +4694,26 @@ test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아
     expect(b.x).toBeGreaterThanOrEqual(0)
     expect(b.x + b.width).toBeLessThanOrEqual(390)
   }
+  // 수첩은 폰 한 화면에 맞는다: 머리·책갈피·"닫기"는 늘 보이고, 칸이 길면 그 칸 안에서만 스크롤한다
+  const fits = async () => {
+    const sheet = (await page.getByTestId('book').boundingBox())!
+    expect(sheet.y).toBeGreaterThanOrEqual(0)
+    expect(sheet.y + sheet.height).toBeLessThanOrEqual(845)
+    for (const id of ['book-stage', 'book-tab-neighbors', 'book-close']) {
+      const b = (await page.getByTestId(id).boundingBox())!
+      expect(b.y).toBeGreaterThanOrEqual(0)
+      expect(b.y + b.height).toBeLessThanOrEqual(844)
+    }
+  }
+  await finishAnimations(page)
+  await fits()
+  const pane = page.locator('.book-pane[data-pane="neighbors"]')
   await day.scrollIntoViewIfNeeded()
+  await fits()
+  expect(await page.getByTestId('book').evaluate((el) => el.scrollTop)).toBe(0)
+  const dayBox = (await day.boundingBox())!
+  const paneBox = (await pane.boundingBox())!
+  expect(dayBox.y + dayBox.height).toBeLessThanOrEqual(paneBox.y + paneBox.height + 1)
   await page.screenshot({ path: 'test-results/screens/book-neighbors.png' })
 
   await day.click()
@@ -4702,6 +4721,20 @@ test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아
   await page.clock.runFor(2000)
   await expect(page.getByTestId('reader')).toBeVisible()
   await expect(page.getByTestId('reader-text')).toHaveText('두부가 온 날의 한 줄')
+
+  // 글을 읽고 수첩으로 돌아오면 보던 이웃 책갈피가 열려 있다
+  await page.getByTestId('reader-close').click()
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-tab-neighbors')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('book-neighbors')).toBeVisible()
+  await finishAnimations(page)
+  await fits()
+  await page.screenshot({ path: 'test-results/screens/book-return.png' })
+  // "닫기"로 닫았다가 다시 열면 건물부터
+  await page.getByTestId('book-close').click()
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-tab-buildings')).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('book-close').click()
   // 수첩은 계산만 하고 저장을 바꾸지 않는다
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
 })
