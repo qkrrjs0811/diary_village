@@ -130,6 +130,7 @@ const reader = createReader({
   },
   onTurn: turnTo,
   reply: (entry) => dayReplyLine(entry, builtDays(save)),
+  onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
   onTreasure: readOnly
     ? null
     : (date) => {

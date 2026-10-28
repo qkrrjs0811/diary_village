@@ -1,5 +1,5 @@
 import { agingLine } from '../core/aging'
-import { buildingInfo, buildingOf } from '../core/building'
+import { buildingInfo, buildingOf, type BuildingId } from '../core/building'
 import { dayKey } from '../core/date'
 import { checkText, MAX_TEXT } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
@@ -36,6 +36,8 @@ export function createReader(handlers: {
   onTreasure?: ((date: string) => Entry | null) | null
   /** 그날 첫 손님이 그 글에 건넨 맞장구 한 줄(없으면 null) */
   reply?: (entry: Entry) => string | null
+  /** 건물 꼬리표를 누르면 그 건물이 선 날 모아 보기를 연다(읽기 창은 닫힌다) */
+  onBuilding?: (id: BuildingId) => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -85,7 +87,9 @@ export function createReader(handlers: {
         ${handlers.onTreasure ? '<button type="button" class="treasure-btn" data-testid="reader-treasure"></button>' : ''}
       </div>
       <div class="reader-tags">
-        <span class="reader-building" data-testid="reader-building" hidden></span>
+        ${handlers.onBuilding
+          ? '<button type="button" class="reader-building-btn" data-testid="reader-building" hidden><span class="reader-building"></span></button>'
+          : '<span class="reader-building" data-testid="reader-building" hidden></span>'}
         <span class="reader-aging" data-testid="reader-aging" hidden></span>
       </div>
       <p class="reader-text" data-testid="reader-text"></p>
@@ -109,9 +113,16 @@ export function createReader(handlers: {
     const found = buildingOf(entry)
     if (found) {
       const b = buildingInfo(found.id)
-      const line = sheet.querySelector<HTMLElement>('.reader-building')!
-      line.textContent = `${b.icon} ${b.name} · '${found.word}'에서 생겼어요`
+      const line = sheet.querySelector<HTMLElement>('[data-testid="reader-building"]')!
+      const pill = line.querySelector<HTMLElement>('.reader-building') ?? line
+      pill.textContent = `${b.icon} ${b.name} · '${found.word}'에서 생겼어요`
       line.hidden = false
+      // 같은 건물이 선 날들을 이어 읽는다. 목록에서 고른 날로 읽기 창이 다시 열린다
+      line.addEventListener('click', () => {
+        if (!handlers.onBuilding) return
+        close()
+        handlers.onBuilding(found.id)
+      })
     }
     // 집 나이는 그날 날짜와 오늘로만 센다. 30일 전 새 집에는 말하지 않는다
     const age = agingLine(entry.date, dayKey(Date.now()))

@@ -773,6 +773,23 @@ button { font: inherit; color: inherit; }
 .reader-building { background: var(--chip); }
 .reader-aging { background: #eef5e4; color: #5f7d4c; }
 .reader-building[hidden], .reader-aging[hidden] { display: none; }
+/* 누를 수 있는 건물 꼬리표: 보이는 모양은 작은 알약 그대로, 누르는 자리는 44px */
+.reader-tags:has(.reader-building-btn:not([hidden])) { align-items: center; margin-top: 2px; margin-bottom: -6px; }
+.reader-building-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.reader-building-btn[hidden] { display: none; }
+.reader-building-btn .reader-building { border: 1px solid var(--line); }
+.reader-building-btn .reader-building::after { content: ' ›'; color: var(--ink-soft); }
+.reader-building-btn:active .reader-building { filter: brightness(0.96); }
 .reader-text { margin: 14px 0 16px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
 /* 손님의 맞장구는 글에 건네는 작은 말풍선 */
 .reader-reply {

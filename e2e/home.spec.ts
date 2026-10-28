@@ -1408,7 +1408,7 @@ test('읽기 창의 작은 줄이 묶여 있다 — 건물·집 나이는 꼬리
     box(page.getByTestId('reader-text')), box(page.getByTestId('reader-reply')),
   ])
   // 꼬리표 둘은 나란히 놓이고(좁으면 다음 줄로 내려가고) 겹치거나 창 밖으로 나가지 않는다
-  const side = a.x >= b.x + b.width && Math.abs(a.y - b.y) < 4
+  const side = a.x >= b.x + b.width && Math.abs(a.y + a.height / 2 - (b.y + b.height / 2)) < 4
   const below = a.y >= b.y + b.height
   expect(side || below).toBe(true)
   expect(b.x + b.width).toBeLessThanOrEqual(390)
@@ -3214,6 +3214,51 @@ test('마을 수첩 도감에서 카페를 고르면 "선 날 보기"로 카페�
   const now = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
   expect(now.entries).toEqual(entries)
   expect(now.erased).toEqual(erased)
+})
+
+test('읽기 창 건물 꼬리표를 누르면 같은 건물이 선 날 목록이 열리고, 고른 날로 읽기 창이 이어진다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 8, 12, 19, 24]) as Entry[]
+  entries[0] = { ...entries[0], text: '아침에 커피를 마셨다' }
+  entries[2] = { ...entries[2], text: '라떼가 맛있었다' }
+  entries[3] = { ...entries[3], text: '그냥 지나간 하루' }
+  entries[4] = { ...entries[4], text: '친구와 커피 한 잔' }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  await page.getByTestId('house-2026-10-12').dispatchEvent('click')
+  const tag = page.getByTestId('reader-building')
+  await expect(tag).toHaveText("☕ 카페 · '라떼'에서 생겼어요")
+  const box = (await tag.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  // 꼬리표가 누를 수 있게 되어도 넘기기는 그대로다
+  await expect(page.getByTestId('reader-prev')).toBeEnabled()
+  await page.waitForTimeout(500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/reader-building-tag.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  await tag.click()
+  await expect(page.getByTestId('reader')).toBeHidden()
+  await expect(page.getByTestId('building-count')).toHaveText('☕ 카페가 선 날 3일')
+  await expect(page.getByTestId('building-list').locator('.cal-hit')).toHaveCount(3)
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/reader-building-list.png' })
+
+  await page.getByTestId('hit-2026-10-24').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('친구와 커피 한 잔')
+  await expect(tag).toHaveText("☕ 카페 · '커피'에서 생겼어요")
+
+  // 보통 집에는 꼬리표가 없고, 모아 보기는 저장을 바꾸지 않는다
+  await page.getByTestId('reader-prev').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('그냥 지나간 하루')
+  await expect(tag).toBeHidden()
+  const now = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(now.entries).toEqual(entries)
 })
 
 test('광장 우체통을 누르면 편지 창이 열려 미래의 나에게 편지를 부치고, 기다리는 편지는 열리는 날만 보인다', async ({ page }) => {
