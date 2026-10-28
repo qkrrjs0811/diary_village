@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, onPlaza, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { replyOf } from './reply'
-import { PLAZA } from './landmark'
+import { LANDMARKS, PLAZA } from './landmark'
+import { MAILBOX, MAILBOX_AT } from './letter'
+import { canPlace } from './placing'
+import { PLAZA_SIGN, PLAZA_TREES } from './scenery'
 import { festivalLine, festivalOn } from './festival'
 import { BLOCK_H, BLOCK_W, ROAD, buildVillage } from './village'
 import { addDays } from './date'
-import type { Entry } from './types'
+import type { Entry, SaveData } from './types'
 
 const e = (date: string, text = '그냥 하루'): Entry => ({ date, text, mood: 'calm', writtenAt: 0 })
 /** start 부터 n일을 이어서 쓴 기록 */
@@ -507,8 +510,57 @@ describe('이웃 수첩: 새 이웃이 광장으로 들어온다', () => {
     expect(todayGuests(buildVillage(one, today), residentsOf(one), one, today, [], ['kong'])[0].resident.id).toBe('kong')
   })
 
-  it('들어오는 자리는 그 길과 같은 줄의 광장 앞 가장자리다', () => {
-    const at = { gx: PLAZA.gx + 4, gy: PLAZA.gy + 3 }
-    expect(plazaEntrance(at)).toEqual({ gx: at.gx, gy: PLAZA.gy + PLAZA.h })
+  it('들어오는 자리는 그 길과 같은 줄의 광장 왼쪽 위 가장자리(섬 끝)다', () => {
+    const at = { gx: PLAZA.gx + 4.5, gy: PLAZA.gy + 3.5 }
+    expect(plazaEntrance(at)).toEqual({ gx: PLAZA.gx, gy: at.gy })
+  })
+})
+
+describe('광장 다듬기: 주민 길이 우체통·명소·팻말을 비켜 간다', () => {
+  const today = '2026-10-27'
+  const empty = { version: 1, entries: [] } as unknown as SaveData
+  const plazaWalks = () => residentWalks(buildVillage([], today), RESIDENTS).filter((w) => onPlaza(w.from))
+  type Pt = { gx: number; gy: number }
+  /** a → b 곧은 길 위의 점들 */
+  const along = (a: Pt, b: Pt) => Array.from({ length: 41 }, (_, i) => ({ gx: a.gx + ((b.gx - a.gx) * i) / 40, gy: a.gy + ((b.gy - a.gy) * i) / 40 }))
+  /** 광장 칸(col,row)에 주민 몸 둘레(pad)만큼 닿는지 */
+  const near = (p: Pt, col: number, row: number, pad = 0.25) => {
+    const u = p.gx - PLAZA.gx
+    const v = p.gy - PLAZA.gy
+    return u > col - pad && u < col + 1 + pad && v > row - pad && v < row + 1 + pad
+  }
+  const blocked: [number, number][] = [...LANDMARKS.map((l): [number, number] => [l.col, l.row]), [MAILBOX.col, MAILBOX.row], ...PLAZA_TREES]
+  const routes = () => plazaWalks().flatMap((w) => [along(w.from, w.to), along(plazaEntrance(w.from), w.from)])
+
+  it('광장 길은 세 갈래 그대로이고, 새 이웃이 들어오는 길까지 명소(팻말 자리)·우체통·나무 칸을 지나지 않는다', () => {
+    expect(plazaWalks()).toHaveLength(3)
+    for (const route of routes()) for (const p of route) for (const [c, r] of blocked) expect(near(p, c, r), `${p.gx},${p.gy} ~ ${c},${r}`).toBe(false)
+  })
+
+  it('우체통과 광장 이름표에서 넉넉히 떨어져 있다', () => {
+    const box = { gx: PLAZA.gx + MAILBOX.col + MAILBOX_AT.u, gy: PLAZA.gy + MAILBOX.row + MAILBOX_AT.v }
+    const far = (p: Pt, q: Pt) => Math.hypot(p.gx - q.gx, p.gy - q.gy)
+    for (const route of routes()) for (const p of route) {
+      expect(far(p, box)).toBeGreaterThanOrEqual(0.8)
+      expect(far(p, PLAZA_SIGN)).toBeGreaterThanOrEqual(1.5)
+    }
+  })
+
+  it('꾸밈 소품을 놓을 수 있는 칸은 지나지 않는다(놓은 소품을 밟거나 옮기지 않는다)', () => {
+    const v = buildVillage([], today)
+    const free: [number, number][] = []
+    for (let row = 0; row < PLAZA.h; row++) for (let col = 0; col < PLAZA.w; col++) if (canPlace(v, today, empty, { at: 'plaza', col, row })) free.push([col, row])
+    expect(free.length).toBeGreaterThan(0)
+    for (const route of routes()) for (const p of route) for (const [c, r] of free) expect(near(p, c, r, 0.2), `${p.gx},${p.gy} ~ ${c},${r}`).toBe(false)
+  })
+
+  it('걷는 주민 수와 손님 규칙은 그대로다', () => {
+    for (const n of [1, 3, 10, 30, 60, 120, 400]) {
+      const es = days(n, addDays(today, 1 - n))
+      const v = buildVillage(es, today)
+      const rs = residentsOf(es)
+      const gs = todayGuests(v, rs, es, today)
+      expect(residentWalks(v, rs, gs)).toHaveLength(Math.min(rs.length - gs.length, 3 + 13 * v.blocks.length))
+    }
   })
 })

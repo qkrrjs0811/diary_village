@@ -6,7 +6,7 @@ import type { DecorId } from '../core/decor'
 import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
-import { MAILBOX } from '../core/letter'
+import { MAILBOX, MAILBOX_AT } from '../core/letter'
 import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Resident, type Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
@@ -1576,9 +1576,6 @@ const DECOR_ART: Record<DecorId, (g: Element, P: Place, c: Pt) => void> = {
     el('path', { d: `M${top.x} ${top.y - 8} l6 1.8 l-6 1.8 z`, fill: '#7bb88f' }, g)
   },
 }
-
-/** 우체통이 칸 안에 서는 자리(입구 돌길 왼쪽 가장자리. 가운데 길을 오가는 주민을 가리지 않게) */
-const MAILBOX_AT = { u: 0.22, v: 0.62 }
 
 /**
  * 광장 입구의 마을 우체통. 꾸밈 소품 우체통 그림을 키워 기둥을 길게 세웠다.

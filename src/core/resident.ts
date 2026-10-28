@@ -140,10 +140,15 @@ function blockLanes(b: Block): Lane[] {
   return out
 }
 
-/** 광장의 빈 돌길(명소 자리를 피한다) */
+/**
+ * 광장의 빈 돌길. 가로 돌길(셋째·넷째 줄)과 가운데 돌길 칸만 써서
+ * 명소 자리(팻말 자리)·우체통·모서리 나무·소품을 놓을 수 있는 칸을 지나지 않는다.
+ * 세 길 모두 출발점이 넷째 줄이라, 새 이웃은 같은 줄 왼쪽 위 끝에서 곧게 들어온다.
+ * 첫 길(첫 새 이웃 자리)은 화면에서 우체통 바로 위·명소 팻말 뒤에 서지 않는 셋째 칸이다
+ */
 function plazaLanes(): Lane[] {
   const at = (u: number, v: number): Spot => ({ gx: PLAZA.gx + u, gy: PLAZA.gy + v })
-  return [lane(at(1, 3), at(2, 3)), lane(at(4, 3), at(5, 3)), lane(at(3.5, 4), at(3.5, 5))]
+  return [lane(at(2.5, 3.5), at(2.5, 2.5)), lane(at(4.5, 3.5), at(5.5, 3.5)), lane(at(3.5, 3.5), at(3.5, 4.5))]
 }
 
 /**
@@ -183,9 +188,12 @@ export function onPlaza(s: Spot): boolean {
   return s.gx >= PLAZA.gx && s.gx < PLAZA.gx + PLAZA.w && s.gy >= PLAZA.gy && s.gy < PLAZA.gy + PLAZA.h
 }
 
-/** 새 이웃이 광장 길로 들어오기 시작하는 자리: 그 길과 같은 줄의 광장 앞 가장자리(섬 끝) */
+/**
+ * 새 이웃이 광장 길로 들어오기 시작하는 자리: 그 길과 같은 줄의 광장 왼쪽 위 가장자리(섬 끝).
+ * 앞 가장자리에서 올라오면 우체통·우물·다리 앞을 지나가서, 비어 있는 가로 돌길로 들어온다
+ */
 export function plazaEntrance(at: Spot): Spot {
-  return { gx: at.gx, gy: PLAZA.gy + PLAZA.h }
+  return { gx: PLAZA.gx, gy: at.gy }
 }
 
 /** 손님 놀이: 오늘 건물 종류(보통 집은 'house') */

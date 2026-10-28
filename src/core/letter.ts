@@ -10,6 +10,9 @@ export const MAX_LETTER = 200
  */
 export const MAILBOX = { col: 3, row: 5 }
 
+/** 우체통이 칸 안에 서는 자리(입구 돌길 왼쪽 가장자리. 가운데 길을 오가는 주민을 가리지 않게) */
+export const MAILBOX_AT = { u: 0.22, v: 0.62 }
+
 /** 열리는 날 고르기: 한 달 뒤·100일 뒤·1년 뒤 */
 export type LetterWait = 'month' | 'days100' | 'year'
 

@@ -604,14 +604,24 @@ test('새 이웃이 온 날, 원래 보기로 돌아온 뒤 섬 가장자리에�
     }, t)
     return (await hodu.locator('.hit').boundingBox())!
   }
+  // 뛰어 오는 내내 우체통(빨간 통)을 덮지 않는다: 우체통 뒤 돌길로 와서, 같은 세로줄에서는 발이 통 꼭대기보다 위에 있다
+  const body = hodu.locator('.hop')
+  for (const t of [100, 300, 500, 700, 900, 1100, 1300, 1500, 1760]) {
+    await at(t)
+    const post = (await page.getByTestId('mailbox').locator('path').first().boundingBox())!
+    const b = (await body.boundingBox())!
+    const sideBySide = b.x + b.width <= post.x || post.x + post.width <= b.x
+    expect(sideBySide || b.y + b.height <= post.y + 3, `${t}ms`).toBe(true)
+  }
   const start = await at(250)
   const mid = await at(700)
   await page.screenshot({ path: 'test-results/screens/neighbor-arrive.png' })
   // 끝(1800) 바로 앞: 거의 제 길에 섰다
   const end = await at(1760)
-  // 섬 앞 가장자리(화면 아래쪽)에서 위로 들어와 제 길에 선다
-  expect(start.y).toBeGreaterThan(mid.y)
-  expect(mid.y).toBeGreaterThan(end.y)
+  // 섬 왼쪽 위 가장자리에서 가로 돌길을 따라 오른쪽 아래로 들어와 제 길에 선다
+  expect(start.x).toBeLessThan(mid.x)
+  expect(mid.x).toBeLessThan(end.x)
+  expect(start.y).toBeLessThan(end.y)
   await expect(hodu).toBeInViewport()
   await page.screenshot({ path: 'test-results/screens/neighbor-arrived.png' })
   // 뛰어 오는 동안 맨 앞에 그렸다가, 다 오면 제 깊이 자리로 돌아간다
