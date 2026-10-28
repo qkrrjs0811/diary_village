@@ -95,6 +95,15 @@ export function cueTune(cue: Cue, key = ''): Note[] {
   return [{ freq: hz(64), at: 0, dur: 0.14, gain: GAIN * 0.7 }]
 }
 
+/** 자라 온 길에서 집이 오를 때 오르는 음(C 장조 오음, 낮은 도에서 두 옥타브 위 도까지) */
+const RISE = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84]
+
+/** 자라 온 길: total 채 가운데 index 번째 집이 오를 때 울리는 한 음. 마을이 자랄수록 높아진다 */
+export function growthTune(index: number, total: number): Note[] {
+  const k = total > 1 ? Math.round((index / (total - 1)) * (RISE.length - 1)) : 0
+  return [{ freq: hz(RISE[Math.min(RISE.length - 1, Math.max(0, k))]), at: 0, dur: 0.22, gain: GAIN * 0.5 }]
+}
+
 /** 짧은 소리의 떨림. 주민 누르기·책장 넘기기는 자주 하니 떨지 않는다 */
 export const CUE_BUZZ: Record<Cue, number[]> = {
   celebrate: [20, 40, 20, 40, 20],

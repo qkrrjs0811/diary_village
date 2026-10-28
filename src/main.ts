@@ -407,6 +407,8 @@ const growth = createGrowth({
     if (beforeGrowth) camera.show(beforeGrowth)
     beforeGrowth = null
   },
+  calm: () => calm,
+  onRing: (index, total) => sound.rise(index, total),
 })
 document.body.appendChild(growth.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))

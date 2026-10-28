@@ -86,6 +86,51 @@ export function growthDelays(steps: GrowthStep[]): number[] {
   return notes.map((n) => Math.floor(n ? base + extra : base))
 }
 
+/** 움직임 줄이기에서 한 장면을 보여 주는 시간(ms) */
+export const GROWTH_CALM_MS = 1800
+const CALM_SCENES = 5
+
+/**
+ * 움직임 줄이기면 집이 오르는 움직임 없이 몇 장면만 차례로 본다(장면 번호, 날짜 순).
+ * 첫 집과 오늘은 늘 들어가고, 가운데는 마을 단계가 오른 날 → 명소가 생긴 날 → 이웃이 온 날 순으로 고르고,
+ * 모자라면 고르게 나눈 날로 채운다
+ */
+export function growthScenes(steps: GrowthStep[]): number[] {
+  const n = steps.length
+  if (n <= CALM_SCENES) return steps.map((_, i) => i)
+  const picked = new Set([0, n - 1])
+  const ranks = [(s: GrowthStep) => s.stage !== null, (s: GrowthStep) => s.landmarks.length > 0, (s: GrowthStep) => s.arrivals.length > 0]
+  for (const is of ranks) {
+    // 같은 종류가 넘치면 고르게 나눠 고른다
+    const found = steps.map((s, i) => (is(s) && !picked.has(i) ? i : -1)).filter((i) => i >= 0)
+    const room = CALM_SCENES - picked.size
+    if (room <= 0) break
+    const take = found.length <= room ? found : Array.from({ length: room }, (_, k) => found[Math.floor(((k + 0.5) * found.length) / room)])
+    for (const i of take) picked.add(i)
+  }
+  const even = Array.from({ length: CALM_SCENES - 2 }, (_, k) => Math.round(((k + 1) * (n - 1)) / (CALM_SCENES - 1)))
+  for (const i of [...even, ...steps.keys()]) {
+    if (picked.size >= CALM_SCENES) break
+    picked.add(i)
+  }
+  return [...picked].sort((a, b) => a - b)
+}
+
+/** 집이 오를 때 실로폰이 울리는 사이는 적어도 이만큼(ms) 둔다 */
+const RING_GAP_MS = 120
+
+/** 어느 집에서 소리가 울리는지. 집이 빠르게 지나가면 몇 집마다 한 번만 울린다(첫 집은 늘 울린다) */
+export function growthRings(delays: number[]): boolean[] {
+  let last = -Infinity
+  let at = 0
+  return delays.map((d) => {
+    const ring = at - last >= RING_GAP_MS
+    if (ring) last = at
+    at += d
+    return ring
+  })
+}
+
 /** 다 보고 난 끝 문장. 집을 지은 적이 없으면 null */
 export function growthEnd(steps: GrowthStep[]): string | null {
   if (!steps.length) return null

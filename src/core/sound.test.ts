@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUZZ, CUE_BUZZ, SOUND_KEY, buildTune, cueTune, soundOn, setSound, type Note } from './sound'
+import { BUZZ, CUE_BUZZ, SOUND_KEY, buildTune, cueTune, growthTune, soundOn, setSound, type Note } from './sound'
 import { MOODS } from './mood'
 import type { KV } from './storage'
 
@@ -123,5 +123,22 @@ describe('짧은 소리(축하·주민·소품)', () => {
   it('떨림은 짧고, 주민을 누를 때는 떨지 않는다', () => {
     expect(CUE_BUZZ.resident).toEqual([])
     for (const b of Object.values(CUE_BUZZ)) expect(b.reduce((a, x) => a + x, 0)).toBeLessThanOrEqual(150)
+  })
+})
+
+describe('자라 온 길 소리', () => {
+  it('집이 오를수록 낮은 음에서 높은 음으로 올라간다(귀에 편한 높이)', () => {
+    const n = 30
+    const tunes = Array.from({ length: n }, (_, i) => growthTune(i, n))
+    for (const t of tunes) expect(t).toHaveLength(1)
+    const f = tunes.map((t) => t[0].freq)
+    for (let i = 1; i < n; i++) expect(f[i]).toBeGreaterThanOrEqual(f[i - 1])
+    expect(f[n - 1]).toBeGreaterThan(f[0])
+    for (const x of f) {
+      expect(x).toBeGreaterThan(250)
+      expect(x).toBeLessThan(1100)
+    }
+    // 한 채뿐이어도 소리가 난다
+    expect(growthTune(0, 1)[0].freq).toBeGreaterThan(250)
   })
 })

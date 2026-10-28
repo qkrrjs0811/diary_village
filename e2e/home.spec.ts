@@ -5,7 +5,7 @@ import { roomOf } from '../src/core/interior'
 import { birdFlock, critters } from '../src/core/critter'
 import { buildVillage } from '../src/core/village'
 import { yardOf } from '../src/core/yard'
-import { growthDelays, growthNote, growthSteps } from '../src/core/growth'
+import { GROWTH_CALM_MS, growthDelays, growthNote, growthScenes, growthSteps } from '../src/core/growth'
 import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
@@ -4630,6 +4630,9 @@ test('마을 수첩 "마을이 자라 온 길" — 첫 집부터 날짜 순으�
   await page.clock.runFor(delays.slice(at).reduce((a, b) => a + b, 0) + 50)
   await expect(page.getByTestId('growth-end')).toHaveText('🏡 오늘까지 36채의 집이 모였어요')
   await expect(page.getByTestId('house-2026-10-26')).toBeVisible()
+  // 가장 최근 집(10월 26일)이 반짝이며 마무리한다
+  await expect(page.getByTestId('house-2026-10-26')).toHaveClass(/growth-shine/)
+  await expect(page.getByTestId('house-2026-10-26').getByTestId('growth-shine')).toHaveCount(1)
   await finishAnimations(page)
   await page.screenshot({ path: 'test-results/screens/growth-end.png' })
   // 잠시 뒤 지금 마을로 돌아온다
@@ -4655,4 +4658,65 @@ test('마을 수첩 "마을이 자라 온 길" — 첫 집부터 날짜 순으�
   await expect(page.getByTestId('house-2026-09-20')).toBeVisible()
   // 보기만 했을 뿐 저장은 그대로다
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
+})
+
+test('자라 온 길: 집이 오를수록 높아지는 실로폰 소리, 움직임 줄이기면 몇 장면만, 소리를 끄면 조용하다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  const entries = monthEntries('2026-10', Array.from({ length: 26 }, (_, i) => i + 1)) as Entry[]
+  const data = { version: 1 as const, entries }
+  await page.addInitScript(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.goto('./')
+  const steps = growthSteps(data)
+  const notes = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes)
+
+  // 소리: 한 집마다 한 음, 뒤로 갈수록 높아진다(오실레이터 두 개 가운데 바탕음만 본다)
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.clock.runFor(16000)
+  await expect(page.getByTestId('growth-end')).toBeVisible()
+  const base = (await notes()).filter((_, i) => i % 2 === 0)
+  expect(base).toHaveLength(steps.length)
+  expect(base[base.length - 1]).toBeGreaterThan(base[0])
+  for (let i = 1; i < base.length; i++) expect(base[i]).toBeGreaterThanOrEqual(base[i - 1])
+  await page.getByTestId('growth-skip').click()
+  await expect(page.getByTestId('growth')).toBeHidden()
+
+  // 움직임 줄이기: 첫 집 → 축하 날 몇 → 오늘 집, 몇 장면만 차례로(움직임 없이)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.reload()
+  const scenes = growthScenes(steps)
+  expect(scenes.length).toBeLessThanOrEqual(5)
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.clock.runFor(650)
+  await expect(page.getByTestId('growth-caption')).toHaveText('10월 1일첫 집')
+  await expect(page.getByTestId('house-2026-10-02')).toBeHidden()
+  await expect(page.locator('svg .house.pop')).toHaveCount(0)
+  // 다음 장면: 그날까지의 집이 한꺼번에 보인다
+  await page.clock.runFor(GROWTH_CALM_MS)
+  const second = steps[scenes[1]]
+  await expect(page.getByTestId('growth-caption')).toContainText(`${second.house}번째 집`)
+  await expect(page.getByTestId(`house-${second.date}`)).toBeVisible()
+  await expect(page.getByTestId('house-2026-10-02')).toBeVisible()
+  await expect(page.getByTestId(`house-${steps[scenes[1] + 1].date}`)).toBeHidden()
+  await expect(page.getByTestId('growth-note')).toHaveText(growthNote(second)!)
+  await expect(page.locator('svg .house.pop')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/growth-calm.png' })
+  await page.clock.runFor(GROWTH_CALM_MS * (scenes.length - 1))
+  await expect(page.getByTestId('growth-end')).toBeVisible()
+  await expect(page.getByTestId('house-2026-10-26')).toHaveClass(/growth-shine/)
+  await page.screenshot({ path: 'test-results/screens/growth-calm-end.png' })
+  await page.getByTestId('growth-skip').click()
+
+  // 소리를 끄면 조용하다
+  await page.evaluate(() => {
+    localStorage.setItem('diary-village:sound', 'off')
+    ;(window as unknown as { notes: number[] }).notes = []
+  })
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.clock.runFor(8000)
+  expect(await notes()).toEqual([])
+  await page.getByTestId('growth-skip').click()
 })

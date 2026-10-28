@@ -1,4 +1,4 @@
-import { growthDelays, growthEnd, growthNote, type GrowthStep } from '../core/growth'
+import { GROWTH_CALM_MS, growthDelays, growthEnd, growthNote, growthRings, growthScenes, type GrowthStep } from '../core/growth'
 import { dateLabel } from './format'
 
 /** 끝 문장을 보여 주는 시간(ms). 그 뒤 지금 마을로 돌아온다 */
@@ -16,6 +16,10 @@ export function createGrowth(handlers: {
   onStart: () => void
   /** 끝날 때(다 봤거나 건너뛰었을 때). 지금 마을로 돌아온다 */
   onEnd: () => void
+  /** 움직임 줄이기인지(장면을 시작할 때 물어본다) */
+  calm: () => boolean
+  /** 집이 오를 때 울리는 소리(total 채 가운데 index 번째). 집이 빠르면 몇 집마다 한 번만 부른다 */
+  onRing: (index: number, total: number) => void
 }) {
   const root = document.createElement('div')
   root.className = 'growth'
@@ -47,8 +51,8 @@ export function createGrowth(handlers: {
   // 어디를 눌러도(건너뛰기 포함) 끝난다
   root.addEventListener('click', finish)
 
-  /** 그날 생긴 것(집·연기·깃발·마당 흔적·첫 집 팻말, 명소, 이사 온 이웃)을 보인다 */
-  function grow(step: GrowthStep) {
+  /** 그날 생긴 것(집·연기·깃발·마당 흔적·첫 집 팻말, 명소, 이사 온 이웃)을 보인다. say: 자막·축하 한 줄도 바꾼다 */
+  function grow(step: GrowthStep, pop = true, say = true) {
     if (!svg) return
     const nodes = [
       ...svg.querySelectorAll<SVGElement>(`[data-date="${step.date}"]`),
@@ -57,13 +61,14 @@ export function createGrowth(handlers: {
     ]
     for (const n of nodes) {
       n.classList.add('grown')
-      if (n.classList.contains('house') || n.classList.contains('landmark')) {
+      if (pop && (n.classList.contains('house') || n.classList.contains('landmark'))) {
         n.style.setProperty('--delay', '0ms')
         n.classList.remove('pop')
         void n.getBoundingClientRect()
         n.classList.add('pop')
       }
     }
+    if (!say) return
     caption.querySelector('b')!.textContent = dateLabel(step.date).replace(/ .요일$/, '')
     caption.querySelector('span')!.textContent = step.house === null ? '' : step.house === 1 ? '첫 집' : `${step.house}번째 집`
     const text = growthNote(step)
@@ -73,6 +78,35 @@ export function createGrowth(handlers: {
       note.hidden = false
       noteTimer = window.setTimeout(() => (note.hidden = true), NOTE_MS)
     }
+  }
+
+  /** 다 보고 나면 가장 최근에 선 집(오늘 집)이 살짝 반짝인다 */
+  function shine(steps: GrowthStep[]) {
+    const step = [...steps].reverse().find((s) => s.house !== null)
+    const house = step ? svg?.querySelector<SVGGraphicsElement>(`.house[data-date="${step.date}"]`) : null
+    if (!house) return
+    const box = house.getBBox()
+    const ns = 'http://www.w3.org/2000/svg'
+    const stars = document.createElementNS(ns, 'g')
+    stars.setAttribute('class', 'growth-stars')
+    stars.setAttribute('data-testid', 'growth-shine')
+    const spots = [
+      [0.5, -0.1, 30],
+      [0.02, 0.2, 20],
+      [0.98, 0.1, 22],
+    ]
+    spots.forEach(([dx, dy, size], k) => {
+      const t = document.createElementNS(ns, 'text')
+      t.setAttribute('x', (box.x + box.width * dx).toFixed(1))
+      t.setAttribute('y', (box.y + box.height * dy).toFixed(1))
+      t.setAttribute('text-anchor', 'middle')
+      t.setAttribute('font-size', String(size))
+      t.setAttribute('style', `--i:${k}`)
+      t.textContent = '✨'
+      stars.appendChild(t)
+    })
+    house.classList.add('growth-shine')
+    house.appendChild(stars)
   }
 
   return {
@@ -94,17 +128,26 @@ export function createGrowth(handlers: {
       end.hidden = true
       root.hidden = false
       handlers.onStart()
-      const delays = growthDelays(steps)
+      // 움직임 줄이기면 몇 장면만 보고, 장면 사이의 날들은 움직임 없이 한꺼번에 보인다
+      const calm = handlers.calm()
+      const scenes = calm ? growthScenes(steps) : steps.map((_, k) => k)
+      const delays = calm ? scenes.map(() => GROWTH_CALM_MS) : growthDelays(steps)
+      const rings = calm ? scenes.map(() => true) : growthRings(delays)
       let i = 0
+      let shown = 0
       const next = () => {
-        if (i < steps.length) {
-          grow(steps[i])
+        if (i < scenes.length) {
+          const at = scenes[i]
+          for (; shown < at; shown++) grow(steps[shown], false, false)
+          grow(steps[shown++], !calm)
+          if (rings[i]) handlers.onRing(at, steps.length)
           timer = window.setTimeout(next, delays[i++])
           return
         }
         note.hidden = true
         end.textContent = `🏡 ${last}`
         end.hidden = false
+        shine(steps)
         timer = window.setTimeout(finish, END_MS)
       }
       // 마을이 멀리 물러날 틈을 잠깐 준다

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GROWTH_MAX_MS, growthDelays, growthEnd, growthNote, growthSteps } from './growth'
+import { GROWTH_MAX_MS, growthDelays, growthEnd, growthNote, growthRings, growthScenes, growthSteps } from './growth'
 import { eraseEntry } from './entries'
 import { addDays } from './date'
 import type { Entry, SaveData } from './types'
@@ -100,5 +100,47 @@ describe('마을이 자라 온 길', () => {
     expect(growthEnd(growthSteps(save(days(1))))).toBe('오늘까지 1채의 집이 모였어요')
     expect(growthEnd(growthSteps(save(days(42))))).toBe('오늘까지 42채의 집이 모였어요')
     expect(growthEnd([])).toBeNull()
+  })
+
+  it('움직임 줄이기: 첫 집·축하 날·오늘만 몇 장면 고른다(단계 오른 날을 먼저)', () => {
+    const steps = growthSteps(save(days(100)))
+    const scenes = growthScenes(steps)
+    expect(scenes.length).toBeLessThanOrEqual(5)
+    expect(scenes[0]).toBe(0)
+    expect(scenes[scenes.length - 1]).toBe(99)
+    expect([...scenes].sort((a, b) => a - b)).toEqual(scenes)
+    expect(new Set(scenes).size).toBe(scenes.length)
+    // 가운데 장면은 마을 단계가 오른 날이 먼저다
+    for (const i of scenes.slice(1, -1)) expect(steps[i].stage).not.toBeNull()
+    // 집이 적으면 모두 본다
+    expect(growthScenes(growthSteps(save(days(3))))).toEqual([0, 1, 2])
+    expect(growthScenes(growthSteps(save(days(1))))).toEqual([0])
+    expect(growthScenes([])).toEqual([])
+    // 축하 날이 없어도 고르게 나눠 본다
+    const quiet = growthSteps(save(days(40))).map((s) => ({ ...s, landmarks: [], stage: null, arrivals: [] }))
+    const q = growthScenes(quiet)
+    expect(q.length).toBe(5)
+    expect(q[0]).toBe(0)
+    expect(q[4]).toBe(39)
+  })
+
+  it('소리는 너무 촘촘하지 않게 몇 집마다 한 번 울린다(첫 집은 늘 울린다)', () => {
+    const few = growthDelays(growthSteps(save(days(5))))
+    expect(growthRings(few)).toEqual([true, true, true, true, true])
+    const many = growthDelays(growthSteps(save(days(800))))
+    const rings = growthRings(many)
+    expect(rings).toHaveLength(800)
+    expect(rings[0]).toBe(true)
+    let last = 0
+    let at = 0
+    many.forEach((d, i) => {
+      if (i > 0 && rings[i]) {
+        expect(at - last).toBeGreaterThanOrEqual(120)
+        last = at
+      }
+      at += d
+    })
+    expect(rings.filter(Boolean).length).toBeGreaterThan(20)
+    expect(growthRings([])).toEqual([])
   })
 })

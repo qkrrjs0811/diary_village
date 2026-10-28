@@ -949,7 +949,12 @@ svg.growing .labels { opacity: 0.75; }
   font-weight: 700;
   cursor: pointer;
 }
-@media (prefers-reduced-motion: reduce) { .growth-note, .growth-end { animation: none; } }
+/* 다 보고 나면 오늘 집이 살짝 빛나고 지붕 둘레에 별이 반짝인다 */
+.house.growth-shine { filter: drop-shadow(0 0 6px #ffe08a) drop-shadow(0 0 3px #fff6c8); }
+.growth-stars { pointer-events: none; }
+.growth-stars text { transform-box: fill-box; transform-origin: center; animation: growth-twinkle 1.1s ease-in-out calc(var(--i) * 0.25s) infinite alternate both; }
+@keyframes growth-twinkle { from { opacity: 0.25; transform: scale(0.75); } to { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .growth-note, .growth-end, .growth-stars text { animation: none; } }
 .sheet-btn.book-growth { width: 100%; margin: -4px 0 10px; color: var(--accent-ink); background: var(--accent); }
 /* 읽기 창 위 그날의 방 그림: 누르기·밀어 넘기기는 창으로 통과한다 */
 .reader-room {

@@ -1,4 +1,4 @@
-import { BUZZ, CUE_BUZZ, buildTune, cueTune, soundOn, type Cue, type Note } from '../core/sound'
+import { BUZZ, CUE_BUZZ, buildTune, cueTune, growthTune, soundOn, type Cue, type Note } from '../core/sound'
 import type { KV } from '../core/storage'
 import type { MoodId } from '../core/types'
 
@@ -68,6 +68,10 @@ export function createSound(kv: KV) {
     /** 집이 쑥 올라오는 순간(delay ms 뒤) 그날 기분의 가락을 울리고 짧게 떤다 */
     build(mood: MoodId, date: string, delay: number) {
       play(buildTune(mood, date), BUZZ, delay)
+    },
+    /** 자라 온 길에서 집이 오를 때 한 음(마을이 자랄수록 높아진다). 떨지 않는다 */
+    rise(index: number, total: number) {
+      play(growthTune(index, total), [], 0)
     },
     /** 축하 카드·주민 대답·소품 놓기의 짧은 소리(delay ms 뒤). key: 주민 id */
     cue(cue: Cue, key = '', delay = 0) {
