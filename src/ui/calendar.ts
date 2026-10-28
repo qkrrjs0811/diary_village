@@ -3,7 +3,8 @@ import { monthKey } from '../core/date'
 import { moodOf } from '../core/mood'
 import { searchEntries, type SearchPart } from '../core/search'
 import { treasuredDays } from '../core/treasure'
-import { buildingInfo } from '../core/building'
+import { buildingInfo, hasFinal, type BuildingId } from '../core/building'
+import { daysOfBuilding } from '../core/collection'
 import { monthRecap, yearRecap } from '../core/recap'
 import type { Entry } from '../core/types'
 import { dateLabel, recapLine, softMood as soft } from './format'
@@ -19,6 +20,7 @@ const monthDay = (date: string) => dateLabel(date).replace(/ \S+요일$/, '')
  * "한 해"로 바꾸면 열두 달 칸을 그달 가장 많이 고른 기분 색으로 칠해 보이고, 달을 누르면 그달 달력으로 간다.
  * 위쪽 찾기 칸에 말을 넣으면 달력 대신 그 말이 들어간 지난 글을 보이고, 누르면 그 집으로 간다(폰 안에서만 찾는다)
  * "소중한 날"로 바꾸면 사용자가 표시한 날만 날짜 순으로 모아 보이고, 누르면 그 집으로 간다
+ * 마을 수첩 도감에서 건물을 골라 열면 그 건물이 선 날만 날짜 순으로 같은 쪽지 목록에 모아 보인다
  */
 export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   const back = document.createElement('div')
@@ -55,13 +57,14 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   })
   modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) =>
     b.addEventListener('click', () => {
+      const gathered = mode === 'treasure' || mode === 'building'
       if (b.dataset.mode === 'treasure') {
-        if (mode !== 'treasure') before = mode
+        if (mode === 'month' || mode === 'year') before = mode
         mode = 'treasure'
       } else if (b.dataset.mode === 'year') {
-        if (mode === 'month' || (mode === 'treasure' && before === 'month')) year = Number(month.slice(0, 4))
+        if (mode === 'month' || (gathered && before === 'month')) year = Number(month.slice(0, 4))
         mode = 'year'
-      } else if (mode === 'treasure' && before === 'month') {
+      } else if (gathered && before === 'month') {
         mode = 'month'
       } else if (mode !== 'month') {
         mode = 'month'
@@ -83,8 +86,10 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   let today = ''
   let month = ''
   let year = 0
-  let mode: 'month' | 'year' | 'treasure' = 'month'
-  /** 소중한 날을 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
+  let mode: 'month' | 'year' | 'treasure' | 'building' = 'month'
+  /** 건물 모아 보기에서 보이는 건물 */
+  let kind: BuildingId | null = null
+  /** 소중한 날·건물 모아 보기를 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
   let before: 'month' | 'year' = 'month'
 
   function show() {
@@ -202,6 +207,19 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     for (const entry of days) list.appendChild(note(entry, [{ text: entry.text, hit: false }]))
   }
 
+  /** 건물 모아 보기. 그 건물이 선 날(남은 글)만 날짜 순으로 소중한 날과 같은 쪽지로 놓는다 */
+  function showBuilding(id: BuildingId) {
+    const b = buildingInfo(id)
+    const days = daysOfBuilding(entries, id)
+    const ga = hasFinal(b.name) ? '이' : '가'
+    sheet.innerHTML = `
+      <div class="cal-found" data-testid="building-count" role="status"></div>
+      <div class="cal-hits" data-testid="building-list"></div>`
+    sheet.querySelector('.cal-found')!.textContent = days.length ? `${b.icon} ${b.name}${ga} 선 날 ${days.length}일` : `아직 ${b.name}${ga} 선 날이 없어요`
+    const list = sheet.querySelector('.cal-hits')!
+    for (const entry of days) list.appendChild(note(entry, [{ text: entry.text, hit: false }]))
+  }
+
   /** 한 줄 쪽지 단추. 글은 textContent로만 넣고, 누르면 창을 닫고 그 집으로 간다 */
   function note(entry: Entry, parts: SearchPart[]) {
     const hit = document.createElement('button')
@@ -232,6 +250,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)))
     if (finding) find(input.value)
     else if (mode === 'treasure') showTreasured()
+    else if (mode === 'building' && kind) showBuilding(kind)
     else if (mode === 'year') showYear()
     else show()
   }
@@ -260,6 +279,13 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
       input.value = ''
       render()
       back.hidden = false
+    },
+    /** 그 건물이 선 날 모아 보기로 연다. 한 달·한 해를 누르면 이번 달·올해 달력으로 간다 */
+    openBuilding(list: Entry[], erasedDates: string[], now: string, id: BuildingId) {
+      this.open(list, erasedDates, now)
+      kind = id
+      mode = 'building'
+      render()
     },
   }
 }

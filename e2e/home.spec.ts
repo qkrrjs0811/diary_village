@@ -3142,6 +3142,80 @@ test('기분 달력에 소중한 날 하트가 붙고, "소중한 날"에서 모
   expect(now.erased).toEqual(erased)
 })
 
+test('마을 수첩 도감에서 카페를 고르면 "선 날 보기"로 카페가 선 날만 모아 보고, 누르면 그 집 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 8, 12, 19, 24]) as Entry[]
+  entries[0] = { ...entries[0], text: '아침에 커피를 마셨다' }
+  entries[2] = { ...entries[2], text: '라떼가 <b>맛있었다</b>' }
+  entries[3] = { ...entries[3], text: '바닷가를 걸었다' }
+  entries[4] = { ...entries[4], text: '친구와 커피 한 잔' }
+  // 지운 날은 글이 없어 목록·셈에 들지 않는다
+  const erased = [{ date: '2026-10-15', erasedAt: Date.parse('2026-10-16T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+
+  await page.getByTestId('village-stage').click()
+  const days = page.getByTestId('book-building-days')
+  await expect(days).toBeHidden()
+  // 못 찾은 건물은 보기 단추가 없다
+  await page.getByTestId('book-cinema').click()
+  await expect(days).toBeHidden()
+  await page.getByTestId('book-cafe').click()
+  await expect(page.getByTestId('book-detail')).toContainText('☕ 카페 · 3채')
+  await expect(days).toHaveText('☕ 카페가 선 날 3일 보기')
+  const box = (await days.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await days.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/book-building-days.png' })
+
+  await days.click()
+  await expect(page.getByTestId('book')).toBeHidden()
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await expect(page.getByTestId('calendar-days')).toHaveCount(0)
+  await expect(page.getByTestId('building-count')).toHaveText('☕ 카페가 선 날 3일')
+  const list = page.getByTestId('building-list').locator('.cal-hit')
+  await expect(list).toHaveCount(3)
+  await expect(list.nth(0)).toHaveAttribute('data-testid', 'hit-2026-10-03')
+  await expect(list.nth(1)).toHaveAttribute('data-testid', 'hit-2026-10-12')
+  await expect(list.nth(2)).toHaveAttribute('data-testid', 'hit-2026-10-24')
+  await expect(page.getByTestId('hit-2026-10-12')).toContainText('라떼가 <b>맛있었다</b>')
+  for (const id of ['calendar-mode-month', 'calendar-mode-year', 'calendar-mode-treasure']) {
+    await expect(page.getByTestId(id)).toHaveAttribute('aria-pressed', 'false')
+  }
+  for (const id of ['hit-2026-10-03', 'hit-2026-10-24', 'calendar-close']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.x + b.width).toBeLessThanOrEqual(390)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.screenshot({ path: 'test-results/screens/building-list.png' })
+
+  // 찾기에 말을 넣었다 비우면 건물 모아 보기로 돌아오고, 한 달을 누르면 이번 달 달력이다
+  await page.getByTestId('calendar-search').fill('바닷가')
+  await expect(page.getByTestId('search-count')).toHaveText('"바닷가" · 한 줄 1개를 찾았어요')
+  await page.getByTestId('calendar-search-clear').click()
+  await expect(page.getByTestId('building-count')).toHaveText('☕ 카페가 선 날 3일')
+  await page.getByTestId('calendar-mode-month').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+
+  // 모아 본 날을 누르면 창이 닫히고 그 집으로 가서 글을 연다
+  await page.getByTestId('calendar-close').click()
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-cafe').click()
+  await days.click()
+  await page.getByTestId('hit-2026-10-24').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('친구와 커피 한 잔')
+
+  // 모아 보기는 저장을 바꾸지 않는다
+  const now = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(now.entries).toEqual(entries)
+  expect(now.erased).toEqual(erased)
+})
+
 test('광장 우체통을 누르면 편지 창이 열려 미래의 나에게 편지를 부치고, 기다리는 편지는 열리는 날만 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
   await page.goto('./')

@@ -1,3 +1,4 @@
+import { hasFinal, type BuildingId } from '../core/building'
 import { collectionOf, landmarkBook } from '../core/collection'
 import { decorBook } from '../core/decor'
 import { writtenDays } from '../core/landmark'
@@ -14,6 +15,8 @@ export function createBook(handlers: {
   onDecorate: (() => void) | null
   /** 단계 칸 아래 "기분 달력 · 찾기"로 달력(위에 찾기 칸이 있다)을 연다 */
   onCalendar: () => void
+  /** 도감 칸 아래 "선 날 보기"로 그 건물이 선 날 모아 보기를 연다 */
+  onBuilding: (id: BuildingId) => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -53,6 +56,7 @@ export function createBook(handlers: {
             .join('')}
         </div>
         <div class="book-detail" data-testid="book-detail" role="status">칸을 누르면 이야기가 보여요</div>
+        <button type="button" class="sheet-btn book-days" data-testid="book-building-days" hidden></button>
       </div>
       <div class="settings-group">
         <div class="settings-label">광장 명소 <span class="book-count">${marks.filter((m) => m.earned).length} / ${marks.length}</span></div>
@@ -97,10 +101,21 @@ export function createBook(handlers: {
     })
 
     const detail = sheet.querySelector<HTMLElement>('[data-testid="book-detail"]')!
+    const daysBtn = sheet.querySelector<HTMLButtonElement>('[data-testid="book-building-days"]')!
+    let picked: BuildingId | null = null
+    daysBtn.addEventListener('click', () => {
+      if (!picked) return
+      close()
+      handlers.onBuilding(picked)
+    })
     sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-buildings"] .book-cell').forEach((cell, i) => {
       const c = items[i]
       cell.addEventListener('click', () => {
         select(cell)
+        // 찾은 건물이면 그 건물이 선 날 모아 보기로 잇는다(지운 날만 남아 0채면 숨긴다)
+        picked = c.count ? c.building.id : null
+        daysBtn.hidden = !picked
+        daysBtn.textContent = `${c.building.icon} ${c.building.name}${hasFinal(c.building.name) ? '이' : '가'} 선 날 ${c.count}일 보기`
         detail.textContent = c.first
           ? `${c.building.icon} ${c.building.name} · ${c.count}채 · ${dateLabel(c.first.date).replace(/ .요일$/, '')}에 '${c.first.word}'에서 처음 생겼어요`
           : `❔ ${c.hint}에 생겨요`

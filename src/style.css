@@ -465,6 +465,8 @@ button { font: inherit; color: inherit; }
 .decor-pick[aria-pressed="true"] { border-color: var(--accent); background: #eaf6ee; }
 .decorate-msg { min-height: 20px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; text-align: center; word-break: keep-all; color: var(--ink-soft); }
 .book-decorate { width: 100%; margin-top: 12px; }
+.book-days { width: 100%; margin-top: 10px; }
+.book-days[hidden] { display: none; }
 /* 기분 달력: 쓴 날은 그날 기분 색으로 칠한 둥근 칸 */
 .book-calendar { width: 100%; margin: -4px 0 14px; }
 .cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
