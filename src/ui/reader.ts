@@ -94,6 +94,7 @@ export function createReader(handlers: {
         <span class="reader-aging" data-testid="reader-aging" hidden></span>
       </div>
       <p class="reader-text" data-testid="reader-text"></p>
+      <div class="reader-more" data-testid="reader-more" tabindex="0" aria-label="더 쓴 글" hidden></div>
       <div class="reader-reply" data-testid="reader-reply" hidden></div>
       <div class="reader-foot">
         <span class="reader-edited" data-testid="reader-edited" hidden></span>
@@ -111,6 +112,12 @@ export function createReader(handlers: {
     sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
     sheet.querySelector('.reader-mood')!.textContent = `${m.emoji} ${m.label} · ${m.weather}`
     sheet.querySelector('.reader-text')!.textContent = entry.text
+    // 더 쓴 글은 한 줄 아래에 줄바꿈 그대로. 길면 이 칸 안에서만 굴러간다
+    if (entry.more) {
+      const more = sheet.querySelector<HTMLElement>('.reader-more')!
+      more.textContent = entry.more
+      more.hidden = false
+    }
     const found = buildingOf(entry)
     if (found) {
       const b = buildingInfo(found.id)

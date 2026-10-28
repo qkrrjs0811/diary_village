@@ -623,6 +623,74 @@ test('"＋ 더 쓰기"로 긴 글을 한 줄과 함께 남기고, 고치기에�
   expect(saved.entries.find((e: { date: string }) => e.date === '2026-10-26').more).toBe('저녁엔 국수를 먹었다.')
 })
 
+test('더 쓴 글은 읽기 창에 줄바꿈 그대로 보이고, 찾기에 조각으로 나오며, 백업으로 돌아온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const long = Array.from({ length: 24 }, (_, i) => `${i + 1}번째 줄 · 바닷가 모래가 따뜻했다.`).join('\n') + '\n저녁엔 <b>조개</b> 국수를 먹었다.'
+  const entries = monthEntries('2026-10', [20, 24, 25, 26]).map((e) => (e.date === '2026-10-25' ? { ...e, more: long } : e))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // 읽기 창: 한 줄 아래에 긴 글이 줄바꿈 그대로, 창 안에서만 굴러간다
+  await page.getByTestId('house-2026-10-25').dispatchEvent('click')
+  const more = page.getByTestId('reader-more')
+  await expect(page.getByTestId('reader-text')).toHaveText(entries[2].text)
+  await expect(more).toBeVisible()
+  expect(await more.evaluate((el) => (el as HTMLElement).innerText)).toBe(long)
+  await expect(more).toContainText('<b>조개</b>')
+  const scroll = await more.evaluate((el) => ({ h: el.clientHeight, sh: el.scrollHeight }))
+  expect(scroll.sh).toBeGreaterThan(scroll.h)
+  // 단추는 창 안에 다 보인다
+  for (const id of ['reader-prev', 'reader-next', 'reader-edit', 'reader-close']) {
+    await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 })
+  }
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-more.png' })
+
+  // 넘기면 긴 글이 없는 날은 칸이 사라지고, 돌아오면 다시 보인다
+  await page.getByTestId('reader-next').click()
+  await expect(page.getByTestId('reader-text')).toHaveText(entries[3].text)
+  await expect(more).toBeHidden()
+  const sheet = page.getByTestId('reader')
+  const at = (px: number) => ({ pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: px, clientY: 600, bubbles: true })
+  await sheet.dispatchEvent('pointerdown', at(60))
+  await sheet.dispatchEvent('pointerup', at(300))
+  await expect(page.getByTestId('reader-text')).toHaveText(entries[2].text)
+  await expect(more).toBeVisible()
+  await page.getByTestId('reader-close').click()
+
+  // 찾기: 긴 글에서만 나온 말은 한 줄 아래 조각으로 칠해진다
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await page.getByTestId('calendar-search').fill('조개')
+  await expect(page.getByTestId('search-count')).toHaveText('"조개" · 한 줄 1개를 찾았어요')
+  const piece = page.getByTestId('hit-more-2026-10-25')
+  await expect(piece).toBeVisible()
+  await expect(piece.locator('mark')).toHaveText('조개')
+  await expect(piece).toContainText('<b>')
+  await expect(page.getByTestId('hit-2026-10-25')).toContainText(entries[2].text)
+  await finishAnimations(page)
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/search-more.png' })
+  await page.getByTestId('hit-2026-10-25').click()
+  await expect(page.getByTestId('reader-more')).toBeVisible()
+  await page.getByTestId('reader-close').click()
+
+  // 백업: 내보낸 파일에 긴 글이 담기고, 가져오면 돌아온다
+  await page.getByTestId('settings-open').click()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  const backup = JSON.parse(readFileSync(await download.path(), 'utf8'))
+  expect(backup.entries.find((e: { date: string }) => e.date === '2026-10-25').more).toBe(long)
+  await page.evaluate((k) => localStorage.removeItem(k), KEY)
+  await page.reload()
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-27.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) })
+  await page.getByTestId('import-ok').click()
+  await expect.poll(async () => (await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{"entries":[]}'), KEY)).entries.length).toBe(4)
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.entries.find((e: { date: string }) => e.date === '2026-10-25').more).toBe(long)
+})
+
 test('읽기 창에서 쓴 글을 지우면 확인을 한 번 더 받고, 빈 땅이 되어도 명소·단계는 그대로다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

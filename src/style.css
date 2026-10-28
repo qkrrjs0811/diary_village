@@ -597,7 +597,8 @@ button { font: inherit; color: inherit; }
 .cal-hit-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cal-hit-date { font-size: 12px; color: var(--ink-soft); }
 .cal-hit-text { font-size: 14px; line-height: 1.45; word-break: break-all; }
-.cal-hit-text mark { padding: 0 2px; border-radius: 6px; background: #fbe3a6; color: inherit; }
+.cal-hit-more { font-size: 13px; line-height: 1.45; color: var(--ink-soft); word-break: break-all; }
+.cal-hit-text mark, .cal-hit-more mark { padding: 0 2px; border-radius: 6px; background: #fbe3a6; color: inherit; }
 .scene.decorating .decor { cursor: grab; }
 .decor.lifted { opacity: 0.85; pointer-events: none; }
 .spot { animation: spot 1.6s ease-in-out infinite alternate; }
@@ -933,6 +934,23 @@ button { font: inherit; color: inherit; }
 .reader-building-btn .reader-building::after { content: ' ›'; color: var(--ink-soft); }
 .reader-building-btn:active .reader-building { filter: brightness(0.96); }
 .reader-text { margin: 14px 0 16px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
+/* 더 쓴 글: 한 줄 바로 아래, 줄바꿈 그대로. 길면 이 칸 안에서만 굴러가고 창은 그대로다 */
+.reader-more {
+  max-height: 28vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: -6px 0 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(90, 70, 54, 0.14);
+  border-radius: 16px;
+  background: #fbf8f0;
+  font-size: 15px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.reader-more[hidden] { display: none; }
 /* 손님의 맞장구는 글에 건네는 작은 말풍선 */
 .reader-reply {
   position: relative;

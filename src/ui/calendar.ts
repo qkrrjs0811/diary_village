@@ -194,7 +194,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     const word = query.trim()
     sheet.querySelector('.cal-found')!.textContent = hits.length ? `"${word}" · 한 줄 ${hits.length}개를 찾았어요` : `"${word}"이(가) 들어간 한 줄은 아직 없어요`
     const list = sheet.querySelector('.cal-hits')!
-    for (const { entry, parts } of hits) list.appendChild(note(entry, parts))
+    for (const { entry, parts, more } of hits) list.appendChild(note(entry, parts, more))
   }
 
   /** 소중한 날 모아 보기. 표시한 날만 날짜 순으로, 찾은 한 줄과 같은 쪽지로 놓는다 */
@@ -221,7 +221,7 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
   }
 
   /** 한 줄 쪽지 단추. 글은 textContent로만 넣고, 누르면 창을 닫고 그 집으로 간다 */
-  function note(entry: Entry, parts: SearchPart[]) {
+  function note(entry: Entry, parts: SearchPart[], more?: SearchPart[]) {
     const hit = document.createElement('button')
     hit.type = 'button'
     hit.className = 'cal-hit'
@@ -229,11 +229,22 @@ export function createCalendar(handlers: { onOpen: (entry: Entry) => void }) {
     hit.style.background = soft(entry.mood, 0.3)
     hit.innerHTML = `<span class="cal-hit-mood" aria-hidden="true">${moodOf(entry.mood).emoji}</span><span class="cal-hit-main"><span class="cal-hit-date"></span><span class="cal-hit-text"></span></span>`
     hit.querySelector('.cal-hit-date')!.textContent = `${entry.date.slice(0, 4)}년 ${dateLabel(entry.date)}`
-    const text = hit.querySelector('.cal-hit-text')!
-    for (const p of parts) {
-      const span = document.createElement(p.hit ? 'mark' : 'span')
-      span.textContent = p.text
-      text.appendChild(span)
+    const fill = (box: Element, list: SearchPart[]) => {
+      for (const p of list) {
+        const span = document.createElement(p.hit ? 'mark' : 'span')
+        span.textContent = p.text
+        box.appendChild(span)
+      }
+    }
+    fill(hit.querySelector('.cal-hit-text')!, parts)
+    // 긴 글에서 찾았으면 한 줄 아래에 찾은 말 둘레 조각을 작게 덧붙인다
+    if (more) {
+      const piece = document.createElement('span')
+      piece.className = 'cal-hit-more'
+      piece.dataset.testid = `hit-more-${entry.date}`
+      piece.textContent = '📝 '
+      fill(piece, more)
+      hit.querySelector('.cal-hit-main')!.appendChild(piece)
     }
     hit.addEventListener('click', () => {
       close()
