@@ -1,9 +1,10 @@
-import { checkText, MAX_TEXT, type Day } from '../core/entries'
+import { checkMore, checkText, MAX_TEXT, type Day } from '../core/entries'
 import { MOODS, moodOf } from '../core/mood'
 import type { Memory } from '../core/memory'
 import type { MonthRecap, YearRecap } from '../core/recap'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel, recapLine, softMood } from './format'
+import { createMoreField } from './more'
 
 export interface WriteCard {
   root: HTMLElement
@@ -22,8 +23,8 @@ export type Recap = MonthRecap | YearRecap
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
 
 export function createWriteCard(handlers: {
-  /** 실패하면 사용자에게 보일 이유를 돌려준다 */
-  onSubmit(text: string, mood: MoodId, day: Day): string | null
+  /** 실패하면 사용자에게 보일 이유를 돌려준다. more 는 "더 쓰기" 긴 글(쓰지 않았으면 빈 글) */
+  onSubmit(text: string, mood: MoodId, day: Day, more: string): string | null
   onOpen(entry: Entry): void
   /** "N일 전 오늘"을 누르면 그 집으로 간다 */
   onMemory(entry: Entry): void
@@ -37,6 +38,8 @@ export function createWriteCard(handlers: {
   let day: Day = 'today'
   const mood: Record<Day, MoodId | null> = { today: null, yesterday: null }
   const draft: Record<Day, string> = { today: '', yesterday: '' }
+  /** "더 쓰기" 긴 글도 오늘·어제 따로 둔다 */
+  const draftMore: Record<Day, string> = { today: '', yesterday: '' }
   let shown: {
     today: string
     entry: Entry | undefined
@@ -71,6 +74,13 @@ export function createWriteCard(handlers: {
     // 물음은 빈 글자 자리에만 띄운다(쓴 글에는 들어가지 않는다)
     input.placeholder = shown.prompts?.[d] ?? `${WORD[d]}을 한 줄로 남겨요`
     input.value = draft[d]
+    // "＋ 더 쓰기"는 홈 단추를 늘리지 않게 안내 줄 안에 두고, 긴 글 칸은 한 줄 아래에 펼친다
+    const more = createMoreField('write', draftMore[d], (v) => {
+      draftMore[d] = v
+      update()
+    })
+    root.querySelector('.line-row')!.after(more.field)
+    len.after(more.toggle)
 
     const update = () => {
       draft[d] = input.value
@@ -78,7 +88,7 @@ export function createWriteCard(handlers: {
       len.textContent = `${n} / ${MAX_TEXT}`
       len.classList.toggle('err', n > MAX_TEXT)
       const checked = checkText(draft[d])
-      submit.disabled = !checked.ok || mood[d] == null
+      submit.disabled = !checked.ok || mood[d] == null || !checkMore(draftMore[d]).ok
       msg.classList.remove('err')
       if (mood[d] == null) msg.textContent = `${WORD[d]} 기분을 골라 주세요`
       else if (!checked.ok && checked.reason === 'long') msg.textContent = '조금만 짧게 써 주세요'
@@ -95,13 +105,14 @@ export function createWriteCard(handlers: {
     const send = () => {
       const m = mood[d]
       if (submit.disabled || m == null) return
-      const err = handlers.onSubmit(draft[d], m, d)
+      const err = handlers.onSubmit(draft[d], m, d, draftMore[d])
       if (err) {
         msg.textContent = err
         msg.classList.add('err')
         return
       }
       draft[d] = ''
+      draftMore[d] = ''
       mood[d] = null
     }
     submit.addEventListener('click', send)

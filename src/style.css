@@ -634,6 +634,47 @@ button { font: inherit; color: inherit; }
 .build:disabled { background: #cfd8cf; cursor: default; }
 .hint { margin-top: 6px; min-height: 16px; font-size: 12px; color: var(--ink-soft); display: flex; justify-content: space-between; }
 .hint .err { color: #d9695f; }
+/* "더 쓰기": 안내 줄 안의 작은 단추(누르는 자리는 44px, 줄 높이는 그대로)와 펼치는 긴 글 칸 */
+.hint:has(.more-toggle) { align-items: center; }
+.hint:has(.more-toggle) .msg { flex: 1; }
+.more-toggle {
+  flex: none;
+  min-height: 44px;
+  margin: -14px -8px -14px 6px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 14px;
+  background: none;
+  color: #4f8a63;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.more-field { margin-top: 8px; }
+.more-field[hidden] { display: none; }
+.more-input {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  max-height: 32vh;
+  padding: 10px 14px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  resize: none;
+  outline: none;
+}
+.more-input:focus { border-color: var(--accent); }
+.more-input::placeholder { color: #b3a595; }
+.more-hint { margin-top: 4px; font-size: 12px; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 8px; }
+.more-hint[hidden] { display: none; }
+.more-hint .err { color: #d9695f; }
+.more-hint .len { flex: none; white-space: nowrap; }
 
 .today-line {
   width: 100%;

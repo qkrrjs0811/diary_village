@@ -541,6 +541,88 @@ test('읽기 창에서 쓴 글과 기분을 고친다', async ({ page }) => {
   await expect(page.getByTestId('reader-text')).toHaveText('다시 생각해 보니 조금 쓸쓸한 날')
 })
 
+test('"＋ 더 쓰기"로 긴 글을 한 줄과 함께 남기고, 고치기에서도 이어 쓴다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // 처음엔 접혀 있고, 단추는 누르기 넉넉한 크기다
+  const toggle = page.getByTestId('write-more-toggle')
+  await expect(toggle).toHaveText('＋ 더 쓰기')
+  await expect(page.getByTestId('write-more')).toBeHidden()
+  const box = (await toggle.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  expect(box.width).toBeGreaterThanOrEqual(44)
+  await toggle.click()
+  await expect(page.getByTestId('write-more')).toBeFocused()
+  await expect(toggle).toHaveText('접어 두기')
+
+  await page.getByTestId('write-input').fill('바다에 다녀왔다')
+  await page.getByTestId('mood-calm').click()
+  // 줄바꿈은 그대로 쓰고, 엔터로 집을 짓지 않는다
+  await page.getByTestId('write-more').fill('아침 기차를 탔다.')
+  await page.getByTestId('write-more').press('Enter')
+  await page.getByTestId('write-more').pressSequentially('파도 소리가 오래 남았다.')
+  await expect(page.getByTestId('house-2026-10-27')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/write-more.png' })
+
+  // 너무 길면 다정하게 알려 주고 짓지 않는다
+  await page.getByTestId('write-more').fill('가'.repeat(2001))
+  await expect(page.getByTestId('write-more-msg')).toHaveText('조금만 줄여 주세요 · 2000자까지 담겨요')
+  await expect(page.getByTestId('write-more-len')).toHaveText('2001 / 2000')
+  await expect(page.getByTestId('write-submit')).toBeDisabled()
+  await page.screenshot({ path: 'test-results/screens/write-more-long.png' })
+
+  // 접어 두어도 쓴 글은 남는다
+  await page.getByTestId('write-more').fill('아침 기차를 탔다.\n파도 소리가 오래 남았다.')
+  await expect(page.getByTestId('write-more-msg')).toHaveText('')
+  await toggle.click()
+  await expect(toggle).toHaveText('📝 더 쓴 글')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  // 긴 글을 써도 집은 한 채, 한 줄에서만 건물을 찾는다
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 6채')
+  let saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  let today = saved.entries.find((e: { date: string }) => e.date === '2026-10-27')
+  expect(today).toMatchObject({ text: '바다에 다녀왔다', mood: 'calm', more: '아침 기차를 탔다.\n파도 소리가 오래 남았다.' })
+
+  // 고치기: 긴 글이 있으면 펼친 채로 열리고, 한 줄만 고쳐도 긴 글은 그대로다
+  await page.clock.runFor(4000)
+  await page.getByTestId('today-line').click()
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('edit-more')).toBeVisible()
+  await expect(page.getByTestId('edit-more')).toHaveValue('아침 기차를 탔다.\n파도 소리가 오래 남았다.')
+  await page.screenshot({ path: 'test-results/screens/reader-edit-more.png' })
+  await page.getByTestId('edit-input').fill('바다에 다녀온 날')
+  await page.getByTestId('edit-save').click()
+  saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  today = saved.entries.find((e: { date: string }) => e.date === '2026-10-27')
+  expect(today).toMatchObject({ text: '바다에 다녀온 날', more: '아침 기차를 탔다.\n파도 소리가 오래 남았다.' })
+
+  // 긴 글을 비우면 걷힌다
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-more').fill('')
+  await page.getByTestId('edit-save').click()
+  await page.getByTestId('reader-close').click()
+
+  // 긴 글이 없던 날은 고치기에서 "＋ 더 쓰기"로 이어 쓴다
+  await page.getByTestId('house-2026-10-26').click()
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('edit-more')).toBeHidden()
+  await page.getByTestId('edit-more-toggle').click()
+  await page.getByTestId('edit-more').fill('저녁엔 국수를 먹었다.')
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('reader-text')).toHaveText(entries.find((e) => e.date === '2026-10-26')!.text)
+
+  await page.reload()
+  saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  today = saved.entries.find((e: { date: string }) => e.date === '2026-10-27')
+  expect(today.more).toBeUndefined()
+  expect(saved.entries.find((e: { date: string }) => e.date === '2026-10-26').more).toBe('저녁엔 국수를 먹었다.')
+})
+
 test('읽기 창에서 쓴 글을 지우면 확인을 한 번 더 받고, 빈 땅이 되어도 명소·단계는 그대로다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

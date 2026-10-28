@@ -97,9 +97,12 @@ if (readOnly) {
 const reader = createReader({
   onEdit: readOnly
     ? null
-    : (date, text, mood) => {
-        const r = editEntry(save, date, { text, mood }, Date.now())
-        if (!r.ok) return { error: r.reason === 'missing' ? '이 날의 기록을 찾지 못했어요' : '한 줄을 다시 확인해 주세요' }
+    : (date, text, mood, more) => {
+        const r = editEntry(save, date, { text, mood, more }, Date.now())
+        if (!r.ok)
+          return {
+            error: r.reason === 'missing' ? '이 날의 기록을 찾지 못했어요' : r.reason === 'moreLong' ? '더 쓴 글을 조금만 줄여 주세요' : '한 줄을 다시 확인해 주세요',
+          }
         if (!r.changed) return { entry: r.entry }
         try {
           writeSave(kv, r.save)
@@ -388,10 +391,13 @@ document.body.appendChild(book.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
 
 const card = createWriteCard({
-  onSubmit(text: string, mood: MoodId, day: Day) {
+  onSubmit(text: string, mood: MoodId, day: Day, more: string) {
     if (readOnly) return '지금은 쓸 수 없어요'
-    const r = writeEntry(save, { text, mood }, Date.now(), day)
-    if (!r.ok) return r.reason === 'already' ? `${day === 'today' ? '오늘은' : '어제는'} 이미 집을 지었어요` : '한 줄을 다시 확인해 주세요'
+    const r = writeEntry(save, { text, mood, more }, Date.now(), day)
+    if (!r.ok) {
+      if (r.reason === 'already') return `${day === 'today' ? '오늘은' : '어제는'} 이미 집을 지었어요`
+      return r.reason === 'moreLong' ? '더 쓴 글을 조금만 줄여 주세요' : '한 줄을 다시 확인해 주세요'
+    }
     try {
       writeSave(kv, r.save)
     } catch {

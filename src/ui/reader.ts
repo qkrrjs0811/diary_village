@@ -8,6 +8,7 @@ import type { Entry, MoodId } from '../core/types'
 import { dayPart } from '../core/weather'
 import { roomSvg } from '../village/room'
 import { dateLabel, fullDateLabel } from './format'
+import { createMoreField } from './more'
 
 /** 이만큼(px) 옆으로 밀면 앞뒤 날로 넘긴다 */
 const SWIPE = 56
@@ -23,7 +24,7 @@ function edgeLine(first: boolean, last: boolean): string | null {
 /** 집을 누르면 그날 쓴 글을 보여 주는 아래쪽 창. onEdit 이 있으면 "고치기"로 글과 기분을 바꾼다 */
 export function createReader(handlers: {
   /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 고친 기록을 돌려준다 */
-  onEdit: ((date: string, text: string, mood: MoodId) => { error: string } | { entry: Entry }) | null
+  onEdit: ((date: string, text: string, mood: MoodId, more?: string) => { error: string } | { entry: Entry }) | null
   /** 저장 못 하는 상태면 null. 실패하면 사용자에게 보일 이유를, 성공하면 null 을 돌려준다 */
   onErase: ((date: string) => string | null) | null
   /** 창이 닫힐 때 */
@@ -243,13 +244,17 @@ export function createReader(handlers: {
     const msg = sheet.querySelector<HTMLElement>('.msg')!
     const len = sheet.querySelector<HTMLElement>('.len')!
     input.value = entry.text
+    // 긴 글이 있으면 펼친 채로, 없으면 "＋ 더 쓰기"로 이어 쓴다
+    const more = createMoreField('edit', entry.more ?? '', () => update(), true)
+    input.after(more.field)
+    len.after(more.toggle)
 
     const update = () => {
       const n = [...input.value.replace(/\s+/g, ' ').trim()].length
       len.textContent = `${n} / ${MAX_TEXT}`
       len.classList.toggle('err', n > MAX_TEXT)
       const checked = checkText(input.value)
-      save.disabled = !checked.ok
+      save.disabled = !checked.ok || !more.ok()
       msg.classList.remove('err')
       msg.textContent = checked.ok ? '' : checked.reason === 'long' ? '조금만 짧게 써 주세요' : '한 줄을 남겨 주세요'
     }
@@ -262,7 +267,7 @@ export function createReader(handlers: {
     input.addEventListener('input', update)
     const send = () => {
       if (save.disabled || !handlers.onEdit) return
-      const r = handlers.onEdit(entry.date, input.value, mood)
+      const r = handlers.onEdit(entry.date, input.value, mood, more.value())
       if ('error' in r) {
         msg.textContent = r.error
         msg.classList.add('err')
