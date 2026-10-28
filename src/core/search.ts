@@ -10,7 +10,13 @@ export interface SearchHit {
   entry: Entry
   /** 글을 찾은 말이 있는 곳과 없는 곳으로 나눈 조각 */
   parts: SearchPart[]
+  /** 긴 글에서 찾았으면 처음 찾은 말 둘레 조각(앞뒤가 잘렸으면 …). 줄바꿈은 빈칸으로 보인다 */
+  more?: SearchPart[]
 }
+
+/** 긴 글 조각에 남길 찾은 말 앞·뒤 글자 수 */
+const SNIPPET_BEFORE = 16
+const SNIPPET_AFTER = 32
 
 /** 찾을 말을 띄어쓰기로 나눈다. 빈 말은 버린다 */
 export function searchWords(query: string): string[] {
@@ -39,12 +45,31 @@ function partsOf(text: string, words: readonly string[]): SearchPart[] {
   return parts
 }
 
-/** 찾을 말이 모두 들어간 글을 최근 날부터 */
+/** 긴 글에서 처음 찾은 말 둘레만 잘라 조각으로 나눈다. 말이 없으면 undefined */
+function snippetOf(more: string, words: readonly string[]): SearchPart[] | undefined {
+  const flat = more.replace(/\s+/g, ' ')
+  const hay = lower(flat)
+  const at = Math.min(...words.map((w) => hay.indexOf(w)).filter((i) => i >= 0))
+  if (!Number.isFinite(at)) return undefined
+  const from = Math.max(0, at - SNIPPET_BEFORE)
+  const to = Math.min(flat.length, at + SNIPPET_AFTER)
+  const parts = partsOf(flat.slice(from, to), words)
+  if (from > 0) parts.unshift({ text: '…', hit: false })
+  if (to < flat.length) parts.push({ text: '…', hit: false })
+  return parts
+}
+
+/** 찾을 말이 모두 들어간 글(한 줄과 긴 글을 함께 본다)을 최근 날부터 */
 export function searchEntries(entries: readonly Entry[], query: string): SearchHit[] {
   const words = searchWords(query).map(lower)
   if (!words.length) return []
   return entries
-    .filter((e) => words.every((w) => lower(e.text).includes(w)))
+    .filter((e) => words.every((w) => lower(e.text).includes(w) || lower(e.more ?? '').includes(w)))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .map((entry) => ({ entry, parts: partsOf(entry.text, words) }))
+    .map((entry) => {
+      const hit: SearchHit = { entry, parts: partsOf(entry.text, words) }
+      const more = entry.more && snippetOf(entry.more, words)
+      if (more) hit.more = more
+      return hit
+    })
 }
