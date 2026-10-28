@@ -1,6 +1,6 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { SHOW, buildUnit, easeInOut, fitBoxes, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { SHOW, buildUnit, easeInOut, fitBoxes, openingView, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
 
@@ -126,6 +126,15 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       if (!(s.w > 0 && s.h > 0)) return false
       stopShow()
       view = area ? startView(center, u, s, area) : viewAround(center, u, s)
+      apply()
+      return true
+    },
+    /** 처음 열 때: 집이 몇 채 없으면 그 집들과 오늘 자리(boxes)가 꽉 차게, 아니면 focus 와 같이 본다 */
+    open(center: Pt, u: number, area: View, boxes: View[], houses: number) {
+      const s = screen()
+      if (!(s.w > 0 && s.h > 0)) return false
+      stopShow()
+      view = openingView(center, u, s, area, boxes, houses, INSET)
       apply()
       return true
     },

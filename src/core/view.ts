@@ -56,6 +56,20 @@ export function startView(center: Pt, unit: number, screen: Size, area: View): V
   return { ...v, x: fit(v.x, v.w, area.x, area.w), y: fit(v.y, v.h, area.y, area.h) }
 }
 
+/** 집이 몇 채 없을 때 처음 보기에서 가장 가까이: 칸 하나가 약 100px(지을 때 다가가는 거리보다 조금 멀리) */
+export const FEW_UNIT = 0.48
+
+/**
+ * 처음 열 때 보기. 집이 있고 그 집들과 오늘 자리(boxes)가 처음 보기(unit)보다 가까이에서 다 들어오면
+ * 그 상자들이 화면에 꽉 차게 본다(FEW_UNIT 보다 다가가지 않음). 아니면 startView 그대로
+ */
+export function openingView(center: Pt, unit: number, screen: Size, area: View, boxes: View[], houses: number, inset: { side: number; top: number; bottom: number }): View {
+  const start = startView(center, unit, screen, area)
+  if (houses <= 0 || boxes.length === 0) return start
+  const fit = fitBoxes(boxes, FEW_UNIT, screen, inset)
+  return unitOf(fit, screen) < unit - 1e-9 ? fit : start
+}
+
 /** anchor(viewBox 좌표)를 화면에서 제자리에 두고 factor 배로 넓게(>1) 또는 좁게(<1) 본다 */
 export function zoomAt(view: View, factor: number, anchor: Pt, screen: Size): View {
   if (!(screen.w > 0 && screen.h > 0)) return view

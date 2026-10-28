@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, fitBoxes, showView, startView, tweenView, unitOf, viewAround, zoomAt, type View } from './view'
+import { BUILD_UNIT, FEW_UNIT, MAX_UNIT, MIN_UNIT, SHOW, START_UNIT, buildUnit, easeInOut, fitBoxes, openingView, showView, startView, tweenView, unitOf, viewAround, zoomAt, type View } from './view'
 
 const screen = { w: 360, h: 480 }
 
@@ -145,5 +145,36 @@ describe('여러 상자가 다 보이게 다가가기', () => {
   it('아무리 커도 가장 먼 거리를 넘지 않는다', () => {
     const v = fitBoxes([{ x: 0, y: 0, w: 1e5, h: 10 }], BUILD_UNIT, phone, inset)
     expect(unitOf(v, phone)).toBeCloseTo(MAX_UNIT)
+  })
+})
+
+describe('집이 몇 채 없을 때 처음 보기', () => {
+  const phone = { w: 366, h: 630 }
+  const inset = { side: 12, top: 44, bottom: 12 }
+  const area = { x: -600, y: -100, w: 1200, h: 800 }
+  const today = { x: 40, y: 300 }
+  const todayBox = { x: 10, y: 250, w: 60, h: 64 }
+
+  it('집이 없으면 지금처럼 오늘 자리 쪽으로 본다', () => {
+    expect(openingView(today, START_UNIT, phone, area, [todayBox], 0, inset)).toEqual(startView(today, START_UNIT, phone, area))
+  })
+
+  it('집 몇 채와 오늘 자리가 화면에 꽉 차게 처음 보기보다 가까이 본다', () => {
+    const boxes = [{ x: -60, y: 200, w: 56, h: 80 }, { x: 60, y: 230, w: 56, h: 80 }, todayBox]
+    const v = openingView(today, START_UNIT, phone, area, boxes, 2, inset)
+    expect(unitOf(v, phone)).toBeLessThan(START_UNIT)
+    expect(v).toEqual(fitBoxes(boxes, FEW_UNIT, phone, inset))
+  })
+
+  it('집 하나여도 너무 가까이 가지 않는다', () => {
+    const v = openingView(today, START_UNIT, phone, area, [todayBox], 1, inset)
+    expect(unitOf(v, phone)).toBeCloseTo(FEW_UNIT)
+    expect(FEW_UNIT).toBeGreaterThanOrEqual(BUILD_UNIT)
+    expect(v.x + v.w / 2).toBeCloseTo(40)
+  })
+
+  it('집이 넓게 퍼져 처음 보기보다 멀리 봐야 하면 지금처럼 오늘 자리 쪽으로 본다', () => {
+    const wide = [{ x: -500, y: 0, w: 56, h: 80 }, { x: 500, y: 600, w: 56, h: 80 }, todayBox]
+    expect(openingView(today, START_UNIT, phone, area, wide, 2, inset)).toEqual(startView(today, START_UNIT, phone, area))
   })
 })

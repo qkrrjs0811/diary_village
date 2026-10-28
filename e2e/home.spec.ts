@@ -252,6 +252,32 @@ test('달 첫날에 열어도 이달 섬이 화면 가운데에 와서 빈 하�
   await page.screenshot({ path: 'test-results/screens/home-month-start.png' })
 })
 
+test('집이 몇 채 없을 때 처음 열면 그 집들과 오늘 자리가 화면에 꽉 차게 보인다', async ({ page }) => {
+  // 화요일에 처음 써서 금요일인 오늘까지 — 집 셋과 오늘 자리가 한 줄에 선다
+  await page.clock.install({ time: new Date('2026-10-23T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 21, 22])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const scene = (await page.getByTestId('village').boundingBox())!
+  const ids = ['house-2026-10-20', 'house-2026-10-21', 'house-2026-10-22', 'today-spot', 'first-sign', 'month-2026-10']
+  const boxes = await Promise.all(ids.map(async (id) => (await page.getByTestId(id).boundingBox())!))
+  // 이달 이름표까지 모두 화면 안에 들어오고
+  for (const b of boxes) {
+    expect(b.x).toBeGreaterThanOrEqual(scene.x)
+    expect(b.x + b.width).toBeLessThanOrEqual(scene.x + scene.width)
+    expect(b.y).toBeGreaterThanOrEqual(scene.y)
+    expect(b.y + b.height).toBeLessThanOrEqual(scene.y + scene.height)
+  }
+  // 집이 처음 보기(칸 약 80px)보다 크게, 묶음이 화면 가로를 넉넉히 채운다
+  expect(boxes[2].width).toBeGreaterThan(85)
+  const left = Math.min(...boxes.map((b) => b.x))
+  const right = Math.max(...boxes.map((b) => b.x + b.width))
+  expect(right - left).toBeGreaterThan(scene.width * 0.6)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/home-few-houses.png' })
+})
+
 test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대·축소해도 누르기가 된다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

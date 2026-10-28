@@ -764,7 +764,14 @@ function render(newDate?: string, comers: string[] = []) {
   if (shownDay !== today) {
     const block = village.blocks.find((b) => b.month === today.slice(0, 7))!
     const lot = block.lots.find((l) => l.date === today)!
-    if (!camera.focus(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT, blockView(block))) camera.show(blockView(block))
+    // 집이 몇 채 없으면 그 집들과 오늘 자리(첫 집 팻말, 이달 이름표까지)가 화면에 꽉 차게 본다
+    const houses = [...svg.querySelectorAll<SVGGraphicsElement>('.house[data-date]')]
+    const marks = svg.querySelectorAll<SVGGraphicsElement>(`[data-testid="today-spot"], [data-testid="first-sign"], [data-testid="month-${block.month}"]`)
+    const boxes = [...houses, ...marks].map((n) => {
+      const b = n.getBBox()
+      return { x: b.x, y: b.y, w: b.width, h: b.height }
+    })
+    if (!camera.open(iso(lot.gx + 0.5, lot.gy + 0.5, 22), START_UNIT, blockView(block), boxes, houses.length)) camera.show(blockView(block))
     shownDay = today
     // 잔치 카드가 있으면 그 카드를 닫은 뒤 편지가 찾아온다
     if (festival) showFestival(festival, showArrivals)
