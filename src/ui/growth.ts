@@ -20,6 +20,8 @@ export function createGrowth(handlers: {
   calm: () => boolean
   /** 집이 오를 때 울리는 소리(total 채 가운데 index 번째). 집이 빠르면 몇 집마다 한 번만 부른다 */
   onRing: (index: number, total: number) => void
+  /** 사용자가 붙인 달 이름(달 → 이름). 자막 아래에 그달 이름을 작게 보인다 */
+  titles?: () => Record<string, string>
 }) {
   const root = document.createElement('div')
   root.className = 'growth'
@@ -27,7 +29,7 @@ export function createGrowth(handlers: {
   root.hidden = true
   root.innerHTML = `
     <div class="growth-top">
-      <div class="growth-caption" data-testid="growth-caption" aria-live="polite"><b></b><span></span></div>
+      <div class="growth-caption" data-testid="growth-caption" aria-live="polite"><b></b><span></span><em data-testid="growth-title"></em></div>
       <div class="growth-note" data-testid="growth-note" role="status" hidden></div>
     </div>
     <div class="growth-end" data-testid="growth-end" role="status" hidden></div>
@@ -71,6 +73,8 @@ export function createGrowth(handlers: {
     if (!say) return
     caption.querySelector('b')!.textContent = dateLabel(step.date).replace(/ .요일$/, '')
     caption.querySelector('span')!.textContent = step.house === null ? '' : step.house === 1 ? '첫 집' : `${step.house}번째 집`
+    const title = handlers.titles?.()[step.date.slice(0, 7)]
+    caption.querySelector('em')!.textContent = title ? `「${title}」` : ''
     const text = growthNote(step)
     if (text) {
       clearTimeout(noteTimer)
@@ -124,6 +128,7 @@ export function createGrowth(handlers: {
       svg.classList.add('growing')
       caption.querySelector('b')!.textContent = ''
       caption.querySelector('span')!.textContent = ''
+      caption.querySelector('em')!.textContent = ''
       note.hidden = true
       end.hidden = true
       root.hidden = false

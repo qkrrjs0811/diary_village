@@ -752,6 +752,7 @@ button { font: inherit; color: inherit; }
 .cal-month:disabled { opacity: 0.4; cursor: default; }
 .cal-month.today { box-shadow: 0 0 0 2px var(--accent); }
 .cal-days { height: 14px; font-size: 11px; line-height: 14px; color: var(--ink-soft); }
+.cal-mtitle { max-width: calc(100% - 10px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 13px; color: var(--ink); }
 .cal-year { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; font-size: 13px; line-height: 1.5; text-align: center; color: var(--ink-soft); word-break: keep-all; }
 .cal-chip { display: inline-block; margin: 2px 2px 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: #fffaf0; color: var(--ink); font-size: 12px; white-space: nowrap; }
 .cal-recap { margin: -4px 0 10px; font-size: 12px; text-align: center; color: var(--ink-soft); word-break: keep-all; }
@@ -913,6 +914,10 @@ svg.growing .labels { opacity: 0.75; }
 }
 .growth-caption:empty, .growth-caption:has(b:empty) { visibility: hidden; }
 .growth-caption span { font-size: 13px; color: var(--ink-soft); }
+/* 달 이름이 있으면 자막 아래 한 줄로(20자여도 화면 안에) */
+.growth-caption:has(em:not(:empty)) { flex-wrap: wrap; justify-content: center; row-gap: 2px; border-radius: 18px; }
+.growth-caption em { flex-basis: 100%; font-style: normal; font-size: 12px; text-align: center; color: var(--ink-soft); }
+.growth-caption em:empty { display: none; }
 .growth-note, .growth-end {
   padding: 9px 16px;
   border-radius: 18px;

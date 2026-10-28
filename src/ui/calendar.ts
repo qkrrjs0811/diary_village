@@ -228,8 +228,9 @@ export function createCalendar(handlers: {
             const off = m.month < first || m.month > last
             const style = m.mood ? ` style="background:${soft(m.mood)}"` : ''
             const mark = m.mood ? moodOf(m.mood).emoji : off ? '' : '🌿'
-            return `<button type="button" class="cal-month${m.mood ? ' written' : ''}${m.month === now ? ' today' : ''}" data-testid="calm-${m.month}"${m.mood ? ` data-mood="${m.mood}"` : ''}${style} ${off ? 'disabled' : ''}>
-              <span class="cal-num">${m.label}</span><span class="cal-mark" aria-hidden="true">${mark}</span><span class="cal-days">${m.written ? `${m.written}일` : ''}</span>
+            const named = titleOf(m.month) ? ' named' : ''
+            return `<button type="button" class="cal-month${m.mood ? ' written' : ''}${m.month === now ? ' today' : ''}${named}" data-testid="calm-${m.month}"${m.mood ? ` data-mood="${m.mood}"` : ''}${style} ${off ? 'disabled' : ''}>
+              <span class="cal-num">${m.label}</span>${named ? '<span class="cal-mtitle" data-testid="calm-name"></span>' : ''}<span class="cal-mark" aria-hidden="true">${mark}</span><span class="cal-days">${m.written ? `${m.written}일` : ''}</span>
             </button>`
           })
           .join('')}
@@ -246,6 +247,10 @@ export function createCalendar(handlers: {
       <div class="book-detail" data-testid="calendar-detail" role="status">${r.written ? '달을 누르면 그달 달력을 열어요' : '한 줄을 쓰면 그달이 기분 색으로 물들어요'}</div>`
     sheet.querySelector('[data-testid="calendar-prev"]')!.addEventListener('click', () => goYear(-1))
     sheet.querySelector('[data-testid="calendar-next"]')!.addEventListener('click', () => goYear(1))
+    // 달 이름은 사용자가 쓴 글이라 textContent로만 넣는다(칸이 좁으면 말줄임, 다 읽을 땐 그달 달력에서)
+    sheet.querySelectorAll<HTMLElement>('.cal-mtitle').forEach((name) => {
+      name.textContent = titleOf(name.closest<HTMLElement>('.cal-month')!.dataset.testid!.slice(5))
+    })
     sheet.querySelectorAll<HTMLButtonElement>('.cal-month').forEach((cell) =>
       cell.addEventListener('click', () => {
         month = cell.dataset.testid!.slice(5)

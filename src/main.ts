@@ -410,6 +410,7 @@ const growth = createGrowth({
   },
   calm: () => calm,
   onRing: (index, total) => sound.rise(index, total),
+  titles: () => save.monthTitles ?? {},
 })
 document.body.appendChild(growth.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))

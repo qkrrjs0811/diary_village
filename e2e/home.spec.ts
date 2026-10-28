@@ -3046,6 +3046,84 @@ test('일요일에 시작해 날마다 쓴 달에 긴 달 이름을 붙여도 �
   await page.screenshot({ path: 'test-results/screens/month-sign-title-dense.png' })
 })
 
+test('달 이름은 한 해 보기 달 칸과 자라 온 길 자막에 보이고, 백업으로 내보내고 가져와도 돌아온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-12T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-09', [20, 25]), ...monthEntries('2026-10', [3, 8]), ...monthEntries('2026-11', [1])] as Entry[]
+  const monthTitles = { '2026-09': '첫 집을 지은 달', '2026-10': '이사하고 새 동네를 알아 간 달' }
+  const data = { version: 1 as const, entries, monthTitles }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.reload()
+
+  // 한 해 보기: 이름 붙인 달 칸에 이름이 작게(길면 말줄임, 칸 밖으로 나가지 않음), 이름 없는 달은 그대로
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await page.getByTestId('calendar-mode-year').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년')
+  const oct = page.getByTestId('calm-2026-10')
+  await expect(oct.getByTestId('calm-name')).toHaveText('이사하고 새 동네를 알아 간 달')
+  await expect(page.getByTestId('calm-2026-09').getByTestId('calm-name')).toHaveText('첫 집을 지은 달')
+  await expect(page.getByTestId('calm-2026-11').getByTestId('calm-name')).toHaveCount(0)
+  const cell = (await oct.boundingBox())!
+  const name =(await oct.getByTestId('calm-name').boundingBox())!
+  expect(name.x).toBeGreaterThanOrEqual(cell.x)
+  expect(name.x + name.width).toBeLessThanOrEqual(cell.x + cell.width)
+  expect(cell.height).toBeGreaterThanOrEqual(44)
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/calendar-year-title.png' })
+  // 누르면 그달 달력, 머리에 이름 전체
+  await oct.click()
+  await expect(page.getByTestId('calendar-name-open')).toHaveText('「이사하고 새 동네를 알아 간 달」 ✏️')
+  await page.getByTestId('calendar-close').click()
+
+  // 자라 온 길: 자막 아래 그달 이름(긴 이름도 화면 안)
+  const steps = growthSteps(data)
+  const delays = growthDelays(steps)
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-growth').click()
+  await page.clock.runFor(650)
+  await expect(page.getByTestId('growth-caption')).toContainText('9월 20일')
+  await expect(page.getByTestId('growth-title')).toHaveText('「첫 집을 지은 달」')
+  await page.clock.runFor(delays[0] + delays[1])
+  await expect(page.getByTestId('growth-caption')).toContainText('10월 3일')
+  await expect(page.getByTestId('growth-title')).toHaveText('「이사하고 새 동네를 알아 간 달」')
+  const cap = (await page.getByTestId('growth-caption').boundingBox())!
+  expect(cap.x).toBeGreaterThanOrEqual(0)
+  expect(cap.x + cap.width).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'test-results/screens/growth-title.png' })
+  // 이름 없는 달은 자막 한 줄 그대로
+  await page.clock.runFor(delays[2] + delays[3])
+  await expect(page.getByTestId('growth-caption')).toContainText('11월 1일')
+  await expect(page.getByTestId('growth-title')).toBeHidden()
+  await page.getByTestId('growth-skip').click()
+  await expect(page.getByTestId('growth')).toBeHidden()
+
+  // 백업 파일에 달 이름이 담긴다
+  await page.getByTestId('settings-open').click()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  const file = readFileSync(await download.path(), 'utf8')
+  expect(JSON.parse(file).monthTitles).toEqual(monthTitles)
+  await page.getByTestId('settings-close').click()
+
+  // 새 폰: 11월만 쓰고 11월에 이름을 붙인 상태에서 가져오면 두 쪽 이름이 모두 남는다
+  const phone = { version: 1, entries: entries.slice(4), monthTitles: { '2026-11': '새 폰의 달' } }
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify(phone)])
+  await page.reload()
+  await expect(page.getByTestId('month-2026-10')).toHaveCount(0)
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-11-12.json', mimeType: 'application/json', buffer: Buffer.from(file) })
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('settings-msg')).toHaveText('🏠 4일의 집을 다시 지었어요')
+  await page.getByTestId('settings-close').click()
+  await expect(page.getByTestId('month-2026-10')).toHaveText('10월 · 이사하고 새 동네를 알아 간 달')
+  await expect(page.getByTestId('month-2026-11')).toHaveText('11월 · 새 폰의 달')
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(saved.monthTitles).toEqual({ ...monthTitles, '2026-11': '새 폰의 달' })
+  expect(saved.entries).toEqual(entries)
+  await page.reload()
+  await expect(page.getByTestId('month-2026-09')).toHaveText('9월 · 첫 집을 지은 달')
+})
+
 test('새해 첫 주에는 지난달 대신 지난해 돌아보기 쪽지를 보이고, 누르면 달력 한 해 보기를 연다', async ({ page }) => {
   await page.clock.install({ time: new Date('2027-01-03T21:00:00+09:00') })
   await page.goto('./')
