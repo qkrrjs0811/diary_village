@@ -595,6 +595,8 @@ test('새 이웃이 온 날, 원래 보기로 돌아온 뒤 섬 가장자리에�
   await page.clock.runFor(900)
   await expect(page.getByTestId('house-2026-10-20')).not.toBeInViewport()
   await expect(hodu).toHaveClass(/coming/)
+  // 다가간 보기에서 "광장" 이름표와 다음 명소 팻말이 마을 화면 안에 다 들어오고, 날씨 칩과 겹치지 않는다
+  await expectInVillage(page, ['plaza-sign', 'next-landmark'])
   const at = async (t: number) => {
     await page.evaluate((t) => {
       for (const a of document.getAnimations()) {
@@ -989,6 +991,21 @@ async function finishAnimations(page: import('@playwright/test').Page) {
   await page.evaluate(() => document.getAnimations().forEach((a) => a.effect?.getComputedTiming().endTime !== Infinity && a.finish()))
 }
 
+/** 그 그림들이 마을 화면 안에 잘리지 않고 다 들어오고, 오른쪽 위 날씨 칩과 겹치지 않는다 */
+async function expectInVillage(page: import('@playwright/test').Page, ids: string[]) {
+  const v = (await page.getByTestId('village').boundingBox())!
+  const w = (await page.getByTestId('weather').boundingBox())!
+  for (const id of ids) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.x, id).toBeGreaterThanOrEqual(v.x)
+    expect(b.x + b.width, id).toBeLessThanOrEqual(v.x + v.width)
+    expect(b.y, id).toBeGreaterThanOrEqual(v.y)
+    expect(b.y + b.height, id).toBeLessThanOrEqual(v.y + v.height)
+    const apart = b.x + b.width <= w.x || w.x + w.width <= b.x || b.y >= w.y + w.height || b.y + b.height <= w.y
+    expect(apart, `${id} 날씨 칩`).toBe(true)
+  }
+}
+
 /** 멀리 본 뒤 광장 쪽으로 휠을 굴려 가까이 간다 */
 async function zoomToPlaza(page: import('@playwright/test').Page, steps = 4) {
   const svg = (await page.getByTestId('village').boundingBox())!
@@ -1026,15 +1043,13 @@ test('7일째 한 줄을 쓰면 광장에 우물이 생기고 축하 카드가 �
   await finishAnimations(page)
   await page.screenshot({ path: 'test-results/screens/celebrate.png' })
 
-  // 보러 가면 광장의 우물이 가운데 온다
+  // 보러 가면 광장의 우물과 "광장" 이름표·다음 명소 팻말이 화면 끝에 잘리지 않고 함께 보인다
   await page.getByTestId('celebrate-visit').click()
   await expect(page.getByTestId('celebrate')).toBeHidden()
   await page.clock.runFor(1500)
   const well = page.getByTestId('landmark-well')
-  const box = (await well.boundingBox())!
-  const svg = (await page.getByTestId('village').boundingBox())!
-  expect(Math.abs(box.x + box.width / 2 - (svg.x + svg.width / 2))).toBeLessThan(40)
   await expect(page.getByTestId('next-landmark')).toHaveText('7일 더 쓰면꽃 정원이 생겨요')
+  await expectInVillage(page, ['landmark-well', 'plaza-sign', 'next-landmark'])
   await page.waitForTimeout(1700) // 우물이 쑥 올라오는 연출(실제 시간)이 끝나면 찍는다
   await page.screenshot({ path: 'test-results/screens/plaza-well.png' })
 

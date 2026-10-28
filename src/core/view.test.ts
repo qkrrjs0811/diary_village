@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, showView, startView, tweenView, unitOf, viewAround, zoomAt } from './view'
+import { BUILD_UNIT, MAX_UNIT, MIN_UNIT, SHOW, buildUnit, easeInOut, fitBoxes, showView, startView, tweenView, unitOf, viewAround, zoomAt, type View } from './view'
 
 const screen = { w: 360, h: 480 }
 
@@ -107,5 +107,43 @@ describe('처음 열 때 보기', () => {
       expect(p.y).toBeGreaterThanOrEqual(v.y)
       expect(p.y).toBeLessThanOrEqual(v.y + v.h)
     }
+  })
+})
+
+describe('여러 상자가 다 보이게 다가가기', () => {
+  const phone = { w: 366, h: 630 }
+  const inset = { side: 12, top: 44, bottom: 12 }
+  const inside = (v: View, b: View) => {
+    const u = unitOf(v, phone)
+    const l = (b.x - v.x) / u
+    const r = (b.x + b.w - v.x) / u
+    const t = (b.y - v.y) / u
+    const d = (b.y + b.h - v.y) / u
+    const e = 1e-6
+    return l >= inset.side - e && r <= phone.w - inset.side + e && t >= inset.top - e && d <= phone.h - inset.bottom + e
+  }
+
+  it('상자들이 모두 안쪽 여백 안에 들어온다(위는 날씨 칩만큼 비운다)', () => {
+    const boxes = [
+      { x: -200, y: 300, w: 60, h: 20 },
+      { x: 150, y: 260, w: 90, h: 40 },
+      { x: 0, y: 200, w: 10, h: 10 },
+    ]
+    const v = fitBoxes(boxes, BUILD_UNIT, phone, inset)
+    for (const b of boxes) expect(inside(v, b)).toBe(true)
+    expect(v.w / v.h).toBeCloseTo(phone.w / phone.h)
+  })
+
+  it('상자가 작으면 정한 거리(near)보다 더 다가가지 않고 상자를 가운데에 둔다', () => {
+    const b = { x: 0, y: 0, w: 20, h: 20 }
+    const v = fitBoxes([b], BUILD_UNIT, phone, inset)
+    expect(unitOf(v, phone)).toBeCloseTo(BUILD_UNIT)
+    expect(v.x + v.w / 2).toBeCloseTo(10)
+    expect(inside(v, b)).toBe(true)
+  })
+
+  it('아무리 커도 가장 먼 거리를 넘지 않는다', () => {
+    const v = fitBoxes([{ x: 0, y: 0, w: 1e5, h: 10 }], BUILD_UNIT, phone, inset)
+    expect(unitOf(v, phone)).toBeCloseTo(MAX_UNIT)
   })
 })

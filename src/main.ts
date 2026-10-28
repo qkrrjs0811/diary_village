@@ -313,9 +313,11 @@ function showArrivals() {
 /** 광장의 명소로 화면을 옮기고, 그 명소가 쑥 올라온다 */
 function visitLandmark(l: Landmark) {
   const s = landmarkSpot(l)
-  // 처음 보기보다 조금 멀리: 옆 자리의 다음 명소 팻말까지 함께 보인다
-  camera.glide(iso(s.gx + 0.5, s.gy + 0.5, 26), 0.8)
   const node = svg.querySelector<SVGGElement>(`[data-landmark="${l.id}"].landmark`)
+  // 처음 보기보다 조금 멀리: 그 명소와 "광장" 이름표·다음 명소 팻말이 화면 끝에 잘리지 않고 함께 보인다
+  const c = iso(s.gx + 0.5, s.gy + 0.5)
+  const b = node?.getBBox()
+  camera.glide([...plazaBoxes(), b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: c.x - 30, y: c.y - 60, w: 60, h: 64 }], 0.8)
   if (!node || calm) return
   node.classList.remove('pop')
   node.style.setProperty('--delay', `${SHOW.go}ms`)
@@ -387,7 +389,12 @@ function welcomeNeighbor(ids: string[]): (() => void) | undefined {
     const node = svg.querySelector(`.resident.newcomer[data-resident="${w.resident.id}"]`)
     if (!node) return
     // 짓는 연출처럼 다가가 머무는 동안 들어오고, 원래 보기로 돌아온다
-    camera.visit(iso((w.from.gx + gate.gx) / 2 + 0.5, (w.from.gy + gate.gy) / 2, 6))
+    // 들어오는 길 양 끝과 "광장" 이름표·다음 명소 팻말이 모두 화면 안에 들어오게
+    const body = (gx: number, gy: number) => {
+      const p = iso(gx + 0.5, gy)
+      return { x: p.x - 16, y: p.y - 40, w: 32, h: 44 }
+    }
+    camera.visit([body(w.from.gx, w.from.gy), body(gate.gx, gate.gy), ...plazaBoxes()])
     welcomeTimer = window.setTimeout(() => {
       // 뛰어 오는 동안은 맨 앞에 그려 우체통·명소에 가리지 않고, 다 오면 제 깊이 자리로 돌아간다
       const parent = node.parentNode!
@@ -402,6 +409,14 @@ function welcomeNeighbor(ids: string[]): (() => void) | undefined {
       node.classList.add('coming')
     }, SHOW.go)
   }
+}
+
+/** 광장으로 다가갈 때 화면 안에 두는 것: "광장" 이름표와 다음 명소 팻말(모두 세웠으면 이름표만) */
+function plazaBoxes() {
+  return [...svg.querySelectorAll<SVGGraphicsElement>('[data-testid="plaza-sign"], [data-testid="next-landmark"]')].map((n) => {
+    const b = n.getBBox()
+    return { x: b.x, y: b.y, w: b.width, h: b.height }
+  })
 }
 
 /** "N일 전 오늘"의 집으로 날아가 그 집이 반짝이고, 도착하면 그날 글을 연다 */

@@ -1,8 +1,11 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { SHOW, buildUnit, easeInOut, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { SHOW, buildUnit, easeInOut, fitBoxes, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
+
+/** 여러 상자를 다 보이게 다가갈 때 비워 둘 화면 가장자리(px). 위는 날씨 칩 자리 */
+const INSET = { side: 12, top: 44, bottom: 12 }
 
 type Gesture =
   | { kind: 'drag'; id: number; px: number; py: number; view: View }
@@ -126,13 +129,13 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       apply()
       return true
     },
-    /** center 로 부드럽게 옮겨 가서 그대로 머문다(명소 보러 가기) */
-    glide(center: Pt, u: number) {
+    /** center 로(상자들을 주면 그 상자들이 모두 보이게) 부드럽게 옮겨 가서 그대로 머문다(명소 보러 가기) */
+    glide(center: Pt | View[], u: number) {
       const s = screen()
       if (!(s.w > 0 && s.h > 0)) return
       stopShow()
       const from = { ...view }
-      const to = viewAround(center, u, s)
+      const to = Array.isArray(center) ? fitBoxes(center, u, s, INSET) : viewAround(center, u, s)
       const start = performance.now()
       const step = () => {
         const t = (performance.now() - start) / SHOW.go
@@ -142,13 +145,14 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       }
       showFrame = requestAnimationFrame(step)
     },
-    /** 새 집(center)으로 부드럽게 다가가 잠시 머문 뒤 원래 보기로 돌아온다 */
-    visit(center: Pt) {
+    /** 새 집(center)으로(상자들을 주면 그 상자들이 모두 보이게) 부드럽게 다가가 잠시 머문 뒤 원래 보기로 돌아온다 */
+    visit(center: Pt | View[]) {
       const s = screen()
       if (!(s.w > 0 && s.h > 0)) return
       stopShow()
       const from = { ...view }
-      const near = viewAround(center, buildUnit(unitOf(from, s)), s)
+      const u = buildUnit(unitOf(from, s))
+      const near = Array.isArray(center) ? fitBoxes(center, u, s, INSET) : viewAround(center, u, s)
       const start = performance.now()
       const step = () => {
         const r = showView(from, near, performance.now() - start)

@@ -28,6 +28,24 @@ export function viewAround(center: Pt, unit: number, screen: Size): View {
 }
 
 /**
+ * boxes(viewBox 상자들)가 모두 화면 안쪽 여백(inset, 화면 px) 안에 들어오는 보기.
+ * near 보다 더 다가가지 않고 MAX_UNIT 보다 멀어지지 않는다. 상자 묶음은 남은 자리 가운데에 둔다
+ */
+export function fitBoxes(boxes: View[], near: number, screen: Size, inset: { side: number; top: number; bottom: number }): View {
+  const left = Math.min(...boxes.map((b) => b.x))
+  const right = Math.max(...boxes.map((b) => b.x + b.w))
+  const top = Math.min(...boxes.map((b) => b.y))
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h))
+  const roomW = Math.max(1, screen.w - 2 * inset.side)
+  const roomH = Math.max(1, screen.h - inset.top - inset.bottom)
+  const unit = Math.min(MAX_UNIT, Math.max(near, (right - left) / roomW, (bottom - top) / roomH))
+  const w = screen.w * unit
+  const h = screen.h * unit
+  const roomMid = (inset.top + screen.h - inset.bottom) / 2
+  return { x: (left + right) / 2 - w / 2, y: (top + bottom) / 2 - roomMid * unit, w, h }
+}
+
+/**
  * 처음 열 때 보기: 오늘 자리(center)를 보되, 그달 구역(area, 섬)이 보기보다 작은 쪽은 섬을 가운데에 두고,
  * 큰 쪽은 섬 끝 밖의 빈 하늘이 보이지 않게 끝에 맞춘다
  */
