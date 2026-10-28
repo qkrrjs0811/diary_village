@@ -106,9 +106,20 @@ export function hasFinal(word: string): boolean {
   return c >= 0 && c < 11172 && c % 28 !== 0
 }
 
-/** 지은 뒤 알려 주는 말. 보통 집이면 null */
-export function buildingNote(match: BuildingMatch | null): string | null {
+const ORDINALS = ['첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열']
+
+/** 몇 번째를 우리말로 읽는다(열 번째까지는 말로, 그 뒤는 숫자로) */
+export function ordinalWord(n: number): string {
+  return n >= 1 && n <= ORDINALS.length ? `${ORDINALS[n - 1]} 번째` : `${n}번째`
+}
+
+/**
+ * 지은 뒤 알려 주는 말. 보통 집이면 null.
+ * 같은 건물이 두 번째부터면 몇 번째인지 한 마디를 더한다(재촉·평가 없이 셈만)
+ */
+export function buildingNote(match: BuildingMatch | null, nth: number | null = null): string | null {
   if (!match) return null
   const b = buildingInfo(match.id)
-  return `${b.icon} '${match.word}'${hasFinal(match.word) ? '을' : '를'} 찾아 ${b.name}${hasFinal(b.name) ? '이' : '가'} 생겼어요`
+  const which = nth && nth > 1 ? ` ${ordinalWord(nth)}로` : ''
+  return `${b.icon} '${match.word}'${hasFinal(match.word) ? '을' : '를'} 찾아 ${b.name}${hasFinal(b.name) ? '이' : '가'}${which} 생겼어요`
 }

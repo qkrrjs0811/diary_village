@@ -51,6 +51,21 @@ export function collectionOf(entries: Entry[]): CollectionItem[] {
   return [...items.values()]
 }
 
+export { ordinalWord } from './building'
+
+/** 그 건물이 선 날들(날짜 순). 남은 글에서 계산하므로 지운 날은 빠지고 고치면 따라 바뀐다 */
+export function daysOfBuilding(entries: Entry[], kind: BuildingId): Entry[] {
+  return entries.filter((x) => buildingOf(x)?.id === kind).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+/** 그날 선 건물이 남은 글 가운데 몇 번째로 선 같은 건물인지(날짜 순). 보통 집·없는 날은 null */
+export function buildingOrdinal(entries: Entry[], date: string): number | null {
+  const entry = entries.find((x) => x.date === date)
+  const match = entry && buildingOf(entry)
+  if (!match) return null
+  return entries.filter((x) => x.date <= date && buildingOf(x)?.id === match.id).length
+}
+
 export function collectionCount(entries: Entry[]): { found: number; total: number } {
   return { found: collectionOf(entries).filter((c) => c.found).length, total: BUILDINGS.length }
 }

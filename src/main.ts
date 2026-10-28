@@ -1,6 +1,7 @@
 import './style.css'
 import { backupFileName, backupText, planImport } from './core/backup'
 import { buildingNote, buildingOf } from './core/building'
+import { buildingOrdinal } from './core/collection'
 import { dayKey } from './core/date'
 import { builtDays, editEntry, entryOn, eraseEntry, neighborDays, writeEntry, yesterdayOpen, type Day } from './core/entries'
 import { moodOf } from './core/mood'
@@ -349,7 +350,7 @@ const card = createWriteCard({
     // 손님은 오늘 집에만 온다. 어제 칸을 쓴 날은 맞장구가 없다
     const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
     const notes = [
-      buildingNote(buildingOf(r.entry)),
+      buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
       decorNote(reachedDecors(before, builtDays(save))),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)

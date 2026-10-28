@@ -101,6 +101,14 @@ describe('건물이 생겼다는 알림', () => {
 
   it('맞는 말이 없으면 알림이 없다', () => {
     expect(buildingNote(null)).toBeNull()
+    expect(buildingNote(null, 3)).toBeNull()
+  })
+
+  it('두 번째부터는 몇 번째로 생겼는지 한 마디를 더한다(첫 번째는 그대로)', () => {
+    expect(buildingNote({ id: 'cafe', word: '커피' }, 1)).toBe("☕ '커피'를 찾아 카페가 생겼어요")
+    expect(buildingNote({ id: 'cafe', word: '라떼' }, 3)).toBe("☕ '라떼'를 찾아 카페가 세 번째로 생겼어요")
+    expect(buildingNote({ id: 'bookstore', word: '책' }, 2)).toBe("📚 '책'을 찾아 책방이 두 번째로 생겼어요")
+    expect(buildingNote({ id: 'cafe', word: '커피' }, null)).toBe("☕ '커피'를 찾아 카페가 생겼어요")
   })
 })
 

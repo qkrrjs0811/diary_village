@@ -521,6 +521,28 @@ test('읽기 창에서 쓴 글을 지우면 확인을 한 번 더 받고, 빈 �
   await expect(page.getByTestId('village-stage')).toHaveText('🏘️ 마을')
 })
 
+test('같은 건물이 또 서면 짓는 알림에 몇 번째인지 한 마디를 더한다',async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = [
+    [20, '아침에 커피를 마셨다'],
+    [22, '라떼 한 잔'],
+    [24, '그냥 조용한 하루'],
+  ].map(([d, text], i) => ({ date: `2026-10-${d}`, text, mood: moods[i], writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`) }))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('카페에서 쉬었다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
+  await expect(page.getByTestId('build-note')).toContainText("☕ '카페'를 찾아 카페가 세 번째로 생겼어요")
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-note-ordinal.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+})
+
 test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 건물의 말이 든 날은 그대로다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
@@ -686,8 +708,8 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
-  // 찾아온 손님이 오늘 한 줄에 맞장구를 친다(퇴근 → 애씀)
-  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 생겼어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
+  // 두 번째 카페라 몇 번째인지 한 마디를 더하고, 찾아온 손님이 오늘 한 줄에 맞장구를 친다(퇴근 → 애씀)
+  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 두 번째로 생겼어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note.png' })
