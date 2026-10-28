@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { replyOf } from './reply'
@@ -360,5 +360,43 @@ describe('오늘의 손님', () => {
     const wait = todayGuests(buildVillage(past, today), residentsOf(past), past, today)
     expect(wait[0].reply).toBeNull()
     expect(guestLine(wait[0])).toBe('오늘 자리에서 기다리고 있어요.')
+  })
+})
+
+describe('그날 맞장구', () => {
+  const today = '2026-10-14'
+  const past = days(40, '2026-09-01').filter((x) => x.date < today)
+
+  it('그날 첫 손님이 그날 한 줄에 맞장구를 친다(오늘이면 지금 손님과 같다)', () => {
+    const es = [...past, e(today, '오늘은 너무 힘들었다')]
+    const gs = todayGuests(buildVillage(es, today), residentsOf(es), es, today)
+    const r = dayReply(es[es.length - 1], es)!
+    expect(r.resident.id).toBe(gs[0].resident.id)
+    expect(r.reply).toBe(gs[0].reply)
+    expect(dayReplyLine(es[es.length - 1], es)).toBe(`💬 ${r.resident.name}: “${r.reply}”`)
+  })
+
+  it('지난날은 그날까지 온 주민 중에서 고르고, 나중에 쓴 날이 늘어도 바뀌지 않는다', () => {
+    const first = past[0]
+    const r = dayReply(first, past)!
+    // 첫날에는 콩이 혼자였다
+    expect(r.resident.id).toBe(RESIDENTS[0].id)
+    expect(r.reply).toBe(replyOf(first))
+    expect(dayReply(first, past.slice(0, 1))).toEqual(r)
+    const mid = past[20]
+    expect(dayReply(mid, past)).toEqual(dayReply(mid, past.slice(0, 21)))
+    // 지운 날도 지은 날로 세어 그날까지 온 주민이 줄지 않는다
+    expect(dayReply(mid, [...past.slice(0, 21)].reverse())).toEqual(dayReply(mid, past))
+  })
+
+  it('기분·글 길이로 말하는 주민이 바뀌지 않고, 고치면 말이 따라 바뀐다', () => {
+    const d = past[30]
+    const a = dayReply({ ...d, text: '빵을 먹었다' }, past)!
+    const b = dayReply({ ...d, text: '빵을 먹었다'.repeat(5), mood: 'blue' }, past)!
+    expect(b.resident).toEqual(a.resident)
+    const c = dayReply({ ...d, text: '친구랑 놀았다' }, past)!
+    expect(c.resident).toEqual(a.resident)
+    expect(c.reply).toBe(replyOf({ ...d, text: '친구랑 놀았다' }))
+    expect(dayReplyLine({ ...d, text: '비밀일기 친구랑' }, past)).not.toContain('비밀일기')
   })
 })

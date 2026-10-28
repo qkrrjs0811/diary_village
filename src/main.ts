@@ -17,7 +17,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, guestLine, residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
+import { RESIDENTS, dayReplyLine, guestLine, residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -128,6 +128,7 @@ const reader = createReader({
     return { prev: near.prev ? entryOn(save, near.prev) ?? null : null, next: near.next ? entryOn(save, near.next) ?? null : null }
   },
   onTurn: turnTo,
+  reply: (entry) => dayReplyLine(entry, builtDays(save)),
   onTreasure: readOnly
     ? null
     : (date) => {

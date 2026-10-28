@@ -186,8 +186,8 @@ export function todayGuests(
   const todays = entries.find((x) => x.date === today)
   const b = todays ? buildingOf(todays) : null
   const count = Math.min(todays ? (residents.length >= 3 ? 2 : 1) : 1, spots.length)
-  const order = [...residents].sort((x, y) => hash(`guest:${today}:${x.id}`) - hash(`guest:${today}:${y.id}`) || (x.id < y.id ? -1 : 1))
-  return order.slice(0, count).map((resident, i) => ({
+  return guestOrder(residents, today)
+    .slice(0, count).map((resident, i) => ({
     resident,
     spot: spots[i],
     // 오늘 집보다 뒤에, 앞 칸 나무·꽃보다 먼저 그린다
@@ -198,6 +198,27 @@ export function todayGuests(
     play: todays ? (b?.id ?? 'house') : null,
     reply: i === 0 ? replyOf(todays) : null,
   }))
+}
+
+/** 그날 손님으로 오는 주민 순서. 주민·날짜로만 정한다 */
+function guestOrder(residents: Resident[], date: string): Resident[] {
+  return [...residents].sort((x, y) => hash(`guest:${date}:${x.id}`) - hash(`guest:${date}:${y.id}`) || (x.id < y.id ? -1 : 1))
+}
+
+/**
+ * 그날 첫 손님이 그날 한 줄에 건넨 맞장구(읽기 창용). built 는 지은 날(지운 날 포함)이다.
+ * 그날까지 온 주민 중에서 고르므로 나중에 쓴 날이 늘어도 말하는 주민이 바뀌지 않고, 오늘이면 지금 손님과 같다
+ */
+export function dayReply(entry: Entry, built: readonly Dated[]): { resident: Resident; reply: string } | null {
+  const resident = guestOrder(residentsOf([...built.filter((d) => d.date <= entry.date), entry]), entry.date)[0]
+  const reply = replyOf(entry)
+  return resident && reply ? { resident, reply } : null
+}
+
+/** 읽기 창에 보일 맞장구 한 줄 */
+export function dayReplyLine(entry: Entry, built: readonly Dated[]): string | null {
+  const r = dayReply(entry, built)
+  return r ? `💬 ${r.resident.name}: “${r.reply}”` : null
 }
 
 /** 손님 한마디. 첫 손님은 오늘 한 줄에 맞장구를 치고(글 조각은 옮기지 않는다), 다른 손님은 놀이 말을 한다 */

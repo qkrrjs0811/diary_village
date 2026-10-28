@@ -1309,6 +1309,57 @@ test('주민의 맞장구: 한 줄을 쓰면 찾아온 손님이 말풍선으로
   expect(saved).not.toMatch(/곁에 있을게요|토닥토닥|함께한 시간/)
 })
 
+test('읽기 창에 그날 손님의 맞장구 한 줄이 보이고, 넘기기·고치기 때 따라 바뀐다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const at = (d: string) => Date.parse(`${d}T22:00:00+09:00`)
+  const entries = [
+    { date: '2026-08-01', text: '그냥 지나간 하루', mood: 'calm', writtenAt: at('2026-08-01') },
+    { date: '2026-08-10', text: '오늘은 정말 비밀스럽게 힘들었다', mood: 'blue', writtenAt: at('2026-08-10') },
+    { date: '2026-10-15', text: '친구랑 떡볶이 먹었다', mood: 'great', writtenAt: at('2026-10-15') },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const COMFORT = /“(곁에 있을게요\. 천천히 해요\.|오늘은 제가 토닥토닥 해 줄게요\.|괜찮아요, 마을이 곁에 있어요\.)”$/
+  const TOGETHER = /“(함께한 시간이 따뜻해요\.|좋은 사람들 이야기, 듣기 좋아요\.|둘러앉은 마음이 느껴져요\.)”$/
+  const line = page.getByTestId('reader-reply')
+  await page.getByTestId('house-2026-08-01').dispatchEvent('click')
+  // 첫날에는 콩이 혼자 살았다
+  await expect(line).toHaveText(/^💬 콩이: “.+”$/)
+  await page.getByTestId('reader-next').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('오늘은 정말 비밀스럽게 힘들었다')
+  await expect(line).toHaveText(new RegExp(`^💬 \\S+: ${COMFORT.source}`))
+  // 글 조각은 옮기지 않는다
+  await expect(line).not.toContainText('비밀')
+  const before = (await line.textContent())!
+  const who = before.split(':')[0]
+
+  // 고치면 같은 주민이 새 맞장구를 한다
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-input').fill('엄마랑 바닷가를 걸었다')
+  await page.getByTestId('edit-save').click()
+  await expect(line).toHaveText(new RegExp(`^${who}: ${TOGETHER.source}`))
+  await expect(page.getByTestId('reader-edited')).toBeVisible()
+  await expect(page.getByTestId('reader-aging')).toBeVisible()
+  // 글·맞장구·고친 날 줄이 겹치지 않고 창 안에 있다
+  const text = (await page.getByTestId('reader-text').boundingBox())!
+  const reply = (await line.boundingBox())!
+  const edited = (await page.getByTestId('reader-edited').boundingBox())!
+  expect(reply.y).toBeGreaterThanOrEqual(text.y + text.height)
+  expect(edited.y).toBeGreaterThanOrEqual(reply.y + reply.height)
+  expect(reply.x).toBeGreaterThanOrEqual(0)
+  expect(reply.x + reply.width).toBeLessThanOrEqual(390)
+  await page.waitForTimeout(500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/reader-reply.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 맞장구는 저장하지 않는다
+  const saved = await page.evaluate((k) => localStorage.getItem(k)!, KEY)
+  expect(saved).not.toMatch(/곁에 있을게요|토닥토닥|함께한 시간|듣기 좋아요|둘러앉은/)
+})
+
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
   // 낮 하늘(저녁·밤은 아래 테스트)
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })

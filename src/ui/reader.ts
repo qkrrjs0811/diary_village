@@ -34,6 +34,8 @@ export function createReader(handlers: {
   onTurn?: (entry: Entry) => void
   /** 저장 못 하는 상태면 null. 소중한 날 표시를 켜고 끈 기록을, 실패하면 null 을 돌려준다 */
   onTreasure?: ((date: string) => Entry | null) | null
+  /** 그날 첫 손님이 그 글에 건넨 맞장구 한 줄(없으면 null) */
+  reply?: (entry: Entry) => string | null
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -85,6 +87,7 @@ export function createReader(handlers: {
       <div class="reader-building" data-testid="reader-building" hidden></div>
       <div class="reader-aging" data-testid="reader-aging" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
+      <div class="reader-reply" data-testid="reader-reply" hidden></div>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
       <div class="reader-edge" data-testid="reader-edge" hidden></div>
       ${handlers.neighbors ? `<div class="reader-turn">
@@ -111,6 +114,13 @@ export function createReader(handlers: {
     if (age) {
       const line = sheet.querySelector<HTMLElement>('.reader-aging')!
       line.textContent = age
+      line.hidden = false
+    }
+    // 그날 손님의 맞장구. 글로 계산하므로 고치면 따라 바뀐다
+    const reply = handlers.reply?.(entry)
+    if (reply) {
+      const line = sheet.querySelector<HTMLElement>('.reader-reply')!
+      line.textContent = reply
       line.hidden = false
     }
     const heart = sheet.querySelector<HTMLButtonElement>('[data-testid="reader-treasure"]')

@@ -767,6 +767,8 @@ button { font: inherit; color: inherit; }
 .reader-aging { margin-top: 8px; font-size: 13px; color: #6f8a5a; }
 .reader-aging[hidden] { display: none; }
 .reader-text { margin: 14px 0 18px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
+.reader-reply { margin: -8px 0 14px; font-size: 13px; line-height: 1.45; color: #6f8a5a; word-break: keep-all; overflow-wrap: anywhere; }
+.reader-reply[hidden] { display: none; }
 .reader-edited { margin: -10px 0 16px; font-size: 12px; color: var(--ink-soft); }
 .reader-turn { display: flex; justify-content: space-between; gap: 8px; margin: -6px 0 12px; }
 .turn-btn {
