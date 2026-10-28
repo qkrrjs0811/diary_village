@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, reachedResidents,dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { replyOf } from './reply'
@@ -398,5 +398,75 @@ describe('그날 맞장구', () => {
     expect(c.resident).toEqual(a.resident)
     expect(c.reply).toBe(replyOf({ ...d, text: '친구랑 놀았다' }))
     expect(dayReplyLine({ ...d, text: '비밀일기 친구랑' }, past)).not.toContain('비밀일기')
+  })
+})
+
+describe('이웃 수첩: 이사 온 날', () => {
+  const d = (date: string) => ({ date })
+
+  it('주민마다 누적 days번째 지은 날에 이사 온다(날짜 순으로 센다)', () => {
+    const built = [d('2026-03-10'), d('2026-01-01'), d('2026-02-05'), d('2026-01-20'), d('2026-04-01')]
+    const list = arrivalsOf(built)
+    expect(list.map((a) => a.resident.id)).toEqual(RESIDENTS.map((r) => r.id))
+    expect(list[0]).toMatchObject({ resident: { name: '콩이' }, date: '2026-01-01', left: 0 })
+    expect(list[1]).toMatchObject({ resident: { name: '모모' }, date: '2026-02-05', left: 0 })
+    expect(list[2]).toMatchObject({ resident: { name: '보리' }, date: '2026-04-01', left: 0 })
+    expect(list[3]).toMatchObject({ resident: { name: '두부' }, date: null, left: 2 })
+    expect(list[4]).toMatchObject({ date: null, left: 5 })
+  })
+
+  it('같은 날이 겹쳐도 한 날로 세고, 아무것도 없으면 모두 아직이다', () => {
+    expect(arrivalsOf([d('2026-01-01'), d('2026-01-01')])[1]).toMatchObject({ date: null, left: 2 })
+    expect(arrivalsOf([]).every((a) => a.date === null && a.left === a.resident.days)).toBe(true)
+  })
+
+  it('온 주민은 residentsOf 와 같다', () => {
+    const built = days(42)
+    expect(arrivalsOf(built).filter((a) => a.date).map((a) => a.resident)).toEqual(residentsOf(built))
+  })
+
+  it('지운 날도 지었던 날이라 지워도 이사 온 날이 바뀌지 않는다', () => {
+    const entries = days(10)
+    const before = entries.map((x) => d(x.date))
+    // 사흘째 글을 지워도 built(쓴 날 + 지운 날)는 그대로다
+    const after = [...entries.filter((x) => x.date !== '2026-01-03').map((x) => d(x.date)), d('2026-01-03')]
+    expect(arrivalsOf(after)).toEqual(arrivalsOf(before))
+  })
+
+  it('기분·글 길이와 무관하다', () => {
+    const a = days(20)
+    const b = a.map((x, i) => ({ ...x, mood: i % 2 ? ('blue' as const) : ('great' as const), text: '긴 글'.repeat(i + 1) }))
+    expect(arrivalsOf(b)).toEqual(arrivalsOf(a))
+  })
+
+  it('arrivedOn 은 그날 이사 온 주민들이다', () => {
+    const built = days(10)
+    expect(arrivedOn(built, '2026-01-01').map((r) => r.name)).toEqual(['콩이'])
+    expect(arrivedOn(built, '2026-01-05').map((r) => r.name)).toEqual(['보리'])
+    expect(arrivedOn(built, '2026-01-10').map((r) => r.name)).toEqual(['호두'])
+    expect(arrivedOn(built, '2026-01-02')).toEqual([])
+    expect(arrivedOn(built, '2026-02-01')).toEqual([])
+  })
+
+  it('before → after 로 새로 온 이웃을 찾는다', () => {
+    expect(reachedResidents(days(4), days(5)).map((r) => r.name)).toEqual(['보리'])
+    expect(reachedResidents(days(5), days(6))).toEqual([])
+    expect(reachedResidents([], days(3)).map((r) => r.name)).toEqual(['콩이', '모모'])
+  })
+
+  it('주민마다 좋아하는 것 한 줄이 있고 모두 다르다', () => {
+    for (const r of RESIDENTS) {
+      expect(r.likes.length).toBeGreaterThan(0)
+      expect(r.likes.length).toBeLessThanOrEqual(20)
+    }
+    expect(new Set(RESIDENTS.map((r) => r.likes)).size).toBe(RESIDENTS.length)
+  })
+
+  it('새 이웃 알림은 받침에 맞춰 이/가·와/과를 붙인다', () => {
+    const by = (name: string) => RESIDENTS.find((r) => r.name === name)!
+    expect(neighborNote([])).toBeNull()
+    expect(neighborNote([by('보리')])).toBe('🏡 새 이웃 보리가 이사 왔어요')
+    expect(neighborNote([by('동글이')])).toBe('🏡 새 이웃 동글이가 이사 왔어요')
+    expect(neighborNote([by('콩이'), by('모모')])).toBe('🏡 새 이웃 콩이와 모모가 이사 왔어요')
   })
 })

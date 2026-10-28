@@ -537,9 +537,31 @@ test('같은 건물이 또 서면 짓는 알림에 몇 번째인지 한 마디�
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
   await expect(page.getByTestId('build-note')).toContainText("☕ '카페'를 찾아 카페가 세 번째로 생겼어요")
+  // 넷째 날은 새 주민이 오는 날이 아니다
+  await expect(page.getByTestId('build-note')).not.toContainText('새 이웃')
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-ordinal.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+})
+
+test('새 주민이 오는 날 짓는 알림에 "새 이웃 ○○가 이사 왔어요" 한 줄(지운 날도 센다)',async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 여섯 날을 썼고(하루는 지웠다), 오늘이 일곱째 날이라 두부가 온다
+  const entries = [19, 20, 22, 23, 24].map((d, i) => ({ date: `2026-10-${d}`, text: '그냥 조용한 하루', mood: moods[i % moods.length], writtenAt: Date.parse(`2026-10-${d}T22:00:00+09:00`) }))
+  const erased = [{ date: '2026-10-21', erasedAt: Date.parse('2026-10-25T09:00:00+09:00') }]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('build-note')).toContainText('🏡 새 이웃 두부가 이사 왔어요')
+  await expect(page.getByTestId('build-note')).not.toContainText('바람이')
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/build-note-neighbor.png' })
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
 })
 
@@ -566,7 +588,8 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   await page.getByTestId('write-input').fill('저녁에 동네 산책')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'park')
-  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n\S+: “공원이 생겨서 반가워요\.”$/)
+  // 다섯째 날이라 새 이웃 보리도 이사 온다
+  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n🏡 새 이웃 보리가 이사 왔어요\n\S+: “공원이 생겨서 반가워요\.”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-park.png' })

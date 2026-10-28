@@ -18,7 +18,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, dayReplyLine, guestLine, residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
+import { RESIDENTS, dayReplyLine, guestLine, neighborNote, reachedResidents,residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -348,11 +348,12 @@ const card = createWriteCard({
     hushSigns(svg)
     veilTimer = window.setTimeout(() => unveil(svg), (calm ? 0 : SHOW.go) + SHOW.hold)
     sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
-    // 지은 건물·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)
+    // 지은 건물·새 이웃·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)
     // 손님은 오늘 집에만 온다. 어제 칸을 쓴 날은 맞장구가 없다
     const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
     const notes = [
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
+      neighborNote(reachedResidents(before, builtDays(save))),
       decorNote(reachedDecors(before, builtDays(save))),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)

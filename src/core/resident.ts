@@ -15,51 +15,96 @@ export interface Resident {
   days: number
   color: string
   ears: Ears
+  /** 이웃 수첩에 보이는 좋아하는 것 한 줄(정해 둔 표) */
+  likes: string
 }
 
 const COLORS = ['#ffd1dc', '#ffe6a7', '#c9e8c0', '#cfe3f7', '#e5d4f5', '#ffd8b8', '#fff4e6']
 const EARS: Ears[] = ['bunny', 'none', 'bear', 'cat', 'leaf']
-const ROSTER: [string, string, number][] = [
-  ['kong', '콩이', 1],
-  ['momo', '모모', 3],
-  ['bori', '보리', 5],
-  ['dubu', '두부', 7],
-  ['hodu', '호두', 10],
-  ['somi', '솜이', 14],
-  ['gomi', '꼬미', 20],
-  ['dalle', '달래', 25],
-  ['gamja', '감자', 30],
-  ['dotori', '도토리', 40],
-  ['nabi', '나비', 50],
-  ['gureum', '구름', 60],
-  ['sagwa', '사과', 70],
-  ['byeol', '별이', 85],
-  ['danchu', '단추', 100],
-  ['maru', '마루', 120],
-  ['haru', '하루', 140],
-  ['mango', '망고', 160],
-  ['mongsil', '몽실', 180],
-  ['pori', '포리', 200],
-  ['choco', '초코', 250],
-  ['ssuk', '쑥이', 300],
-  ['donggeul', '동글이', 365],
+const ROSTER: [string, string, number, string][] = [
+  ['kong', '콩이', 1, '콩자반과 낮잠'],
+  ['momo', '모모', 3, '복숭아 우유'],
+  ['bori', '보리', 5, '보리차 한 잔'],
+  ['dubu', '두부', 7, '따끈한 두부 부침'],
+  ['hodu', '호두', 10, '호두과자 봉지'],
+  ['somi', '솜이', 14, '폭신한 솜이불'],
+  ['gomi', '꼬미', 20, '작은 돌멩이 모으기'],
+  ['dalle', '달래', 25, '봄나물 캐기'],
+  ['gamja', '감자', 30, '군감자 냄새'],
+  ['dotori', '도토리', 40, '도토리 줍기'],
+  ['nabi', '나비', 50, '꽃밭 산책'],
+  ['gureum', '구름', 60, '구름 모양 맞히기'],
+  ['sagwa', '사과', 70, '빨간 사과 한 입'],
+  ['byeol', '별이', 85, '밤하늘 별 세기'],
+  ['danchu', '단추', 100, '알록달록 단추 모으기'],
+  ['maru', '마루', 120, '마루에 누워 뒹굴기'],
+  ['haru', '하루', 140, '해 질 녘 노을'],
+  ['mango', '망고', 160, '노란 망고 빙수'],
+  ['mongsil', '몽실', 180, '비눗방울 불기'],
+  ['pori', '포리', 200, '풀피리 불기'],
+  ['choco', '초코', 250, '초코 쿠키 굽기'],
+  ['ssuk', '쑥이', 300, '쑥떡과 따뜻한 차'],
+  ['donggeul', '동글이', 365, '동그란 보름달'],
 ]
 
 /**
  * 쌓일수록 마을이 자란다(기획서 6번). 둥근 주민이 누적 날 수에 따라 한 명씩 온다.
  * 기분·글 길이·연속 기록은 보지 않고, 글은 지워지지 않으니 주민도 떠나지 않는다
  */
-export const RESIDENTS: Resident[] = ROSTER.map(([id, name, days], i) => ({
+export const RESIDENTS: Resident[] = ROSTER.map(([id, name, days, likes], i) => ({
   id,
   name,
   days,
   color: COLORS[i % COLORS.length],
   ears: EARS[i % EARS.length],
+  likes,
 }))
 
 export function residentsOf(entries: Dated[]): Resident[] {
   const n = writtenDays(entries)
   return RESIDENTS.filter((r) => r.days <= n)
+}
+
+/** 이웃 수첩의 한 칸: 이사 온 날(아직이면 null)과 오기까지 남은 날 수(왔으면 0) */
+export interface Arrival {
+  resident: Resident
+  date: string | null
+  left: number
+}
+
+/**
+ * 주민마다 이사 온 날. built 는 집을 지었던 날(지운 날 포함)이라 지워도 이사 온 날이 바뀌지 않는다.
+ * 날짜 순으로 셌을 때 days번째 날에 온다. 기분·글 길이는 보지 않는다
+ */
+export function arrivalsOf(built: readonly Dated[]): Arrival[] {
+  const dates = [...new Set(built.map((d) => d.date))].sort()
+  return RESIDENTS.map((resident) => {
+    const date = dates[resident.days - 1] ?? null
+    return { resident, date, left: date ? 0 : resident.days - dates.length }
+  })
+}
+
+/** 그날 이사 온 주민들 */
+export function arrivedOn(built: readonly Dated[], date: string): Resident[] {
+  return arrivalsOf(built)
+    .filter((a) => a.date === date)
+    .map((a) => a.resident)
+}
+
+/** before → after 로 바뀌며 새로 온 이웃(짓는 알림에 쓴다) */
+export function reachedResidents(before: Dated[], after: Dated[]): Resident[] {
+  const from = writtenDays(before)
+  const to = writtenDays(after)
+  return RESIDENTS.filter((r) => r.days > from && r.days <= to)
+}
+
+/** 새 이웃이 왔을 때 짓는 알림에 더하는 한 줄. 없으면 null */
+export function neighborNote(arrived: Resident[]): string | null {
+  if (arrived.length === 0) return null
+  const names = arrived.map((r) => r.name)
+  const last = names[names.length - 1]
+  const head = names.slice(0, -1).map((n) => `${n}${hasFinal(n) ? '과' : '와'} `)
+  return `🏡 새 이웃 ${head.join('')}${last}${hasFinal(last) ? '이' : '가'} 이사 왔어요`
 }
 
 export type Spot = { gx: number; gy: number }
