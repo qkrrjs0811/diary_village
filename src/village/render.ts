@@ -11,6 +11,7 @@ import type { Guest, GuestPlay, Resident, Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
+import { agingOf, type AgingStage } from '../core/aging'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -697,8 +698,79 @@ function drawGalleryBits(house: Element, P: Place, a: number, b: number, H: numb
   el('circle', { cx: e.x + 2.6, cy: e.y - 13, r: 1.6, fill: roof }, house)
 }
 
+/** 세월 잎 색(그림을 그리는 오늘의 계절을 따른다) */
+const IVY: Record<Season, [string, string]> = {
+  spring: ['#9ed39b', '#b8e0a0'],
+  summer: ['#6bb879', '#82c486'],
+  autumn: ['#e8925a', '#f2b45e'],
+  winter: ['#8fa89a', '#a5bcae'],
+}
+
+/** 세월을 얹을 자리: 덩굴 돋는 곳(벽 아래), 담쟁이가 타고 오르는 줄(아래 → 위), 둥지 놓을 곳 */
+interface AgingFrame {
+  base: Pt[]
+  climb: [Pt, Pt]
+  nest: Pt
+}
+
+/** 벽 있는 집의 세월 자리: 두 앞벽 바깥 끝 아래, 앞 모서리를 타는 담쟁이, 앞 처마 끝 둥지 */
+function wallFrame(P: Place, a: number, b: number, H: number): AgingFrame {
+  return { base: [P(a + 0.07, b), P(b, a + 0.07)], climb: [P(b, b), P(b, b, H * 0.85)], nest: P(b + 0.04, b + 0.04, H) }
+}
+
+function leaf(g: Element, at: Pt, r: number, angle: number, color: string) {
+  el('ellipse', { cx: at.x, cy: at.y, rx: r, ry: r * 0.62, fill: color, stroke: LINE, 'stroke-width': 0.4, transform: `rotate(${angle} ${at.x} ${at.y})` }, g)
+}
+
+/**
+ * 시간이 쌓이는 집: 30일 벽 아래 덩굴, 100일 앞 모서리 담쟁이, 365일 처마 끝 새 둥지(새 없음, 알 셋).
+ * 앞 단계는 그대로 남는다. 집 모양은 건드리지 않고 집 안 맨 위에 얹는다(누르면 집이 열린다)
+ */
+function drawAging(house: Element, f: AgingFrame, stage: AgingStage, season: Season) {
+  house.setAttribute('data-aging', stage)
+  if (stage === 'none') return
+  const [c1, c2] = IVY[season]
+  const g = el('g', { class: 'aging', 'data-season': season }, house)
+  const vine = el('g', { class: 'aging-vine' }, g)
+  f.base.forEach((p, i) => {
+    const s = i % 2 ? 1 : -1
+    el('path', { d: `M${p.x} ${p.y} q${s * 1.5} -3 0 -6`, fill: 'none', stroke: '#7a9a5e', 'stroke-width': 0.8, 'stroke-linecap': 'round' }, vine)
+    leaf(vine, { x: p.x - 2, y: p.y - 1.6 }, 2.2, -30, c1)
+    leaf(vine, { x: p.x + 2.1, y: p.y - 2.6 }, 2, 30, c2)
+    leaf(vine, { x: p.x + s * 0.6, y: p.y - 5.6 }, 1.7, s * 60, c1)
+  })
+  if (stage === 'vine') return
+  const [lo, hi] = f.climb
+  const ivy = el('g', { class: 'aging-ivy' }, g)
+  const n = Math.max(3, Math.round((lo.y - hi.y) / 6))
+  const at = (t: number, wob: number) => ({ x: lo.x + (hi.x - lo.x) * t + wob, y: lo.y + (hi.y - lo.y) * t })
+  let d = `M${lo.x} ${lo.y}`
+  for (let i = 1; i <= n; i++) {
+    const m = at((i - 0.5) / n, i % 2 ? 2.2 : -2.2)
+    const e = at(i / n, 0)
+    d += ` Q${m.x.toFixed(1)} ${m.y.toFixed(1)} ${e.x.toFixed(1)} ${e.y.toFixed(1)}`
+  }
+  el('path', { d, fill: 'none', stroke: '#7a9a5e', 'stroke-width': 0.9, 'stroke-linecap': 'round' }, ivy)
+  for (let i = 0; i < n; i++) {
+    const s = i % 2 ? 1 : -1
+    const p = at((i + 0.6) / n, s * 2.4)
+    leaf(ivy, p, 2.1 - (i / n) * 0.6, s * 35, i % 3 ? c1 : c2)
+  }
+  if (stage === 'ivy') return
+  const nest = el('g', { class: 'aging-nest' }, g)
+  const { x, y } = f.nest
+  ;[-1.8, 0, 1.8].forEach((dx, i) => el('ellipse', { cx: x + dx, cy: y - 2.6, rx: 1.3, ry: 1.6, fill: i === 1 ? '#cfe6f0' : '#e6f2f6', stroke: LINE, 'stroke-width': 0.4 }, nest))
+  el('path', { d: `M${x - 5} ${y - 2.2} q5 5.2 10 0 z`, fill: '#c9a27e', stroke: '#8a6a50', 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, nest)
+  el('path', { d: `M${x - 3.8} ${y - 1} q3.8 2 7.6 0 M${x - 4.5} ${y - 2} l-1 -0.8 M${x + 4.5} ${y - 2} l1 -0.8`, fill: 'none', stroke: '#8a6a50', 'stroke-width': 0.5, 'stroke-linecap': 'round' }, nest)
+}
+
+/** 그날 건물 또는 보통 집을 그리고 집 나이만큼 세월을 얹는다. 돌려주는 값은 연출을 띄울 높이 */
+function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, today: string, smokes?: Element): number {
+  return drawHouseBody(g, lot, entry, isNew, smokes, (house, f) => drawAging(house, f, agingOf(entry.date, today), seasonOf(today)))
+}
+
 /** 그날 건물(글 단어로 정함) 또는 보통 집. 기분은 지붕 색만 바꾼다. 돌려주는 값은 연출을 띄울 높이 */
-function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: Element): number {
+function drawHouseBody(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes: Element | undefined, aging: (house: Element, f: AgingFrame) => void): number {
   const look = houseLook(entry)
   const kind = buildingOf(entry)?.id
   const house = el('g', {
@@ -713,10 +785,31 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
   // 누르기 쉬운 넓은 투명 영역
   const hitH = kind === 'lighthouse' ? 70 : FLOOR_H * look.floors + 26
   poly(house, [P(0, 0, hitH), P(1, 0, 0), P(1, 1, 0), P(0, 1, 0)], 'transparent', { stroke: 'none', class: 'hit' })
-  if (kind === 'field') return drawField(house, P, look.roof)
-  if (kind === 'lighthouse') return drawLighthouse(house, P, look.roof)
-  if (kind === 'park') return drawPark(house, P, hash(entry.date))
-  if (kind === 'farm') return drawFarm(house, P, look.roof, hash(entry.date))
+  // 마당뿐인 건물은 덩굴이 땅 가장자리에 돋고, 담쟁이는 깃대·나무·허수아비를 타며, 둥지는 그 꼭대기에 둔다
+  if (kind === 'field') {
+    const pole = P(0.86, 0.14)
+    const H = drawField(house, P, look.roof)
+    aging(house, { base: [P(0.12, 0.9), P(0.9, 0.12)], climb: [pole, { x: pole.x, y: pole.y - 15 }], nest: { x: pole.x, y: pole.y - 20 } })
+    return H
+  }
+  if (kind === 'lighthouse') {
+    const c = P(0.5, 0.5)
+    const H = drawLighthouse(house, P, look.roof)
+    aging(house, { base: [{ x: c.x - 9, y: c.y }, { x: c.x + 9.5, y: c.y }], climb: [{ x: c.x + 8.5, y: c.y }, { x: c.x + 7.5, y: c.y - 30 }], nest: { x: c.x + 7, y: c.y - H - 3 } })
+    return H
+  }
+  if (kind === 'park') {
+    const t = P(0.8, 0.76)
+    const H = drawPark(house, P, hash(entry.date))
+    aging(house, { base: [P(0.12, 0.9), P(0.9, 0.12)], climb: [t, { x: t.x, y: t.y - 9 }], nest: { x: t.x + 2, y: t.y - 24 } })
+    return H
+  }
+  if (kind === 'farm') {
+    const k = P(0.84, 0.86)
+    const H = drawFarm(house, P, look.roof, hash(entry.date))
+    aging(house, { base: [P(0.14, 0.88), P(0.88, 0.14)], climb: [k, { x: k.x, y: k.y - 15 }], nest: { x: k.x, y: k.y - 25 } })
+    return H
+  }
   el('ellipse', { cx: P(0.5, 0.5).x, cy: P(0.5, 0.5).y + 3, rx: 17, ry: 7, fill: 'rgba(90,70,54,0.14)' }, house)
   const seed = hash(entry.date)
 
@@ -743,6 +836,7 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
       const bowl = P(0.5, 0.9)
       el('ellipse', { cx: bowl.x, cy: bowl.y, rx: 3.2, ry: 1.6, fill: '#e88f8f', stroke: LINE }, house)
     }
+    aging(house, wallFrame(P, a, b, H))
     return H
   }
 
@@ -771,6 +865,7 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
     const spot = style === 'hip' ? P(0.5, 0.5, top) : style === 'gable' ? P(0.66, 0.5, top) : P(0.64, 0.6, top)
     drawRoofTop(house, spot, look.roofTop, look.roof)
     house.setAttribute('data-touch', [look.window, look.porch, look.roofTop, look.flowerBox ? 'box' : 'nobox'].join(' '))
+    aging(house, wallFrame(P, a, b, H))
     return H
   }
 
@@ -827,7 +922,9 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
     drawSign(house, P, b, icon)
   } else if (kind === 'school') {
     drawSign(house, P, b, icon)
-    return drawSchoolBits(house, P, a, b, H, top, look.roof)
+    const tower = drawSchoolBits(house, P, a, b, H, top, look.roof)
+    aging(house, wallFrame(P, a, b, H))
+    return tower
   } else if (kind === 'station') {
     drawStationBits(house, P, a, b, H, look.roof)
     drawSign(house, P, b, icon)
@@ -838,6 +935,7 @@ function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, smokes?: 
     // 아직 제 그림이 없는 건물은 보통 집 모양에 간판만 단다
     drawSign(house, P, b, icon)
   }
+  aging(house, wallFrame(P, a, b, H))
   return H
 }
 
@@ -1825,7 +1923,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
         items.push({
           depth,
           draw: () => {
-            const H = drawHouse(things, lot, entry, isNew, smokes)
+            const H = drawHouse(things, lot, entry, isNew, opt.today, smokes)
             if (entry.treasured) drawTreasureFlag(things, lot, entry.date)
             if (isNew) drawBuildFx(fx, lot, H)
           },

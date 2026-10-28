@@ -3340,3 +3340,69 @@ test('건물 16종의 방에는 저마다 대표 가구가 그림으로 놓이�
   expect(seen.size).toBe(16)
   await page.screenshot({ path: 'test-results/screens/reader-room-farm.png' })
 })
+
+test('오래된 집일수록 벽 아래 덩굴, 모서리 담쟁이, 처마 끝 새 둥지가 깃들고, 집은 그대로 눌린다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  // 작년 10월(1년 넘음)·올해 7월(100일 안팎)·9월(30일 안팎)·이달(새 집)
+  const words = ['커피', '바다', '운동', '산책', '텃밭', '고양이', '공부']
+  const old = monthEntries('2025-10', Array.from({ length: 28 }, (_, i) => i + 1)).map((e, i) => (i < words.length ? { ...e, text: `${words[i]} 생각이 난 하루` } : e))
+  const entries = [...old, ...monthEntries('2026-07', [18, 19, 20, 21]), ...monthEntries('2026-09', [27, 28, 29, 30]), ...monthEntries('2026-10', [20, 25, 27])]
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+  const aging = (d: string) => page.getByTestId(`house-${d}`).getAttribute('data-aging')
+  expect(await aging('2025-10-28')).toBe('nest')
+  expect(await aging('2025-10-27')).toBe('nest')
+  expect(await aging('2026-07-20')).toBe('ivy')
+  expect(await aging('2026-07-21')).toBe('vine')
+  expect(await aging('2026-09-28')).toBe('vine')
+  expect(await aging('2026-09-29')).toBe('none')
+  expect(await aging('2026-10-27')).toBe('none')
+  // 앞 단계는 남는다: 둥지 집에도 덩굴·담쟁이가 있고, 새 집에는 아무것도 없다
+  const nestHouse = page.getByTestId('house-2025-10-20')
+  for (const part of ['aging-vine', 'aging-ivy', 'aging-nest']) await expect(nestHouse.locator(`.${part}`)).toHaveCount(1)
+  await expect(page.getByTestId('house-2026-07-20').locator('.aging-nest')).toHaveCount(0)
+  await expect(page.getByTestId('house-2026-10-27').locator('.aging')).toHaveCount(0)
+  // 마당뿐인 운동장·공원·텃밭, 등대, 고양이 집, 가게도 무르익는다
+  for (const b of ['cafe', 'lighthouse', 'field', 'park', 'farm', 'catHouse', 'school']) {
+    await expect(page.locator(`[data-building="${b}"][data-aging="nest"] .aging-nest`)).toHaveCount(1)
+  }
+  // 잎 색은 오늘 계절(가을)을 따른다
+  await expect(nestHouse.locator('.aging')).toHaveAttribute('data-season', 'autumn')
+
+  // 작년 오늘 쪽지로 오래된 구역에 간다. 세월 그림을 눌러도 그 집이 열린다
+  await page.getByTestId('memory').click()
+  await page.clock.runFor(1500)
+  await page.getByTestId('reader-close').click()
+  await finishAnimations(page)
+  const target = page.getByTestId('house-2025-10-28')
+  await expect(target).toBeInViewport()
+  const hb = (await target.boundingBox())!
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+  for (let i = 0; i < 2; i++) await page.mouse.wheel(0, -200)
+  await page.waitForTimeout(300)
+  const leaf = (await target.locator('.aging-ivy ellipse').first().boundingBox())!
+  const owner = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.house')?.getAttribute('data-date'), [leaf.x + leaf.width / 2, leaf.y + leaf.height / 2])
+  expect(owner).toBe('2025-10-28')
+  // 세월 그림은 집 칸 옆으로 삐져나오지 않는다
+  const tb = (await target.locator('.aging').boundingBox())!
+  const body = (await target.locator('.hit').boundingBox())!
+  expect(tb.x).toBeGreaterThanOrEqual(body.x - 6)
+  expect(tb.x + tb.width).toBeLessThanOrEqual(body.x + body.width + 6)
+  await page.mouse.click(leaf.x + leaf.width / 2, leaf.y + leaf.height / 2)
+  await expect(page.getByTestId('reader-text')).toHaveText('2025-10 28일의 한 줄')
+  await page.getByTestId('reader-close').click()
+
+  const shot = async (name: string) => {
+    await page.waitForTimeout(700)
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+    await page.screenshot({ path: `test-results/screens/${name}.png` })
+    await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  }
+  await shot('aging-day')
+  await page.clock.fastForward('08:00:00')
+  await expect(page.getByTestId('scene')).toHaveAttribute('data-time', 'night')
+  await shot('aging-night')
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
