@@ -11,6 +11,7 @@ import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Resident, type
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, roadside, type CliffBit, type RimBit, type RoadBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
+import type { Critter } from '../core/critter'
 import { agingOf, agingTurnedToday, type AgingStage } from '../core/aging'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -311,6 +312,53 @@ function drawStreetTree(g: Element, b: RoadBit, season: Season) {
   el('circle', { cx: c.x, cy: c.y - 19, r: 8.5, fill: color, stroke: LINE }, tree)
   el('circle', { cx: c.x - 2.8, cy: c.y - 22, r: 3.2, fill: shade(color, 0.3) }, tree)
   if (season === 'winter') el('ellipse', { cx: c.x, cy: c.y - 26, rx: 6, ry: 2.6, fill: '#ffffff' }, tree)
+}
+
+const FUR = ['#f3e5d3', '#dcc3a4', '#ffffff']
+const WINGS = [['#ffd3df', '#e8a3b6'], ['#fff1a8', '#e3c66a'], ['#cfe3fb', '#9db8de'], ['#e3d4f6', '#b5a0d6']]
+
+/**
+ * 숲가 작은 동물과 나비. 토끼는 덤불 앞에서 가끔 깡충 뛰고, 다람쥐는 나무 밑동에서 꼬리를 살랑이고,
+ * 나비는 꽃 위를 팔랑이며 맴돈다(움직임 줄이기면 멈춘다). 누르기를 통과한다
+ */
+function drawCritter(g: Element, c: Critter, winter: boolean) {
+  const p = iso(c.gx, c.gy)
+  const node = el('g', { class: `critter ${c.kind}`, 'data-testid': `critter-${c.kind}`, 'pointer-events': 'none', transform: `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) scale(${c.face} 1)` }, g)
+  const beat = `--d:${((c.seed >>> 4) % 10) / 10}`
+  if (c.kind === 'butterfly') {
+    const [fill, line] = WINGS[c.seed % WINGS.length]
+    el('ellipse', { cx: 0, cy: 0, rx: 3, ry: 1.2, fill: 'rgba(90,70,54,0.1)' }, node)
+    const fly = el('g', { class: 'fly', style: beat }, node)
+    const wings = el('g', { class: 'wings', style: beat }, fly)
+    for (const [cx, cy, rx, ry] of [[-2.6, -15, 2.8, 2.4], [2.6, -15, 2.8, 2.4], [-2, -12.2, 1.9, 1.6], [2, -12.2, 1.9, 1.6]]) {
+      el('ellipse', { cx, cy, rx, ry, fill, stroke: line, 'stroke-width': 0.6 }, wings)
+    }
+    el('rect', { x: -0.6, y: -16.5, width: 1.2, height: 5, rx: 0.6, fill: '#8a6a52' }, fly)
+    return
+  }
+  el('ellipse', { cx: 0, cy: 0.5, rx: 5, ry: 2, fill: 'rgba(90,70,54,0.14)' }, node)
+  const body = el('g', { class: 'body', style: beat }, node)
+  if (c.kind === 'rabbit') {
+    const fur = winter ? FUR[2] : FUR[c.seed % 2]
+    for (const dx of [1.4, 3.4]) el('ellipse', { cx: dx, cy: -12, rx: 1.1, ry: 3.4, fill: fur, stroke: LINE, 'stroke-width': 0.6, transform: `rotate(${dx > 2 ? 14 : -6} ${dx} -9)` }, body)
+    el('ellipse', { cx: 2.1, cy: -11.6, rx: 0.4, ry: 2, fill: '#ffc9d6' }, body)
+    el('ellipse', { cx: -1, cy: -3.4, rx: 4.4, ry: 3.4, fill: fur, stroke: LINE, 'stroke-width': 0.7 }, body)
+    el('circle', { cx: 2.4, cy: -6.6, r: 2.7, fill: fur, stroke: LINE, 'stroke-width': 0.7 }, body)
+    el('circle', { cx: -5.1, cy: -3.6, r: 1.4, fill: '#ffffff', stroke: LINE, 'stroke-width': 0.5 }, body)
+    el('circle', { cx: 3.4, cy: -7, r: 0.5, fill: '#5a4636' }, body)
+    el('circle', { cx: 4.6, cy: -5.8, r: 0.5, fill: '#ffb3c4' }, body)
+    return
+  }
+  const fur = '#d79a67'
+  const tail = el('g', { class: 'tail', style: beat }, body)
+  el('path', { d: 'M-2,-2 C-9,-3 -9,-12 -4.5,-14 C-1.5,-15 0,-12 -2.5,-11 C-6,-10 -5,-5 -1,-4 Z', fill: '#e6b07c', stroke: LINE, 'stroke-width': 0.7, 'stroke-linejoin': 'round' }, tail)
+  el('ellipse', { cx: 0.5, cy: -3.4, rx: 3, ry: 3.2, fill: fur, stroke: LINE, 'stroke-width': 0.7 }, body)
+  el('ellipse', { cx: 1.3, cy: -2.6, rx: 1.4, ry: 2, fill: '#f6dcc0' }, body)
+  el('circle', { cx: 2, cy: -7.4, r: 2.4, fill: fur, stroke: LINE, 'stroke-width': 0.7 }, body)
+  el('path', { d: 'M0.6,-9.2 l0.2,-2 l1.3,1.4 Z', fill: fur, stroke: LINE, 'stroke-width': 0.5, 'stroke-linejoin': 'round' }, body)
+  el('circle', { cx: 3, cy: -7.8, r: 0.5, fill: '#5a4636' }, body)
+  // 두 손에 든 도토리
+  el('circle', { cx: 3.6, cy: -4.4, r: 1.1, fill: '#a97a4e', stroke: LINE, 'stroke-width': 0.4 }, body)
 }
 
 /** 오늘 아직 안 쓴 자리: 반짝이는 표시 */
@@ -2003,6 +2051,8 @@ export interface DrawOptions {
   mailbox?: { waiting: boolean }
   /** 첫 주 선물인 첫 집 기념 팻말이 서는 날(처음 집을 지은 날) */
   firstSign?: string | null
+  /** 오늘 숲가에 나온 토끼·다람쥐와 나비(날짜·때·날씨로 계산) */
+  critters?: Critter[]
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -2075,6 +2125,9 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     else if (b.kind === 'fence') items.push({ depth: b.gx + b.gy - 0.7, draw: () => drawFence(things, b, season) })
     else items.push({ depth: b.gx + b.gy, draw: () => drawStreetTree(things, b, season) })
   }
+  // 작은 동물은 앉은 칸의 덤불·나무 바로 앞에, 나비는 꽃보다 위에
+  const winter = seasonOf(opt.today) === 'winter'
+  for (const c of opt.critters ?? []) items.push({ depth: c.cell.gx + c.cell.gy + 0.02, draw: () => drawCritter(things, c, winter) })
   for (const block of village.blocks) {
     const season = seasonOf(block.month)
     // 그달의 날이 아닌 칸은 나무·덤불 숲(집 바로 앞은 꽃·풀), 지난 빈 날은 가끔 꽃, 빈 날은 풀 포기

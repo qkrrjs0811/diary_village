@@ -1,3 +1,4 @@
+import { birdFlock, type Flock } from '../core/critter'
 import { farScene, type Hill } from '../core/scenery'
 import { driftBits, seasonOf, type DriftBit } from '../core/season'
 import { skyBits, type DayPart, type SkyBit, type WeatherKind } from '../core/weather'
@@ -45,6 +46,28 @@ function driftSvg(b: DriftBit): string {
     case 'firefly':
       return `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="#fff6b8" opacity="0.5"/><circle cx="10" cy="10" r="5" fill="#fff4a8" stroke="#e8c95c" stroke-width="1"/></svg>`
   }
+}
+
+/**
+ * 하늘을 가로지르는 새 떼(ㅅ자). 둥근 몸에 두 날개를 퍼덕이며 아주 천천히 화면을 건너간다.
+ * 저녁엔 노을빛 그림자처럼 짙게 보인다(움직임 줄이기면 하늘 가운데쯤에 멈춘다)
+ */
+function flockNode(f: Flock, part: DayPart): HTMLElement {
+  const node = document.createElement('span')
+  node.className = `flock${f.dir < 0 ? ' back' : ''}`
+  node.dataset.testid = 'bird-flock'
+  node.style.top = `${f.y}%`
+  node.style.setProperty('--d', String(f.delay))
+  const [body, line] = part === 'evening' ? ['#9a7a8c', '#7a5d6e'] : ['#ffffff', '#9a8a7c']
+  const birds = f.birds
+    .map((b) => {
+      const x = 60 + b.dx
+      const y = 30 + b.dy
+      return `<g class="bird" style="--b:${b.beat}"><path class="wing" d="M${x - 7} ${y - 1} Q${x - 3.5} ${y - 5} ${x} ${y} Q${x + 3.5} ${y - 5} ${x + 7} ${y - 1}" fill="none" stroke="${line}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path class="wing" d="M${x - 7} ${y - 1} Q${x - 3.5} ${y - 5} ${x} ${y} Q${x + 3.5} ${y - 5} ${x + 7} ${y - 1}" fill="none" stroke="${body}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="${x}" cy="${y + 0.6}" rx="2.4" ry="1.7" fill="${body}" stroke="${line}" stroke-width="0.8"/></g>`
+    })
+    .join('')
+  node.innerHTML = `<svg viewBox="0 0 70 60">${birds}</svg>`
+  return node
 }
 
 /** 둥근 봉우리 하나(밑동은 구름 바다 뒤로 숨는다) */
@@ -106,6 +129,9 @@ export function drawSky(back: HTMLElement, far: HTMLElement, front: HTMLElement,
       back.appendChild(node)
     }
   }
+  const flock = birdFlock(date, part, kind)
+  // 새 떼는 마을 위를 날아 지나가므로 마을 앞 층에 둔다(가까이 봐서 하늘이 땅에 가려도 보인다)
+  if (flock) front.appendChild(flockNode(flock, part))
   drawFar(far, date, part)
   for (const b of driftBits(date, part, kind)) {
     const node = document.createElement('span')

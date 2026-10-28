@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 import { BUILDING_PROMPTS, PROMPTS, SEASON_PROMPTS, YESTERDAY_PROMPTS, todayPrompt, yesterdayPrompt } from '../src/core/prompt'
 import { roomOf } from '../src/core/interior'
+import { birdFlock, critters } from '../src/core/critter'
+import { buildVillage } from '../src/core/village'
 import type { Entry } from '../src/core/types'
 
 const KEY = 'diary-village:save'
@@ -4249,4 +4251,54 @@ test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아
   await expect(page.getByTestId('reader-text')).toHaveText('두부가 온 날의 한 줄')
   // 수첩은 계산만 하고 저장을 바꾸지 않는다
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
+})
+
+test('숲가에 토끼·다람쥐, 봄 낮엔 나비가 나오고 하늘엔 새 떼가 지나간다(누르기 통과, 밤엔 쉬러 간다)', async ({ page }) => {
+  const entries = [...monthEntries('2026-03', [4, 11, 20]), ...monthEntries('2026-04', [2, 9, 17, 25]), ...monthEntries('2026-05', [3, 6, 8])] as Entry[]
+  // 토끼나 다람쥐, 나비, 새 떼가 모두 나오는 5월 날을 고른다(날짜로만 정해진다)
+  const today = Array.from({ length: 20 }, (_, i) => `2026-05-${String(i + 10).padStart(2, '0')}`).find((d) => {
+    const list = critters(buildVillage(entries, d), d, 'day', 'partly')
+    return birdFlock(d, 'day', 'partly') && list.some((c) => c.kind === 'butterfly') && list.some((c) => c.kind !== 'butterfly')
+  })!
+  await page.clock.install({ time: new Date(`${today}T13:00:00+09:00`) })
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  await expect(page.getByTestId('house-2026-05-08')).toBeVisible()
+
+  const expected = critters(buildVillage(entries, today), today, 'day', 'partly')
+  await expect(page.locator('.critter')).toHaveCount(expected.length)
+  expect(await page.getByTestId('critter-butterfly').count()).toBe(expected.filter((c) => c.kind === 'butterfly').length)
+  await expect(page.getByTestId('bird-flock')).toHaveCount(1)
+  const through = await page.locator('.critter').evaluateAll((els) => els.every((e) => getComputedStyle(e).pointerEvents === 'none'))
+  expect(through).toBe(true)
+  // 새 떼가 화면을 건너는 중간쯤에서 멈춰 찍는다
+  await page.evaluate(() =>
+    document.getAnimations().forEach((a) => {
+      const target = (a.effect as KeyframeEffect | null)?.target
+      if (target instanceof HTMLElement && target.classList.contains('flock')) a.currentTime = Number(a.effect!.getComputedTiming().duration) * 0.3
+      a.pause()
+    }),
+  )
+  await expect(page.getByTestId('bird-flock')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/village-critters.png' })
+
+  // 동물 하나와 나비 둘레를 크게 찍는다
+  for (const [sel, name] of [['.critter.rabbit, .critter.squirrel', 'near'], ['.critter.butterfly', 'butterfly']]) {
+    // 화면 안에 보이는 것 하나를 고른다
+    const boxes = await Promise.all((await page.locator(sel).all()).map((l) => l.boundingBox()))
+    const box = boxes.find((b) => b && b.x > 20 && b.x < 370 && b.y > 80 && b.y < 560)
+    if (!box) continue
+    const cx = box.x + box.width / 2
+    const cy = box.y + box.height / 2
+    await page.screenshot({ path: `test-results/screens/village-critters-${name}.png`, clip: { x: Math.max(0, cx - 60), y: Math.max(0, cy - 60), width: 120, height: 120 } })
+  }
+
+  // 밤이 되면 동물·새 떼는 쉬러 간다(다시 그린다). 저장은 그대로다
+  await page.clock.setSystemTime(new Date(`${today}T21:30:00+09:00`))
+  await page.clock.runFor(31_000)
+  await expect(page.locator('.critter')).toHaveCount(0)
+  await expect(page.getByTestId('bird-flock')).toHaveCount(0)
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })

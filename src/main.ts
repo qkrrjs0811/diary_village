@@ -34,7 +34,8 @@ import { setSound, soundOn } from './core/sound'
 import { createWriteCard } from './ui/write'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
-import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
+import { dayPart, skyColors, weatherOf, windowsLit, type DayPart } from './core/weather'
+import { critters } from './core/critter'
 import { smokeOn } from './core/season'
 import { SHOW, START_UNIT } from './core/view'
 import { blockView, cellAt, drawVillage, hushSigns, iso, unveil, veilFront } from './village/render'
@@ -712,6 +713,9 @@ function showNote(text: string | null, delay = SHOW.go, action?: { label: string
 }
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다. comers: 방금 이사 온 새 이웃(광장으로 들어온다) */
+/** 마을을 그린 때. 밤이 되면 작은 동물이 쉬러 가도록 때가 바뀌면 다시 그린다 */
+let drawnPart: DayPart = 'day'
+
 function render(newDate?: string, comers: string[] = []) {
   const today = dayKey(Date.now())
   // 지운 날은 빈 땅으로 돌아가지만 집을 지었던 날로 센다(명소·단계·주민을 빼앗지 않는다)
@@ -724,6 +728,7 @@ function render(newDate?: string, comers: string[] = []) {
   const newcomers = [...new Set([...arrivedOn(days, today).map((x) => x.id), ...comers])]
   const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers)
   const walks = residentWalks(village, residentsOf(days), guests, newcomers)
+  drawnPart = dayPart(Date.now())
   drawn = { village, today, guests, walks }
   showBackupDue()
   if (picked != null && !save.decor?.[picked]) picked = null
@@ -748,6 +753,7 @@ function render(newDate?: string, comers: string[] = []) {
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
     firstSign: firstSignDate(days),
+    critters: critters(village, today, drawnPart, weatherOf(save.entries, today), new Set(decors.map((d) => `${d.gx},${d.gy}`))),
   })
   // 가장 멀리 볼 때 화면 가운데로 데려올 마을(섬 전체) 자리
   const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()
@@ -805,7 +811,7 @@ function paintSky() {
 render()
 // 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다
 function refresh() {
-  if (dayKey(Date.now()) !== shownDay) render()
+  if (dayKey(Date.now()) !== shownDay || dayPart(Date.now()) !== drawnPart) render()
   else paintSky()
 }
 setInterval(refresh, 30_000)

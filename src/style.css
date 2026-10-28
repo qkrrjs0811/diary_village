@@ -322,6 +322,50 @@ button { font: inherit; color: inherit; }
   .drift.drift, .drift.drift svg { animation: none; }
   .drift.petal, .drift.leaf, .drift.snow { top: 0; }
 }
+/* 하늘을 가로지르는 새 떼: 아주 천천히 건너가고 한동안 쉬었다가 다시 온다. 날개는 퍼덕인다 */
+.flock { position: absolute; left: 0; width: 84px; transform: translate(-110px, -50%); animation: fly-across calc(56s + var(--d) * 16s) linear calc(var(--d) * -50s) infinite; }
+.flock.back { animation-name: fly-back; }
+.flock.back svg { transform: scaleX(-1); }
+.flock svg { display: block; width: 100%; height: auto; overflow: visible; }
+.flock .bird { animation: bird-bob 2.6s ease-in-out calc(var(--b) * -2.6s) infinite alternate; }
+.flock .wing { transform-box: fill-box; transform-origin: 50% 100%; animation: flap 0.5s ease-in-out calc(var(--b) * -0.5s) infinite alternate; }
+@keyframes fly-across {
+  0% { transform: translate(-110px, -50%); }
+  70%, 100% { transform: translate(calc(100cqw + 30px), -50%); }
+}
+@keyframes fly-back {
+  0% { transform: translate(calc(100cqw + 30px), -50%); }
+  70%, 100% { transform: translate(-110px, -50%); }
+}
+@keyframes bird-bob { from { transform: translateY(-2px); } to { transform: translateY(2px); } }
+@keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(-0.5); } }
+@media (prefers-reduced-motion: reduce) {
+  .flock, .flock.back { animation: none; transform: translate(calc(50cqw - 42px), -50%); }
+  .flock .bird, .flock .wing { animation: none; }
+}
+/* 숲가 작은 동물: 토끼는 가끔 깡충, 다람쥐는 꼬리 살랑, 나비는 꽃 위를 팔랑팔랑 맴돈다 */
+.critter .body, .critter .tail, .critter .fly, .critter .wings { transform-box: fill-box; }
+.critter.rabbit .body { animation: hop calc(5s + var(--d) * 4s) ease-out calc(var(--d) * -9s) infinite; }
+.critter.squirrel .tail { transform-origin: 85% 90%; animation: tail-sway calc(1.6s + var(--d) * 1s) ease-in-out calc(var(--d) * -3s) infinite alternate; }
+.critter.butterfly .fly { animation: flutter-about calc(7s + var(--d) * 4s) ease-in-out calc(var(--d) * -11s) infinite; }
+.critter.butterfly .wings { transform-origin: center; animation: wing-beat 0.28s ease-in-out calc(var(--d) * -0.3s) infinite alternate; }
+@keyframes hop {
+  0%, 82%, 100% { transform: translateY(0); }
+  87% { transform: translateY(-5px); }
+  92% { transform: translateY(0); }
+  95% { transform: translateY(-2px); }
+}
+@keyframes tail-sway { from { transform: rotate(-9deg); } to { transform: rotate(7deg); } }
+@keyframes flutter-about {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(7px, -4px); }
+  50% { transform: translate(2px, -8px); }
+  75% { transform: translate(-7px, -3px); }
+}
+@keyframes wing-beat { from { transform: scaleX(1); } to { transform: scaleX(0.3); } }
+@media (prefers-reduced-motion: reduce) {
+  .critter .body, .critter .tail, .critter .fly, .critter .wings { animation: none; }
+}
 .scene svg.dragging { cursor: grabbing; }
 /* 저녁·밤: 창문에 따뜻한 불이 켜진다 */
 .scene .win { transition: fill 0.6s; }
