@@ -25,6 +25,7 @@ import { createBook } from './ui/book'
 import { createCalendar } from './ui/calendar'
 import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
+import { FIRST_GIFTS, firstSignDate, giftCard, reachedGifts } from './core/gift'
 import { createReader } from './ui/reader'
 import { dateLabel } from './ui/format'
 import { createSettings } from './ui/settings'
@@ -206,7 +207,7 @@ const settings = createSettings({
     const before = builtDays(save)
     save = plan.save
     render()
-    celebrate(before, 0)
+    celebrate(before, 0, undefined, false)
     return null
   },
   backupNote() {
@@ -301,17 +302,23 @@ document.body.appendChild(celebrateCard.root)
 let celebrateTimer = 0
 /** before → 지금 기록으로 명소가 생기거나 마을 단계가 올랐으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
 /** then: 축하 카드가 있으면 닫힌 뒤, 없으면 wait 뒤에 할 일(새 이웃 맞이) */
-function celebrate(before: Dated[], wait: number, then?: () => void) {
+/** gifts: 첫 주 선물도 축하한다(한 줄을 쓸 때. 백업을 가져와 되돌릴 때는 명소·단계만) */
+function celebrate(before: Dated[], wait: number, then?: () => void, gifts = true) {
   const days = builtDays(save)
   const landmarks = reachedLandmarks(before, days)
   const stages = reachedStages(before, days)
-  if (landmarks.length === 0 && stages.length === 0) {
+  // 첫 주 선물(1·2·3·5일째)은 명소·단계와 같은 날이 아니라서 따로 축하한다. 소품 선물이면 바로 놓으러 갈 수 있다
+  const gift = gifts ? giftCard(reachedGifts(before, days), days) : null
+  if (landmarks.length === 0 && stages.length === 0 && !gift) {
     if (then) welcomeTimer = window.setTimeout(then, wait)
     return
   }
   clearTimeout(celebrateTimer)
-  const text = milestoneCard(landmarks, stages, days)
-  celebrateTimer = window.setTimeout(() => celebrateCard.open(text, undefined, then), wait)
+  const milestone = landmarks.length > 0 || stages.length > 0
+  const text = milestone ? milestoneCard(landmarks, stages, days) : { ...gift!, visit: null }
+  const decor = milestone ? null : gift!.decor
+  const go = decor && !readOnly ? { label: `${DECORS.find((d) => d.id === decor)!.icon} 놓으러 가기`, go: true, onDone: () => setDecorating(true, decor) } : undefined
+  celebrateTimer = window.setTimeout(() => celebrateCard.open(text, go, then), wait)
   // 소리는 누른 순간에 예약해야 폰이 막지 않는다. 카드가 뜨는 순간 울린다
   sound.cue('celebrate', '', wait)
 }
@@ -407,7 +414,8 @@ const card = createWriteCard({
     const notes = [
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
       neighborNote(comers),
-      decorNote(reachedDecors(before, builtDays(save))),
+      // 첫 주 선물 소품은 축하 카드가 따로 알려 준다
+      decorNote(reachedDecors(before, builtDays(save)).filter((d) => !FIRST_GIFTS.some((g) => g.decor === d.id))),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)
     showNote(notes.length ? notes.join('\n') : null)
@@ -557,11 +565,12 @@ const tray = createDecorTray({
 })
 app.appendChild(tray.root)
 
-function setDecorating(on: boolean) {
+/** id: 바구니에서 미리 고를 소품(첫 주 선물의 "놓으러 가기") */
+function setDecorating(on: boolean, id: DecorId | null = null) {
   decorating = on
-  pick = null
+  pick = on ? id : null
   picked = null
-  decorMsg = HINT
+  decorMsg = pick ? `${decorObj(pick)} 놓을 빈 자리를 눌러요` : HINT
   note.hidden = true
   render()
 }
@@ -738,6 +747,7 @@ function render(newDate?: string, comers: string[] = []) {
     decors,
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
+    firstSign: firstSignDate(days),
   })
   const todayEntry = entryOn(save, today)
   const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }

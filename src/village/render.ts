@@ -985,6 +985,29 @@ function drawTreasureFlag(g: Element, lot: Lot, date: string) {
   }, flag)
 }
 
+/**
+ * 첫 주 선물: 처음 집을 지은 날 자리(오른쪽 앞 모서리)의 작은 나무 기념 팻말("첫 집" + 별).
+ * 그날 글을 지워도 자리에 남는다. 누르기는 집으로 통과한다
+ */
+function drawFirstSign(g: Element, lot: Lot) {
+  const base = iso(lot.gx + 0.9, lot.gy + 0.14)
+  const sign = el('g', { class: 'first-sign', 'data-testid': 'first-sign', 'data-date': lot.date }, g)
+  el('ellipse', { cx: base.x, cy: base.y, rx: 5, ry: 1.8, fill: 'rgba(90,70,54,0.18)' }, sign)
+  el('rect', { x: base.x - 1.2, y: base.y - 14, width: 2.4, height: 14, rx: 1.2, fill: '#a7805e' }, sign)
+  el('rect', { x: base.x - 12, y: base.y - 24, width: 24, height: 12, rx: 4, fill: '#fff3dc', stroke: '#a7805e', 'stroke-width': 1 }, sign)
+  const t = el('text', { x: base.x + 2.5, y: base.y - 15.3, 'text-anchor': 'middle', 'font-size': 6.5, 'font-weight': 700, fill: '#7a604a' }, sign)
+  t.textContent = '첫 집'
+  // 왼쪽 위에 작은 노란 별
+  const sx = base.x - 8
+  const sy = base.y - 18
+  const star = Array.from({ length: 10 }, (_, i) => {
+    const r = i % 2 ? 1.3 : 3
+    const a = (Math.PI / 5) * i - Math.PI / 2
+    return `${(sx + r * Math.cos(a)).toFixed(1)},${(sy + r * Math.sin(a)).toFixed(1)}`
+  }).join(' ')
+  el('polygon', { class: 'twinkle', points: star, fill: '#ffd36b', stroke: '#d9a94a', 'stroke-width': 0.5, 'stroke-linejoin': 'round' }, sign)
+}
+
 /** 광장의 땅: 구역처럼 두툼한 판에 잔디, 가운데로 엇갈리는 돌길, 모서리 나무 */
 function drawPlazaGround(g: Element, labels: Element) {
   const { gx: px, gy: py, w, h } = PLAZA
@@ -1880,6 +1903,8 @@ export interface DrawOptions {
   festival?: FestivalId
   /** 광장 우체통. waiting: 아직 열리지 않은 편지가 있다(깃발이 선다) */
   mailbox?: { waiting: boolean }
+  /** 첫 주 선물인 첫 집 기념 팻말이 서는 날(처음 집을 지은 날) */
+  firstSign?: string | null
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -1956,6 +1981,8 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     }
     for (const lot of block.lots) {
       const depth = lot.gx + lot.gy
+      // 집(같은 깊이)보다 조금 뒤에 그려 오른쪽 앞 모서리에서 집에 붙어 선다
+      if (lot.date === opt.firstSign) items.push({ depth: depth + 0.01, draw: () => drawFirstSign(things, lot) })
       if (lot.entry) {
         const entry = lot.entry
         const isNew = entry.date === opt.newDate

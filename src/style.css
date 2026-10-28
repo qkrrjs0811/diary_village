@@ -765,6 +765,8 @@ button { font: inherit; color: inherit; }
 .treasure-flag .heart { transform-box: fill-box; transform-origin: 100% 40%; animation: flutter 2.8s ease-in-out infinite alternate; }
 @keyframes flutter { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
 @media (prefers-reduced-motion: reduce) { .treasure-flag .heart { animation: none; } }
+/* 첫 주 선물: 첫 집 기념 팻말. 누르기는 집으로 통과한다 */
+.first-sign { pointer-events: none; }
 /* 광장 우체통: 기다리는 편지가 있으면 노란 깃발이 살랑인다 */
 .postbox { cursor: pointer; }
 .post-flag path { transform-box: fill-box; transform-origin: 0% 50%; animation: flutter 2.4s ease-in-out infinite alternate; }

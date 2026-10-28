@@ -27,12 +27,13 @@ export interface Decor {
 /**
  * 내 손으로 꾸미는 꾸밈 소품(기획서 M4). 쓴 날이 쌓이면 하나씩 열린다.
  * 명소·마을 단계가 서는 날(7·10·14·30·50·60…)과 겹치지 않게 그 사이사이에 둔다.
+ * 앞의 셋은 처음 며칠이 허전하지 않게 주는 첫 주 선물(2·3·5일째, `gift.ts`)이다. 날 수는 앞당기기만 해 이미 연 소품을 빼앗지 않는다.
  * 글 길이·기분은 보지 않는다
  */
 export const DECORS: Decor[] = [
   { id: 'pot', name: '화분', icon: '🪴', days: 2 },
-  { id: 'bench', name: '벤치', icon: '🪑', days: 4 },
-  { id: 'flowerbed', name: '꽃밭', icon: '🌼', days: 6 },
+  { id: 'bench', name: '벤치', icon: '🪑', days: 3 },
+  { id: 'flowerbed', name: '꽃밭', icon: '🌼', days: 5 },
   { id: 'lamp', name: '가로등', icon: '🏮', days: 9 },
   { id: 'mailbox', name: '우체통', icon: '📮', days: 11 },
   { id: 'fence', name: '울타리', icon: '🪵', days: 16 },
