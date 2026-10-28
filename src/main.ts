@@ -615,7 +615,7 @@ function decorTap(target: Element, at: { x: number; y: number }) {
     return render()
   }
   const { village, today } = drawn
-  const tree = target.closest('.tree')?.getAttribute('data-cell')?.split(',').map(Number)
+  const tree = target.closest('.tree, .bush')?.getAttribute('data-cell')?.split(',').map(Number)
   const place = target.closest('.house, .landmark, .postbox') ? null : tree ? placeAt(village, tree[0], tree[1]) : placeUnder(at)
   if (pick != null) {
     const id = pick

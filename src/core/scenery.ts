@@ -11,7 +11,7 @@ export interface Scenery {
   /** 마을 전체 칸 좌표 */
   gx: number
   gy: number
-  kind: 'tree' | 'flowers'
+  kind: 'tree' | 'flowers' | 'bush' | 'tuft'
   /** 나무 크기·잎 색, 꽃 자리를 정하는 고정 난수 */
   seed: number
 }
@@ -24,10 +24,11 @@ export const PLAZA_TREES: [number, number][] = [
 ]
 
 /**
- * 구역 하나의 빈 땅 나무·꽃. 저장하지 않고 달·칸으로만 계산해 언제 열어도 같다.
- * 달력 밖 칸은 나무숲인데, 그달의 날 바로 앞(화면 아래쪽으로 이웃한) 칸에는 나무 대신 꽃·풀이 나서
+ * 구역 하나의 빈 땅 나무·덤불·꽃·풀 포기. 저장하지 않고 달·칸으로만 계산해 언제 열어도 같다.
+ * 달력 밖 칸은 나무와 둥근 덤불이 섞인 숲인데, 그달의 날 바로 앞(화면 아래쪽으로 이웃한) 칸에는 대신 꽃·풀이 나서
  * 집·건물을 가리지 않는다. 그달의 모든 날을 보므로 집을 지어도 옆 나무가 갑자기 사라지지 않는다.
- * 지난 빈 날(지운 날 포함)에는 가끔 꽃이 핀다
+ * 지난 빈 날(지운 날 포함)에는 가끔 꽃이 피고, 꽃 없는 빈 날과 아직 오지 않은 날에는 작은 풀 포기·돌이 난다.
+ * 집을 지으면 그 칸의 것만 사라진다
  */
 export function blockScenery(block: Block, today: string): Scenery[] {
   const lots = new Map(block.lots.map((l) => [`${l.col},${l.row}`, l]))
@@ -41,9 +42,11 @@ export function blockScenery(block: Block, today: string): Scenery[] {
       const lot = lots.get(`${col},${row}`)
       let kind: Scenery['kind'] | null = null
       if (!lot) {
-        if (seed % 5 < 3) kind = isDay(col - 1, row) || isDay(col, row - 1) || isDay(col - 1, row - 1) ? 'flowers' : 'tree'
-      } else if (!lot.entry && lot.date < today && seed % 3 === 0) {
-        kind = 'flowers'
+        const front = isDay(col - 1, row) || isDay(col, row - 1) || isDay(col - 1, row - 1)
+        kind = front ? 'flowers' : seed % 5 < 3 ? 'tree' : 'bush'
+      } else if (!lot.entry && lot.date !== today) {
+        if (lot.date < today && seed % 3 === 0) kind = 'flowers'
+        else if ((seed >>> 5) % 4 !== 0) kind = 'tuft'
       }
       if (kind) out.push({ col, row, gx, gy, kind, seed })
     }

@@ -35,8 +35,7 @@ describe('빈 땅 나무·꽃 자리', () => {
     // 31일(토, 6칸·다섯째 줄 row 4) 아래 여섯째 줄은 모두 달력 밖이고 다섯째 줄 집들 바로 앞이다
     for (let col = 0; col < 7; col++) {
       const s = scenery.find((x) => x.col === col && x.row === 5)
-      if (hash(`2026-10:${col}:5`) % 5 < 3) expect(s?.kind).toBe('flowers')
-      else expect(s).toBeUndefined()
+      expect(s?.kind).toBe('flowers')
     }
   })
 
@@ -46,20 +45,55 @@ describe('빈 땅 나무·꽃 자리', () => {
     for (let col = 0; col < 4; col++) {
       const s = scenery.find((x) => x.col === col && x.row === 0)
       const seed = hash(`2026-10:${col}:0`)
-      if (seed % 5 < 3) expect(s).toEqual({ col, row: 0, gx: col, gy: 0, kind: 'tree', seed })
-      else expect(s).toBeUndefined()
+      expect(s).toEqual({ col, row: 0, gx: col, gy: 0, kind: seed % 5 < 3 ? 'tree' : 'bush', seed })
     }
   })
 
-  it('지난 빈 날에는 가끔 꽃이 피고, 집이 선 날·오늘·앞날에는 아무것도 없다', () => {
+  it('지난 빈 날에는 가끔 꽃이 피고, 집이 선 날·오늘에는 아무것도 없다', () => {
     const block = october([e('2026-10-05')])
     const scenery = blockScenery(block, '2026-10-28')
     for (const lot of block.lots) {
       const s = scenery.find((x) => x.col === lot.col && x.row === lot.row)
       const seed = hash(`2026-10:${lot.col}:${lot.row}`)
-      if (!lot.entry && lot.date < '2026-10-28' && seed % 3 === 0) expect(s?.kind).toBe('flowers')
-      else expect(s).toBeUndefined()
+      if (lot.entry || lot.date === '2026-10-28') expect(s).toBeUndefined()
+      else if (lot.date < '2026-10-28' && seed % 3 === 0) expect(s?.kind).toBe('flowers')
+      else if (s) expect(s.kind).toBe('tuft')
     }
+  })
+
+  it('숲 칸 중 나무가 없던 자리에는 둥근 덤불이, 집 바로 앞이면 꽃·풀이 난다', () => {
+    const block = october()
+    const lots = new Set(block.lots.map((l) => `${l.col},${l.row}`))
+    const scenery = blockScenery(block, '2026-10-28')
+    let bushes = 0
+    for (let row = 0; row < BLOCK_H; row++) {
+      for (let col = 0; col < BLOCK_W; col++) {
+        if (lots.has(`${col},${row}`) || hash(`2026-10:${col}:${row}`) % 5 < 3) continue
+        const s = scenery.find((x) => x.col === col && x.row === row)
+        const front = behind(col, row).some(([c, r]) => lots.has(`${c},${r}`))
+        expect(s?.kind).toBe(front ? 'flowers' : 'bush')
+        if (!front) bushes++
+      }
+    }
+    expect(bushes).toBeGreaterThan(0)
+  })
+
+  it('빈 날 칸(지난 빈 날·앞날)에 풀 포기·돌이 넉넉히 나서 맨땅이 덜 보인다', () => {
+    const block = october()
+    const scenery = blockScenery(block, '2026-10-28')
+    const empty = block.lots.filter((l) => l.date !== '2026-10-28')
+    const covered = empty.filter((l) => scenery.some((s) => s.col === l.col && s.row === l.row))
+    expect(scenery.some((s) => s.kind === 'tuft' && block.lots.find((l) => l.col === s.col && l.row === s.row)!.date > '2026-10-28')).toBe(true)
+    expect(covered.length / empty.length).toBeGreaterThanOrEqual(0.5)
+  })
+
+  it('덤불·풀 포기 자리는 기록으로 바뀌지 않고, 집을 지으면 그 칸만 비워진다', () => {
+    const before = blockScenery(october(), '2026-10-28')
+    const after = blockScenery(october([e('2026-10-20')]), '2026-10-28')
+    const at = (list: typeof before) => list.filter((s) => !(s.col === 2 && s.row === 3))
+    // 10월 20일은 화요일, 셋째 주: (2, 3)
+    expect(after.some((s) => s.col === 2 && s.row === 3)).toBe(false)
+    expect(at(after)).toEqual(at(before))
   })
 
   it('나무 자리는 기록으로 바뀌지 않는다(집을 지어도 옆 나무가 갑자기 사라지지 않는다)', () => {

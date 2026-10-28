@@ -2954,6 +2954,36 @@ test('집·건물 바로 앞 칸에는 나무 대신 꽃·풀이 나서 집을 �
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
 
+test('빈 땅에 덤불과 풀 포기가 나서 마을이 덜 허전하고, 집을 지은 칸은 비워진다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-14T13:00:00+09:00') })
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries: monthEntries('2026-10', [6, 7, 9, 12]) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  await expect(page.getByTestId('house-2026-10-12')).toBeVisible()
+
+  const cells = async (sel: string) => page.locator(sel).evaluateAll((els) => els.map((e) => e.getAttribute('data-cell') ?? ''))
+  expect((await cells('.bush')).length).toBeGreaterThan(0)
+  const tufts = await cells('.tuft')
+  // 10월 1일은 목요일: d일의 칸은 (요일, 몇째 주). 앞날(15일 뒤)에도 풀 포기가 나고, 집이 선 칸에는 없다
+  const cell = (d: number) => `${(3 + d) % 7},${Math.floor((3 + d) / 7)}`
+  expect(tufts.some((c) => [...Array(17)].some((_, i) => c === cell(i + 15)))).toBe(true)
+  for (const d of [6, 7, 9, 12, 14]) expect(tufts).not.toContain(cell(d))
+  // 덤불은 집 바로 앞 칸에 서지 않아 집을 가리지 않는다
+  for (const c of await cells('.bush')) {
+    const [gx, gy] = c.split(',').map(Number)
+    for (const d of [6, 7, 9, 12]) {
+      const [hx, hy] = cell(d).split(',').map(Number)
+      expect([gx - hx, gy - hy]).not.toEqual([1, 0])
+      expect([gx - hx, gy - hy]).not.toEqual([0, 1])
+      expect([gx - hx, gy - hy]).not.toEqual([1, 1])
+    }
+  }
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/village-filled.png' })
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
 test('집을 지어 다가가는 동안 구역 이름표가 잘리거나 날씨 칩에 걸리지 않게 감췄다가 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')

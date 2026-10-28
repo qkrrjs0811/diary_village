@@ -199,6 +199,49 @@ function drawTree(g: Element, gx: number, gy: number, season: Season, seed: numb
   if (season === 'winter') el('ellipse', { cx: c.x, cy: c.y - 16 - size, rx: size * 0.7, ry: size * 0.35, fill: '#ffffff' }, tree)
 }
 
+const BUSH: Record<Season, string[]> = {
+  spring: ['#9fd38c', '#b5dc96'],
+  summer: ['#79c07a', '#8acb7f'],
+  autumn: ['#c9b86a', '#e0a865'],
+  winter: ['#93bfa6', '#a5c9b3'],
+}
+const BERRY: Record<Season, string | null> = { spring: '#ffc2d4', summer: '#ffffff', autumn: '#e8735a', winter: null }
+
+/** 숲 칸의 낮고 둥근 덤불(나무 사이). 봄·여름엔 꽃, 가을엔 열매, 겨울엔 눈을 얹는다 */
+function drawBush(g: Element, gx: number, gy: number, season: Season, seed: number) {
+  const c = iso(gx + 0.45 + ((seed >>> 3) % 3) / 20, gy + 0.5)
+  const color = BUSH[season][(seed >>> 6) % 2]
+  const s = 0.85 + ((seed >>> 8) % 4) / 10
+  const bush = el('g', { class: 'bush', 'data-cell': `${gx},${gy}` }, g)
+  el('ellipse', { cx: c.x, cy: c.y + 1, rx: 12 * s, ry: 4.5 * s, fill: 'rgba(90,70,54,0.12)' }, bush)
+  const balls: [number, number, number][] = [[-5.5, -4, 5.5], [5, -4, 5], [0, -7, 6.5]]
+  for (const [dx, dy, r] of balls) el('circle', { cx: c.x + dx * s, cy: c.y + dy * s, r: r * s, fill: color, stroke: LINE, 'stroke-width': 0.8 }, bush)
+  el('circle', { cx: c.x - 2 * s, cy: c.y - 9 * s, r: 2.4 * s, fill: shade(color, 0.3) }, bush)
+  if (season === 'winter') {
+    el('ellipse', { cx: c.x, cy: c.y - 12 * s, rx: 5 * s, ry: 2 * s, fill: '#ffffff' }, bush)
+    return
+  }
+  const dot = BERRY[season]
+  if (!dot) return
+  for (const [dx, dy] of [[-5, -5], [4, -6], [1, -2.5]]) el('circle', { cx: c.x + dx * s, cy: c.y + dy * s, r: 1.3, fill: dot, stroke: LINE, 'stroke-width': 0.4 }, bush)
+}
+
+/** 빈 날 칸의 작은 풀 포기와 조약돌(맨땅이 덜 보이게, 집이 서면 사라진다) */
+function drawTuft(parent: Element, gx: number, gy: number, season: Season, seed: number) {
+  const g = el('g', { class: 'tuft', 'data-cell': `${gx},${gy}`, 'pointer-events': 'none' }, parent)
+  const color = TUFT[season]
+  const n = 1 + ((seed >>> 9) % 2)
+  for (let i = 0; i < n; i++) {
+    const p = iso(gx + 0.25 + ((seed >>> (i * 5)) % 6) / 10, gy + 0.25 + ((seed >>> (i * 5 + 3)) % 6) / 10)
+    el('path', { d: `M${p.x - 2.5},${p.y} q1,-3 0,-4.5 M${p.x},${p.y} v-5 M${p.x + 2.5},${p.y} q-1,-3 0,-4.5`, stroke: color, 'stroke-width': 1.2, 'stroke-linecap': 'round', fill: 'none' }, g)
+    if (season === 'winter') el('ellipse', { cx: p.x, cy: p.y - 4.5, rx: 2.4, ry: 1.1, fill: '#ffffff' }, g)
+  }
+  if ((seed >>> 12) % 3 === 0) {
+    const p = iso(gx + 0.65, gy + 0.7)
+    el('ellipse', { cx: p.x, cy: p.y, rx: 2.4, ry: 1.4, fill: PEBBLE, stroke: LINE, 'stroke-width': 0.5 }, g)
+  }
+}
+
 /** 작은 꽃과 풀 포기(빈 날, 집 바로 앞 칸) */
 function drawFlowers(parent: Element, gx: number, gy: number, seed: number) {
   const g = el('g', { class: 'meadow', 'data-cell': `${gx},${gy}` }, parent)
@@ -1972,12 +2015,15 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   }
   for (const block of village.blocks) {
     const season = seasonOf(block.month)
-    // 그달의 날이 아닌 칸은 나무숲(집 바로 앞은 꽃·풀), 지난 빈 날은 가끔 꽃
+    // 그달의 날이 아닌 칸은 나무·덤불 숲(집 바로 앞은 꽃·풀), 지난 빈 날은 가끔 꽃, 빈 날은 풀 포기
     for (const s of blockScenery(block, opt.today)) {
       const { gx, gy, seed } = s
       if (s.kind === 'flowers') items.push({ depth: gx + gy, draw: () => drawFlowers(ground, gx, gy, seed) })
-      // 소품을 놓은 숲 칸에는 나무를 그리지 않는다
-      else if (!decorAt.has(`${gx},${gy}`)) items.push({ depth: gx + gy, draw: () => drawTree(things, gx, gy, season, seed) })
+      else if (s.kind === 'tuft') items.push({ depth: gx + gy, draw: () => drawTuft(ground, gx, gy, season, seed) })
+      // 소품을 놓은 숲 칸에는 나무·덤불을 그리지 않는다
+      else if (decorAt.has(`${gx},${gy}`)) continue
+      else if (s.kind === 'bush') items.push({ depth: gx + gy, draw: () => drawBush(things, gx, gy, season, seed) })
+      else items.push({ depth: gx + gy, draw: () => drawTree(things, gx, gy, season, seed) })
     }
     for (const lot of block.lots) {
       const depth = lot.gx + lot.gy
