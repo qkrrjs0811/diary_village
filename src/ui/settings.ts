@@ -17,6 +17,10 @@ export function createSettings(handlers: {
   planImport: ((text: string) => ImportPlan) | null
   /** 성공하면 null, 실패하면 사용자에게 보일 이유 */
   applyImport: (plan: Extract<ImportPlan, { ok: true }>) => string | null
+  /** 마지막 백업을 알리는 짧은 줄(없으면 빈 글) */
+  backupNote: () => string
+  /** 백업 파일을 내려받은 뒤 */
+  onExported: () => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -50,6 +54,7 @@ export function createSettings(handlers: {
       <div class="settings-group">
         <div class="settings-label">백업</div>
         <p class="settings-help">쓴 글을 파일로 받아 두면 폰을 바꿔도 마을을 다시 지을 수 있어요.</p>
+        <p class="settings-help backup-note" data-testid="backup-note"></p>
         <button type="button" class="settings-btn" data-testid="backup-export" ${handlers.exportFile ? '' : 'disabled'}>📦 백업 파일 내려받기</button>
         <button type="button" class="settings-btn" data-testid="backup-import" ${handlers.planImport ? '' : 'disabled'}>📂 백업 파일 가져오기</button>
         <input type="file" accept=".json,application/json" data-testid="backup-file" hidden />
@@ -61,6 +66,12 @@ export function createSettings(handlers: {
     const msg = sheet.querySelector<HTMLElement>('[data-testid="settings-msg"]')!
     msg.textContent = message
     msg.classList.toggle('err', error)
+    const note = sheet.querySelector<HTMLElement>('[data-testid="backup-note"]')!
+    const showNote = () => {
+      note.textContent = handlers.backupNote()
+      note.hidden = !note.textContent
+    }
+    showNote()
     sheet.querySelector('.close')!.addEventListener('click', close)
     const nameInput = sheet.querySelector<HTMLInputElement>('[data-testid="name-input"]')!
     const nameSave = sheet.querySelector<HTMLButtonElement>('[data-testid="name-save"]')!
@@ -113,6 +124,8 @@ export function createSettings(handlers: {
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
+      handlers.onExported()
+      showNote()
       msg.classList.remove('err')
       msg.textContent = '📦 백업 파일을 내려받았어요'
     })

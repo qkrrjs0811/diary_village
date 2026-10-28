@@ -1,5 +1,5 @@
 import './style.css'
-import { backupFileName, backupText, planImport } from './core/backup'
+import { backedUpAt, backupDue, backupFileName, backupText, markBackedUp, planImport } from './core/backup'
 import { buildingNote, buildingOf } from './core/building'
 import { buildingOrdinal } from './core/collection'
 import { dayKey } from './core/date'
@@ -67,7 +67,7 @@ const sound = createSound(kv)
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <header class="top"><b data-testid="village-name">한 줄 마을</b><button type="button" class="stage-btn" data-testid="village-stage" aria-label="마을 수첩 열기"><span class="stage"></span></button><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️</button></header>
+  <header class="top"><b data-testid="village-name">한 줄 마을</b><button type="button" class="stage-btn" data-testid="village-stage" aria-label="마을 수첩 열기"><span class="stage"></span></button><span class="count" data-testid="house-count"></span><button type="button" class="gear" data-testid="settings-open" aria-label="설정">⚙️<i class="gear-dot" data-testid="backup-dot" hidden></i></button></header>
   <div class="banner" data-testid="storage-warning" hidden></div>
   <main class="scene" data-testid="scene">
     <div class="sky sky-back" data-testid="sky" aria-hidden="true"></div>
@@ -75,6 +75,7 @@ app.innerHTML = `
     <svg data-testid="village" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="sky sky-front" data-testid="rain" aria-hidden="true"></div>
     <div class="weather" data-testid="weather"></div>
+    <button type="button" class="backup-ask" data-testid="backup-ask" hidden><span>📦 백업해 둘까요?</span></button>
     <div class="build-note" data-testid="build-note" role="status" hidden></div>
   </main>`
 const svg = app.querySelector<SVGSVGElement>('svg')!
@@ -208,8 +209,50 @@ const settings = createSettings({
     celebrate(before, 0)
     return null
   },
+  backupNote() {
+    const t = backedUpAt(kv)
+    if (t !== null) return `마지막 백업: ${dateLabel(dayKey(t))}`
+    return save.entries.length ? '아직 백업한 적이 없어요' : ''
+  },
+  onExported() {
+    try {
+      markBackedUp(kv, Date.now())
+    } catch {
+      // 적지 못해도 파일은 받았다. 다음에 또 물을 뿐이다
+    }
+    showBackupDue()
+  },
 })
 document.body.appendChild(settings.root)
+
+const backupDot = app.querySelector<HTMLElement>('[data-testid="backup-dot"]')!
+const backupAsk = app.querySelector<HTMLButtonElement>('[data-testid="backup-ask"]')!
+/** 이번 열기에서 설정을 열어 봤으면 말풍선은 접고 ⚙️ 옆 점만 남긴다 */
+let backupAsked = false
+/** 마지막 백업 뒤 한 달이 지나면 ⚙️ 옆에 작은 점과 "백업해 둘까요?"를 띄운다 */
+function showBackupDue() {
+  const due = persistent && !readOnly && backupDue(save, backedUpAt(kv), dayKey(Date.now()))
+  backupDot.hidden = !due
+  backupAsk.hidden = !due || backupAsked
+}
+/** 설정 창을 열면(⚙️든 말풍선이든) 말풍선은 이번 열기 동안 접는다 */
+function openSettings() {
+  backupAsked = true
+  showBackupDue()
+  settings.open()
+}
+backupAsk.addEventListener('click', openSettings)
+
+/** 브라우저가 저장 공간을 비울 때 이 마을 글은 남겨 달라고 부탁한다(묻지 않고 정해지기도 한다) */
+function keepStorage() {
+  if (!persistent || readOnly || !save.entries.length) return
+  const storage = navigator.storage
+  if (!storage?.persist) return
+  Promise.resolve(storage.persisted?.())
+    .then((done) => done || storage.persist())
+    .catch(() => {})
+}
+keepStorage()
 
 /** 저장하고 마을을 다시 그린다(우체통 깃발). 실패하면 이유 */
 function keepLetters(next: SaveData): string | null {
@@ -324,7 +367,7 @@ function visitLandmark(l: Landmark) {
   void node.getBoundingClientRect()
   node.classList.add('pop')
 }
-app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', () => settings.open())
+app.querySelector('[data-testid="settings-open"]')!.addEventListener('click', openSettings)
 
 /** 머리줄 단계 이름표를 누르면 마을 수첩(단계·건물 도감·명소)이 열린다 */
 const book = createBook({
@@ -351,6 +394,7 @@ const card = createWriteCard({
     // 새 이웃은 짓는 연출이 끝나고 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다
     const comers = reachedResidents(before, builtDays(save))
     render(r.entry.date, comers.map((x) => x.id))
+    keepStorage()
     // 다가가 짓는 동안 새 집 앞을 가리는 나무·주민을 옅게 했다가, 원래 보기로 돌아올 때 되돌린다
     clearTimeout(veilTimer)
     veilFront(svg, r.entry.date)
@@ -672,6 +716,7 @@ function render(newDate?: string, comers: string[] = []) {
   const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers)
   const walks = residentWalks(village, residentsOf(days), guests, newcomers)
   drawn = { village, today, guests, walks }
+  showBackupDue()
   if (picked != null && !save.decor?.[picked]) picked = null
   // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
   const spots = decorating && (pick != null || picked != null) ? decorSpots(village, today, save) : []

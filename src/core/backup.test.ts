@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backupFileName, backupText, planImport } from './backup'
+import { BACKUP_KEY, backedUpAt, backupDue, backupFileName, backupText, markBackedUp, planImport } from './backup'
 import { parseSave } from './storage'
 import type { Entry, SaveData } from './types'
 
@@ -81,5 +81,74 @@ describe('놓은 소품과 백업', () => {
     if (!a.ok || !b.ok) throw new Error()
     expect(a.save.decor).toEqual(mine.decor)
     expect(b.save.decor).toEqual(backup.decor)
+  })
+})
+
+const memory = (init: Record<string, string> = {}) => {
+  const m = new Map(Object.entries(init))
+  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }
+}
+const at = (date: string) => Date.parse(`${date}T21:00:00+09:00`)
+
+describe('백업한 시각', () => {
+  it('diary-village: 로 시작하는 키에 둔다', () => {
+    expect(BACKUP_KEY.startsWith('diary-village:')).toBe(true)
+  })
+
+  it('처음이거나 이상한 값이거나 못 읽으면 없다', () => {
+    expect(backedUpAt(memory())).toBeNull()
+    expect(backedUpAt(memory({ [BACKUP_KEY]: '어제' }))).toBeNull()
+    expect(backedUpAt(memory({ [BACKUP_KEY]: '-5' }))).toBeNull()
+    const broken = {
+      getItem: () => {
+        throw new Error('x')
+      },
+      setItem: () => {},
+    }
+    expect(backedUpAt(broken)).toBeNull()
+  })
+
+  it('적어 둔 시각을 다시 읽는다', () => {
+    const kv = memory()
+    markBackedUp(kv, at('2026-10-27'))
+    expect(backedUpAt(kv)).toBe(at('2026-10-27'))
+    expect([...kv.m.keys()]).toEqual([BACKUP_KEY])
+  })
+})
+
+describe('백업해 둘까요?', () => {
+  const first = e('2026-09-01', '첫 줄', { writtenAt: at('2026-09-01') })
+
+  it('쓴 글이 없으면 묻지 않는다', () => {
+    expect(backupDue(save(), null, '2027-01-01')).toBe(false)
+  })
+
+  it('백업한 적이 없으면 첫 한 줄 뒤 한 달(30일)이 지나야 묻는다', () => {
+    expect(backupDue(save(first), null, '2026-09-30')).toBe(false)
+    expect(backupDue(save(first), null, '2026-10-01')).toBe(true)
+  })
+
+  it('백업한 뒤 한 달(30일)이 지나야 묻는다', () => {
+    const s = save(first, e('2026-10-20', '새 줄', { writtenAt: at('2026-10-20') }))
+    expect(backupDue(s, at('2026-10-10'), '2026-11-08')).toBe(false)
+    expect(backupDue(s, at('2026-10-10'), '2026-11-09')).toBe(true)
+  })
+
+  it('백업한 뒤로 바뀐 글이 없으면 한 달이 지나도 묻지 않는다', () => {
+    expect(backupDue(save(first), at('2026-09-05'), '2027-01-01')).toBe(false)
+  })
+
+  it('백업 뒤에 고친 글·지운 날·부친 편지도 바뀐 것으로 본다', () => {
+    const edited = save({ ...first, editedAt: at('2026-09-10') })
+    expect(backupDue(edited, at('2026-09-05'), '2026-10-05')).toBe(true)
+    const erased: SaveData = { ...save(first), erased: [{ date: '2026-09-02', erasedAt: at('2026-09-10') }] }
+    expect(backupDue(erased, at('2026-09-05'), '2026-10-05')).toBe(true)
+    const letter: SaveData = { ...save(first), letters: [{ writtenOn: '2026-09-10', writtenAt: at('2026-09-10'), opensOn: '2026-12-10', text: '안녕' }] }
+    expect(backupDue(letter, at('2026-09-05'), '2026-10-05')).toBe(true)
+  })
+
+  it('글이 하나도 없으면 지운 날만 있어도 묻지 않는다', () => {
+    const s: SaveData = { ...save(), erased: [{ date: '2026-09-01', erasedAt: at('2026-09-02') }] }
+    expect(backupDue(s, null, '2027-01-01')).toBe(false)
   })
 })

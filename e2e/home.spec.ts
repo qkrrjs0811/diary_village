@@ -937,6 +937,64 @@ test('설정 창에서 백업을 내려받고, 다른 폰에서 가져오면 마
   expect(saved.entries[3].text).toBe('새 폰의 첫 줄')
 })
 
+test('글을 지키려고 저장소를 남겨 달라고 부탁하고, 백업한 지 한 달이 지나면 다정하게 묻는다', async ({ page }) => {
+  // 브라우저에 "저장소를 지우지 말아 달라"는 부탁이 몇 번 갔는지 센다
+  await page.addInitScript(() => {
+    const w = window as unknown as { persistAsked: number }
+    w.persistAsked = 0
+    const s = navigator.storage as unknown as Record<string, unknown>
+    s.persisted = async () => false
+    s.persist = async () => {
+      w.persistAsked++
+      return true
+    }
+  })
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 아직 쓴 글이 없으면 부탁하지도 묻지도 않는다
+  expect(await page.evaluate(() => (window as unknown as { persistAsked: number }).persistAsked)).toBe(0)
+  await expect(page.getByTestId('backup-dot')).toBeHidden()
+  await expect(page.getByTestId('backup-ask')).toBeHidden()
+
+  // 한 달 전부터 쓴 마을: 백업한 적이 없다
+  const entries = [...monthEntries('2026-09', [20, 25]), ...monthEntries('2026-10', [3, 10, 20])]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { persistAsked: number }).persistAsked)).toBeGreaterThan(0)
+  await expect(page.getByTestId('backup-dot')).toBeVisible()
+  const ask = page.getByTestId('backup-ask')
+  await expect(ask).toHaveText('📦 백업해 둘까요?')
+  const box = (await ask.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  // 날씨 칩과 겹치지 않는다
+  const chip = (await page.getByTestId('weather').boundingBox())!
+  expect(box.x + box.width).toBeLessThan(chip.x)
+  await page.clock.runFor(1500)
+  await page.screenshot({ path: 'test-results/screens/backup-ask.png' })
+
+  // 누르면 설정 창이 열리고, 아직 백업한 적이 없다고 알려 준다
+  await ask.click()
+  await expect(page.getByTestId('settings')).toBeVisible()
+  await expect(page.getByTestId('backup-note')).toHaveText('아직 백업한 적이 없어요')
+  await expect(ask).toBeHidden()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/settings-backup-note.png' })
+  await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  await expect(page.getByTestId('backup-note')).toHaveText('마지막 백업: 10월 27일 화요일')
+  await page.getByTestId('settings-close').click()
+  await expect(page.getByTestId('backup-dot')).toBeHidden()
+  const backedUp = Number(await page.evaluate(() => localStorage.getItem('diary-village:backup-at')))
+  expect(backedUp - Date.parse('2026-10-27T21:00:00+09:00')).toBeGreaterThanOrEqual(0)
+  expect(backedUp - Date.parse('2026-10-27T21:00:00+09:00')).toBeLessThan(60_000)
+
+  // 다시 열어도 묻지 않고, 쓴 글은 그대로다
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 5채')
+  await expect(page.getByTestId('backup-dot')).toBeHidden()
+  await expect(page.getByTestId('backup-ask')).toBeHidden()
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!).entries).toEqual(entries)
+})
+
 test('한 번 연 뒤에는 인터넷 없이도 열리고, 쓴 한 줄이 남는다', async ({ page, context }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

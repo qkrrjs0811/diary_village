@@ -45,6 +45,43 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .gear:active { background: var(--chip); }
+.gear { position: relative; }
+.gear-dot {
+  position: absolute;
+  top: 9px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--bg);
+  border-radius: 50%;
+  background: #f0a37a;
+}
+.gear-dot[hidden] { display: none; }
+/* "백업해 둘까요?" 말풍선. 날씨 칩(오른쪽 위)과 겹치지 않게 마을 왼쪽 위에 둔다 */
+.backup-ask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 44px;
+  padding: 10px 10px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.backup-ask[hidden] { display: none; }
+.backup-ask span {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 249, 238, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+}
+.backup-ask:active span { background: var(--chip); }
+.backup-note:empty, .backup-note[hidden] { display: none; }
 
 .settings-group { margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 18px; }
 .settings-label { font-size: 14px; font-weight: 700; }
