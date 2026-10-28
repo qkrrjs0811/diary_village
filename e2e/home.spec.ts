@@ -1799,7 +1799,7 @@ test('읽기 창에 그날 손님의 맞장구 한 줄이 보이고, 넘기기·
   expect(saved).not.toMatch(/곁에 있을게요|토닥토닥|함께한 시간|듣기 좋아요|둘러앉은/)
 })
 
-test('읽기 창의 작은 줄이 묶여 있다 — 건물·집 나이는 꼬리표 한 줄, 고친 날·처음 한마디는 옅은 한 줄', async ({ page }) => {
+test('읽기 창은 내 글이 가장 먼저·가장 크게 — 작은 줄은 글 아래 한 묶음, 단추는 한 줄', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
   await page.goto('./')
   const at = (d: string) => Date.parse(`${d}T22:00:00+09:00`)
@@ -1820,37 +1820,70 @@ test('읽기 창의 작은 줄이 묶여 있다 — 건물·집 나이는 꼬리
   await expect(edited).toBeVisible()
   await expect(edge).toHaveText('🌱 가장 처음 지은 집이에요')
   const box = async (l: typeof building) => (await l.boundingBox())!
+  await page.waitForTimeout(500) // 창이 다 올라온 뒤 자리를 잰다
   const [b, a, e, g, text, reply] = await Promise.all([
     box(building), box(aging), box(edited), box(edge),
     box(page.getByTestId('reader-text')), box(page.getByTestId('reader-reply')),
   ])
-  // 꼬리표 둘은 나란히 놓이고(좁으면 다음 줄로 내려가고) 겹치거나 창 밖으로 나가지 않는다
-  const side = a.x >= b.x + b.width && Math.abs(a.y + a.height / 2 - (b.y + b.height / 2)) < 4
-  const below = a.y >= b.y + b.height
-  expect(side || below).toBe(true)
-  expect(b.x + b.width).toBeLessThanOrEqual(390)
-  expect(a.x + a.width).toBeLessThanOrEqual(390)
-  // 글 → 맞장구 말풍선 → 옅은 한 줄(고친 날·처음 한마디가 나란히) 차례
-  expect(text.y).toBeGreaterThanOrEqual(a.y + a.height)
+  const [date, room, heart, close] = await Promise.all([
+    box(page.getByTestId('reader-date')), box(page.getByTestId('reader-room')),
+    box(page.getByTestId('reader-treasure')), box(page.getByTestId('reader-close')),
+  ])
+  // 내 글이 창에서 가장 큰 글자이고, 날짜 줄 바로 다음(방 그림·꼬리표보다 위)에 온다
+  const size = (id: string) => page.getByTestId(id).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  const textSize = await size('reader-text')
+  for (const id of ['reader-date', 'reader-mood', 'reader-reply', 'reader-aging', 'reader-edited', 'reader-edge']) {
+    expect(await size(id)).toBeLessThan(textSize)
+  }
+  expect(text.y).toBeGreaterThanOrEqual(date.y + date.height)
+  expect(text.y).toBeLessThan(room.y)
+  expect(text.y).toBeLessThan(b.y)
+  // 글 → 맞장구 말풍선 → 작은 한 묶음(건물·집 나이·고친 날·처음 한마디) → 방 그림 차례
   expect(reply.y).toBeGreaterThanOrEqual(text.y + text.height)
-  expect(e.y).toBeGreaterThanOrEqual(reply.y + reply.height)
-  expect(Math.abs(g.y - e.y)).toBeLessThan(4)
-  expect(g.x).toBeGreaterThanOrEqual(e.x + e.width)
-  // 넘기기 단추는 옅은 줄 아래에 그대로 누를 수 있다
-  const prev = (await page.getByTestId('reader-prev').boundingBox())!
-  expect(prev.y).toBeGreaterThanOrEqual(g.y + g.height)
-  expect(prev.height).toBeGreaterThanOrEqual(44)
+  for (const s of [b, a, e, g]) {
+    expect(s.y).toBeGreaterThanOrEqual(reply.y + reply.height - 8) // 건물 단추는 누르는 자리만 조금 위로 겹친다
+    expect(s.y + s.height).toBeLessThanOrEqual(room.y)
+    expect(s.x).toBeGreaterThanOrEqual(0)
+    expect(s.x + s.width).toBeLessThanOrEqual(390)
+  }
+  // 묶음 안에서도 서로 겹치지 않는다
+  const all = [b, a, e, g]
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const p = all[i], q = all[j]
+    const apart = p.x + p.width <= q.x + 0.5 || q.x + q.width <= p.x + 0.5 || p.y + p.height <= q.y + 0.5 || q.y + q.height <= p.y + 0.5
+    expect(apart).toBe(true)
+  }
+  // 소중한 날·닫기는 오른쪽 위 동그란 단추(44px), 날짜와 겹치지 않는다
+  for (const r of [heart, close]) {
+    expect(r.width).toBeGreaterThanOrEqual(44)
+    expect(r.height).toBeGreaterThanOrEqual(44)
+    expect(r.x).toBeGreaterThanOrEqual(date.x + date.width)
+    expect(r.y + r.height).toBeLessThanOrEqual(text.y + 2)
+    expect(r.x + r.width).toBeLessThanOrEqual(390)
+  }
+  // 넘기기·고치기·지우기는 방 그림 아래 한 줄에 나란히(44px 이상)
+  const row = await Promise.all(['reader-prev', 'reader-edit', 'reader-erase', 'reader-next'].map((id) => box(page.getByTestId(id))))
+  for (const r of row) {
+    expect(r.y).toBeGreaterThanOrEqual(room.y + room.height)
+    expect(Math.abs(r.y - row[0].y)).toBeLessThan(2)
+    expect(r.height).toBeGreaterThanOrEqual(44)
+    expect(r.width).toBeGreaterThanOrEqual(44)
+    expect(r.x + r.width).toBeLessThanOrEqual(390)
+  }
+  for (let i = 1; i < row.length; i++) expect(row[i].x).toBeGreaterThanOrEqual(row[i - 1].x + row[i - 1].width)
   await page.waitForTimeout(500)
   await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
   await page.screenshot({ path: 'test-results/screens/reader-tidy.png' })
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
 
-  // 건물도 세월도 없는 새 보통 집은 꼬리표 묶음이 통째로 숨어 빈 자리가 없다
+  // 건물도 세월도 없는 새 보통 집은 묶음에 한마디 한 줄만 남아 빈 자리가 없다
   await page.getByTestId('reader-next').click()
   await expect(page.getByTestId('reader-text')).toHaveText('그냥 지나간 하루')
-  await expect(page.locator('.reader-tags')).toBeHidden()
+  await expect(building).toBeHidden()
+  await expect(aging).toBeHidden()
   await expect(edited).toBeHidden()
   await expect(edge).toHaveText('🏡 가장 최근에 지은 집이에요')
+  expect((await box(page.locator('.reader-tags'))).height).toBeLessThan(24)
 })
 
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {

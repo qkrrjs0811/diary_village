@@ -77,37 +77,35 @@ export function createReader(handlers: {
   function showRead(entry: Entry, from?: 'prev' | 'next', enter = true) {
     swipeTo = null
     const m = moodOf(entry.mood)
-    // 문을 열고 들어간 그날의 방. 날짜·기분·건물로만 그리고 글은 담지 않는다. 빛은 지금 때(낮·저녁·밤)를 따른다
+    // 내 글이 가장 먼저, 가장 크게 온다. 날짜·기분은 그 위 옅은 두 줄, 소중한 날·닫기는 오른쪽 위 동그란 단추.
+    // 건물·집 나이·고친 날·처음 한마디는 글 아래 작은 한 묶음으로 모으고, 그날의 방은 그 아래 그림으로 둔다.
+    // 방은 날짜·기분·건물로만 그리고 글은 담지 않는다. 빛은 지금 때(낮·저녁·밤)를 따른다
     sheet.innerHTML = `
-      ${roomSvg(roomOf(entry), roomLight(dayPart(Date.now())))}
       <div class="reader-head">
-        <div>
+        <div class="reader-when">
           <div class="reader-date" data-testid="reader-date"></div>
           <div class="reader-mood" data-testid="reader-mood"></div>
         </div>
-        ${handlers.onTreasure ? '<button type="button" class="treasure-btn" data-testid="reader-treasure"></button>' : ''}
+        ${handlers.onTreasure ? '<button type="button" class="round-btn treasure-btn" data-testid="reader-treasure"></button>' : ''}
+        <button type="button" class="round-btn close" data-testid="reader-close" aria-label="닫기">✕</button>
       </div>
+      <p class="reader-text" data-testid="reader-text"></p>
+      <div class="reader-more" data-testid="reader-more" tabindex="0" aria-label="더 쓴 글" hidden></div>
+      <div class="reader-reply" data-testid="reader-reply" hidden></div>
       <div class="reader-tags">
         ${handlers.onBuilding
           ? '<button type="button" class="reader-building-btn" data-testid="reader-building" hidden><span class="reader-building"></span></button>'
           : '<span class="reader-building" data-testid="reader-building" hidden></span>'}
         <span class="reader-aging" data-testid="reader-aging" hidden></span>
-      </div>
-      <p class="reader-text" data-testid="reader-text"></p>
-      <div class="reader-more" data-testid="reader-more" tabindex="0" aria-label="더 쓴 글" hidden></div>
-      <div class="reader-reply" data-testid="reader-reply" hidden></div>
-      <div class="reader-foot">
         <span class="reader-edited" data-testid="reader-edited" hidden></span>
         <span class="reader-edge" data-testid="reader-edge" hidden></span>
       </div>
-      ${handlers.neighbors ? `<div class="reader-turn">
-        <button type="button" class="turn-btn" data-testid="reader-prev">◀ 앞 날</button>
-        <button type="button" class="turn-btn" data-testid="reader-next">뒷 날 ▶</button>
-      </div>` : ''}
-      <div class="sheet-buttons">
+      ${roomSvg(roomOf(entry), roomLight(dayPart(Date.now())))}
+      <div class="reader-actions">
+        ${handlers.neighbors ? '<button type="button" class="turn-btn" data-testid="reader-prev">◀</button>' : ''}
         ${handlers.onEdit ? '<button type="button" class="sheet-btn" data-testid="reader-edit">✏️ 고치기</button>' : ''}
         ${handlers.onErase ? '<button type="button" class="sheet-btn" data-testid="reader-erase">🗑️ 지우기</button>' : ''}
-        <button type="button" class="sheet-btn close" data-testid="reader-close">닫기</button>
+        ${handlers.neighbors ? '<button type="button" class="turn-btn" data-testid="reader-next">▶</button>' : ''}
       </div>`
     sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
     sheet.querySelector('.reader-mood')!.textContent = `${m.emoji} ${m.label} · ${m.weather}`
@@ -150,7 +148,8 @@ export function createReader(handlers: {
     if (heart) {
       // 소중한 날은 내 손으로 고른 날이다. 켜도 꺼도 건물·명소·단계는 그대로다
       const on = entry.treasured === true
-      heart.textContent = on ? '💛 소중한 날' : '🤍 소중한 날'
+      // 보이는 건 하트 하나, 읽어 주는 이름은 "소중한 날"
+      heart.innerHTML = `${on ? '💛' : '🤍'}<span class="sr-only"> 소중한 날</span>`
       heart.setAttribute('aria-pressed', String(on))
       heart.addEventListener('click', () => {
         const next = handlers.onTreasure?.(entry.date)
@@ -176,7 +175,7 @@ export function createReader(handlers: {
         const btn = sheet.querySelector<HTMLButtonElement>(`[data-testid="reader-${dir}"]`)!
         const to = near[dir]
         btn.disabled = !to
-        if (to) btn.setAttribute('aria-label', `${label} · ${fullDateLabel(to.date)}`)
+        btn.setAttribute('aria-label', to ? `${label} · ${fullDateLabel(to.date)}` : label)
         btn.addEventListener('click', () => go(dir))
       }
       turn('prev', '앞 날')
@@ -191,7 +190,7 @@ export function createReader(handlers: {
     }
     // 넘긴 쪽에서 글이 살며시 들어온다(움직임 줄이기면 CSS 가 멈춘다)
     // 작은 줄은 묶음째 숨겨 빈 자리가 남지 않게 한다
-    sheet.querySelectorAll<HTMLElement>('.reader-tags, .reader-foot').forEach((box) => {
+    sheet.querySelectorAll<HTMLElement>('.reader-tags').forEach((box) => {
       box.hidden = [...box.children].every((c) => (c as HTMLElement).hidden)
     })
     sheet.classList.remove('turn-from-prev', 'turn-from-next')
