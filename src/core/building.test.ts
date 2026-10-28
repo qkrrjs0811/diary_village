@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, NEW_BUILDINGS, buildingNote, buildingOf, findBuilding } from './building'
+import { BUILDINGS, EXTRA_WORDS, NEW_BUILDINGS, buildingNote, buildingOf, findBuilding } from './building'
 import { LANDMARKS } from './landmark'
 import type { Entry } from './types'
 
@@ -172,5 +172,58 @@ describe('새 건물 여섯 종(로드맵 R3)', () => {
     expect(buildingNote({ id: 'restaurant', word: '라면' })).toBe("🍚 '라면'을 찾아 식당이 생겼어요")
     expect(buildingNote({ id: 'park', word: '산책' })).toBe("🌳 '산책'을 찾아 공원이 생겼어요")
     expect(buildingNote({ id: 'station', word: '여행' })).toBe("🚉 '여행'을 찾아 기차역이 생겼어요")
+  })
+})
+
+describe('늘린 건물 단어(피드백 2026-10-28)', () => {
+  const ALL_EXTRA = Object.entries(EXTRA_WORDS).flatMap(([id, ws]) => ws.map((w) => [id, w] as const))
+
+  it('건물마다 말을 더해 단어가 크게 늘었다', () => {
+    for (const b of BUILDINGS) expect(EXTRA_WORDS[b.id].length).toBeGreaterThanOrEqual(5)
+    expect(ALL_EXTRA.length).toBeGreaterThanOrEqual(100)
+  })
+
+  it('더한 말끼리, 원래 말과도 겹치지 않는다', () => {
+    const all = [...BUILDINGS.flatMap((b) => b.words), ...ALL_EXTRA.map(([, w]) => w)]
+    expect(new Set(all).size).toBe(all.length)
+  })
+
+  it('더한 말 하나만 있어도 그 건물이 선다', () => {
+    for (const [id, w] of ALL_EXTRA) expect(findBuilding(`오늘은 ${w} 했다`), w).toEqual({ id, word: w })
+  })
+
+  it('흔한 하루의 말로 건물이 선다', () => {
+    expect(findBuilding('점심에 삼겹살')?.id).toBe('restaurant')
+    expect(findBuilding('넷플릭스 정주행')?.id).toBe('cinema')
+    expect(findBuilding('학원 끝나고 집')?.id).toBe('school')
+    expect(findBuilding('드디어 휴가')?.id).toBe('station')
+    expect(findBuilding('도넛 두 개')?.id).toBe('bakery')
+    expect(findBuilding('집사 노릇 하루')?.id).toBe('catHouse')
+    expect(findBuilding('단풍이 예뻤다')?.id).toBe('park')
+    expect(findBuilding('배드민턴 쳤다')?.id).toBe('field')
+  })
+
+  it('원래 말이 하나라도 있으면 원래 건물 그대로다(이미 선 건물이 바뀌지 않는다)', () => {
+    for (const b of BUILDINGS) {
+      for (const w of b.words) {
+        const before = findBuilding(w)
+        for (const [, x] of ALL_EXTRA) {
+          expect(findBuilding(`${x} 하고 ${w}`)).toEqual(before)
+          expect(findBuilding(`${w} 하고 ${x}`)).toEqual(before)
+        }
+      }
+    }
+  })
+
+  it('더한 말끼리는 먼저 나온 말이 이긴다', () => {
+    expect(findBuilding('도넛 먹고 드라마')?.id).toBe('bakery')
+    expect(findBuilding('드라마 보며 도넛')?.id).toBe('cinema')
+  })
+
+  it('비슷하지만 다른 뜻의 말로는 정하지 않는다', () => {
+    expect(findBuilding('마음먹었다')).toBeNull()
+    expect(findBuilding('겁먹었다')).toBeNull()
+    expect(findBuilding('고기압이 왔다')).toBeNull()
+    expect(findBuilding('그냥 평범한 하루')).toBeNull()
   })
 })

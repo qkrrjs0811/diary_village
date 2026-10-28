@@ -60,6 +60,34 @@ const NOT_WORDS = ['산책', '책임', '대책', '자책', '책망', '빵점', '
 /** 새 건물 말이 들어 있지만 다른 뜻인 말('나라면', '그림자' 등) */
 const NEW_NOT_WORDS = ['이라면', '나라면', '너라면', '다라면', '우리라면', '그림자', '버스킹']
 
+/**
+ * 나중에 늘린 말(피드백 2026-10-28). 위 두 묶음의 말이 하나도 없을 때만 본다.
+ * 그래서 이미 건물이 선 날은 그대로이고, 보통 집이던 날만 건물이 될 수 있다
+ */
+export const EXTRA_WORDS: Record<BuildingId, string[]> = {
+  cafe: ['녹차', '홍차', '밀크티', '에스프레소', '카푸치노', '모카', '스벅', '빙수', '음료'],
+  bookstore: ['만화', '웹툰', '잡지', '시집', '에세이', '동화', '글쓰기', '필사'],
+  field: ['배드민턴', '테니스', '야구', '탁구', '볼링', '필라테스', '스트레칭', '클라이밍', '등산', '줄넘기', '자전거'],
+  catHouse: ['집사', '츄르', '캣타워', '냥냥', '고냥', '길냥'],
+  dogHouse: ['댕댕', '강쥐', '반려견', '멍뭉', '퍼피', '애견'],
+  flowerShop: ['코스모스', '라벤더', '국화', '수국', '개나리', '진달래', '목련', '데이지'],
+  bakery: ['도넛', '마카롱', '베이글', '와플', '머핀', '타르트', '스콘', '토스트', '샌드위치', '디저트'],
+  lighthouse: ['호수', '항구', '갯벌', '조개', '서핑', '갈매기', '물놀이', '계곡'],
+  musicHall: ['뮤지컬', '앨범', '밴드', '바이올린', '드럼', '플레이리스트', '라디오', '이어폰', '우쿨렐레'],
+  cinema: ['드라마', '넷플릭스', '넷플', '유튜브', '애니메이션', '연극', '예능', '시트콤'],
+  restaurant: ['점심', '먹었', '맛있', '배불', '삼겹살', '고기', '짜장', '짬뽕', '찌개', '샐러드','햄버거', '돈까스', '카레', '요리', '도시락', '외식', '회식', '야식'],
+  park: ['단풍', '낙엽', '놀이터', '한강', '캠핑', '잔디', '숲길', '벤치'],
+  school: ['학원', '선생님', '교수님', '발표', '졸업', '입학', '동아리', '기말', '중간고사', '자격증', '영어', '수학'],
+  station: ['휴가', '출장', '택시', '드라이브', '운전', '정류장', '고속도로', '캐리어'],
+  gallery: ['그렸', '드로잉', '스케치', '색칠', '박물관', '작품', '카메라', '필름'],
+  farm: ['새싹', '다육', '심었', '감자', '고구마', '딸기', '농장', '수확'],
+}
+
+/** 늘린 말이 들어 있지만 다른 뜻인 말 */
+const EXTRA_NOT_WORDS = ['마음먹었', '맘먹었', '겁먹었', '고기압']
+
+const EXTRA_BUILDINGS: Building[] = BUILDINGS.map((b) => ({ ...b, words: EXTRA_WORDS[b.id] }))
+
 export interface BuildingMatch {
   id: BuildingId
   /** 글에서 찾은 말(단어 목록에 적힌 모양) */
@@ -74,7 +102,7 @@ export function findBuilding(text: string): BuildingMatch | null {
   const lower = text.toLowerCase()
   const old = BUILDINGS.filter((b) => !NEW_BUILDINGS.includes(b.id))
   const added = BUILDINGS.filter((b) => NEW_BUILDINGS.includes(b.id))
-  return findIn(lower, old, NOT_WORDS) ?? findIn(lower, added, NEW_NOT_WORDS)
+  return findIn(lower, old, NOT_WORDS) ?? findIn(lower, added, NEW_NOT_WORDS) ?? findIn(lower, EXTRA_BUILDINGS, EXTRA_NOT_WORDS)
 }
 
 function findIn(text: string, buildings: Building[], notWords: string[]): BuildingMatch | null {
