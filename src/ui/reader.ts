@@ -1,3 +1,4 @@
+import { agingLine } from '../core/aging'
 import { buildingInfo, buildingOf } from '../core/building'
 import { dayKey } from '../core/date'
 import { checkText, MAX_TEXT } from '../core/entries'
@@ -82,6 +83,7 @@ export function createReader(handlers: {
         ${handlers.onTreasure ? '<button type="button" class="treasure-btn" data-testid="reader-treasure"></button>' : ''}
       </div>
       <div class="reader-building" data-testid="reader-building" hidden></div>
+      <div class="reader-aging" data-testid="reader-aging" hidden></div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-edited" data-testid="reader-edited" hidden></div>
       <div class="reader-edge" data-testid="reader-edge" hidden></div>
@@ -102,6 +104,13 @@ export function createReader(handlers: {
       const b = buildingInfo(found.id)
       const line = sheet.querySelector<HTMLElement>('.reader-building')!
       line.textContent = `${b.icon} ${b.name} · '${found.word}'에서 생겼어요`
+      line.hidden = false
+    }
+    // 집 나이는 그날 날짜와 오늘로만 센다. 30일 전 새 집에는 말하지 않는다
+    const age = agingLine(entry.date, dayKey(Date.now()))
+    if (age) {
+      const line = sheet.querySelector<HTMLElement>('.reader-aging')!
+      line.textContent = age
       line.hidden = false
     }
     const heart = sheet.querySelector<HTMLButtonElement>('[data-testid="reader-treasure"]')

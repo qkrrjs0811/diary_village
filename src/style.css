@@ -391,6 +391,14 @@ button { font: inherit; color: inherit; }
   .house.pop, .dust, .sparkle { animation: none; }
   .dust, .sparkle { opacity: 0; }
 }
+/* 집이 세월 단계를 넘는 날, 별빛이 세 번 반짝이고 사라진다 */
+.aging-glint { pointer-events: none; }
+.aging-glint > path { transform-box: fill-box; transform-origin: center; opacity: 0; animation: aging-glint 1.6s ease-in-out calc(0.6s + var(--i) * 0.35s) 3 both; }
+@keyframes aging-glint {
+  0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  45% { opacity: 1; transform: scale(1.15) rotate(20deg); }
+}
+@media (prefers-reduced-motion: reduce) { .aging-glint { display: none; } }
 .twinkle { animation: twinkle 1.8s ease-in-out infinite; pointer-events: none; }
 @keyframes twinkle { 50% { opacity: 0.35; } }
 /* 잔치 장식은 집·명소 누르기를 막지 않는다. 촛불·호박 등불은 살랑 흔들린다 */
@@ -756,6 +764,8 @@ button { font: inherit; color: inherit; }
   font-size: 13px;
 }
 .reader-building[hidden] { display: none; }
+.reader-aging { margin-top: 8px; font-size: 13px; color: #6f8a5a; }
+.reader-aging[hidden] { display: none; }
 .reader-text { margin: 14px 0 18px; font-size: 18px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
 .reader-edited { margin: -10px 0 16px; font-size: 12px; color: var(--ink-soft); }
 .reader-turn { display: flex; justify-content: space-between; gap: 8px; margin: -6px 0 12px; }

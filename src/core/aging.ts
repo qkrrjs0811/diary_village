@@ -29,6 +29,22 @@ export function agingOf(date: string, today: string): AgingStage {
   return stage
 }
 
+const AGING_ICON: Record<Exclude<AgingStage, 'none'>, string> = { vine: '🌿', ivy: '🍃', nest: '🪺' }
+const TURNED_LINE: Record<Exclude<AgingStage, 'none'>, string> = {
+  vine: '지은 지 30일, 오늘 벽에 덩굴이 돋았어요',
+  ivy: '지은 지 100일, 오늘 담쟁이가 올랐어요',
+  nest: '지은 지 1년, 오늘 처마에 새 둥지가 생겼어요',
+}
+
+/** 읽기 창에 보일 집 나이 한 줄. 세월이 깃들기 전(30일 전)에는 말하지 않는다 */
+export function agingLine(date: string, today: string): string | null {
+  const stage = agingOf(date, today)
+  if (stage === 'none') return null
+  const turned = agingTurnedToday(date, today)
+  if (turned) return `${AGING_ICON[turned]} ${TURNED_LINE[turned]}`
+  return `${AGING_ICON[stage]} 지은 지 ${houseAge(date, today)}일 된 집이에요`
+}
+
 /** 오늘이 그 집이 단계를 넘는 날(30·100·365일째)이면 그 단계, 아니면 null */
 export function agingTurnedToday(date: string, today: string): Exclude<AgingStage, 'none'> | null {
   const age = houseAge(date, today)

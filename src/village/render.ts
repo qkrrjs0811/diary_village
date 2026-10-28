@@ -11,7 +11,7 @@ import type { Guest, GuestPlay, Resident, Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
-import { agingOf, type AgingStage } from '../core/aging'
+import { agingOf, agingTurnedToday, type AgingStage } from '../core/aging'
 
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
@@ -726,11 +726,12 @@ function leaf(g: Element, at: Pt, r: number, angle: number, color: string) {
  * 시간이 쌓이는 집: 30일 벽 아래 덩굴, 100일 앞 모서리 담쟁이, 365일 처마 끝 새 둥지(새 없음, 알 셋).
  * 앞 단계는 그대로 남는다. 집 모양은 건드리지 않고 집 안 맨 위에 얹는다(누르면 집이 열린다)
  */
-function drawAging(house: Element, f: AgingFrame, stage: AgingStage, season: Season) {
+function drawAging(house: Element, f: AgingFrame, stage: AgingStage, season: Season, turned: boolean) {
   house.setAttribute('data-aging', stage)
   if (stage === 'none') return
   const [c1, c2] = IVY[season]
   const g = el('g', { class: 'aging', 'data-season': season }, house)
+  if (turned) drawAgingGlint(house, f)
   const vine = el('g', { class: 'aging-vine' }, g)
   f.base.forEach((p, i) => {
     const s = i % 2 ? 1 : -1
@@ -764,9 +765,32 @@ function drawAging(house: Element, f: AgingFrame, stage: AgingStage, season: Sea
   el('path', { d: `M${x - 3.8} ${y - 1} q3.8 2 7.6 0 M${x - 4.5} ${y - 2} l-1 -0.8 M${x + 4.5} ${y - 2} l1 -0.8`, fill: 'none', stroke: '#8a6a50', 'stroke-width': 0.5, 'stroke-linecap': 'round' }, nest)
 }
 
+/**
+ * 집이 세월 단계를 넘는 날(30·100·365일째) 그 집에 작은 별빛이 몇 번 반짝이고 사라진다.
+ * 그림만 바꾸고 저장하지 않는다. 움직임 줄이기면 CSS 가 숨긴다
+ */
+function drawAgingGlint(house: Element, f: AgingFrame) {
+  house.setAttribute('data-aging-turned', 'true')
+  const g = el('g', { class: 'aging-glint', 'data-testid': 'aging-glint' }, house)
+  const [lo, hi] = f.climb
+  const spots: [Pt, number][] = [
+    [{ x: f.nest.x + 6, y: f.nest.y - 6 }, 3.4],
+    [{ x: (lo.x + hi.x) / 2 - 7, y: (lo.y + hi.y) / 2 }, 2.6],
+    [{ x: f.base[0].x - 3, y: f.base[0].y - 9 }, 2.2],
+  ]
+  spots.forEach(([p, r], i) => {
+    const q = r * 0.32
+    el('path', {
+      d: `M${p.x} ${p.y - r} Q${p.x + q} ${p.y - q} ${p.x + r} ${p.y} Q${p.x + q} ${p.y + q} ${p.x} ${p.y + r} Q${p.x - q} ${p.y + q} ${p.x - r} ${p.y} Q${p.x - q} ${p.y - q} ${p.x} ${p.y - r} z`,
+      fill: '#fff6c8', stroke: '#e3bd5a', 'stroke-width': 0.4, style: `--i:${i}`,
+    }, g)
+  })
+}
+
 /** 그날 건물 또는 보통 집을 그리고 집 나이만큼 세월을 얹는다. 돌려주는 값은 연출을 띄울 높이 */
 function drawHouse(g: Element, lot: Lot, entry: Entry, isNew: boolean, today: string, smokes?: Element): number {
-  return drawHouseBody(g, lot, entry, isNew, smokes, (house, f) => drawAging(house, f, agingOf(entry.date, today), seasonOf(today)))
+  return drawHouseBody(g, lot, entry, isNew, smokes, (house, f) =>
+    drawAging(house, f, agingOf(entry.date, today), seasonOf(today), agingTurnedToday(entry.date, today) !== null))
 }
 
 /** 그날 건물(글 단어로 정함) 또는 보통 집. 기분은 지붕 색만 바꾼다. 돌려주는 값은 연출을 띄울 높이 */

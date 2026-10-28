@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGING_STEPS, agingOf, agingTurnedToday, houseAge } from './aging'
+import { AGING_STEPS, agingLine, agingOf, agingTurnedToday, houseAge } from './aging'
 import { houseLook } from './village'
 import type { Entry } from './types'
 
@@ -89,5 +89,24 @@ describe('세월 단계', () => {
     agingTurnedToday(entry.date, '2026-10-28')
     expect(JSON.stringify(houseLook(entry))).toBe(before)
     expect(Object.keys(houseLook(entry))).not.toContain('aging')
+  })
+})
+
+describe('집 나이 한 줄', () => {
+  it('30일 전에는 말하지 않는다(새 집이 덜해 보이지 않게)', () => {
+    expect(agingLine('2026-10-28', '2026-10-28')).toBeNull()
+    expect(agingLine('2026-09-29', '2026-10-28')).toBeNull()
+    expect(agingLine('2026-11-01', '2026-10-28')).toBeNull()
+    expect(agingLine('엉뚱한 값', '2026-10-28')).toBeNull()
+  })
+  it('30일부터 집 나이를 다정하게 말한다', () => {
+    expect(agingLine('2026-09-27', '2026-10-28')).toBe('🌿 지은 지 31일 된 집이에요')
+    expect(agingLine('2026-07-19', '2026-10-28')).toBe('🍃 지은 지 101일 된 집이에요')
+    expect(agingLine('2025-10-27', '2026-10-28')).toBe('🪺 지은 지 366일 된 집이에요')
+  })
+  it('단계를 넘는 날에는 오늘 생긴 세월을 알려 준다', () => {
+    expect(agingLine('2026-09-28', '2026-10-28')).toBe('🌿 지은 지 30일, 오늘 벽에 덩굴이 돋았어요')
+    expect(agingLine('2026-07-20', '2026-10-28')).toBe('🍃 지은 지 100일, 오늘 담쟁이가 올랐어요')
+    expect(agingLine('2025-10-28', '2026-10-28')).toBe('🪺 지은 지 1년, 오늘 처마에 새 둥지가 생겼어요')
   })
 })

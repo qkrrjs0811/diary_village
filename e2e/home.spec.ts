@@ -3406,3 +3406,84 @@ test('오래된 집일수록 벽 아래 덩굴, 모서리 담쟁이, 처마 끝 
   await shot('aging-night')
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
+
+test('읽기 창에 집 나이 한 줄이 보이고, 세월 단계를 넘는 날에는 그 집이 살짝 반짝인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = [
+    ...monthEntries('2025-10', [26, 27, 28]),
+    ...monthEntries('2026-07', [19, 20]),
+    ...monthEntries('2026-09', [27, 28, 29]),
+    ...monthEntries('2026-10', [20, 27]),
+  ]
+  const saved = JSON.stringify({ version: 1, entries })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+
+  // 오늘로 365·100·30일째인 집만 반짝이고, 하루 지난 집·새 집은 그대로다
+  for (const d of ['2025-10-28', '2026-07-20', '2026-09-28']) {
+    await expect(page.getByTestId(`house-${d}`).getByTestId('aging-glint')).toHaveCount(1)
+  }
+  for (const d of ['2025-10-27', '2026-07-19', '2026-09-27', '2026-09-29', '2026-10-27']) {
+    await expect(page.getByTestId(`house-${d}`).getByTestId('aging-glint')).toHaveCount(0)
+  }
+  await expect(page.locator('.aging-glint')).toHaveCount(3)
+
+  const line = page.getByTestId('reader-aging')
+  const read = async (d: string) => {
+    await page.getByTestId(`house-${d}`).dispatchEvent('click')
+    await expect(page.getByTestId('reader-date')).toBeVisible()
+  }
+  await read('2026-09-28')
+  await expect(line).toHaveText('🌿 지은 지 30일, 오늘 벽에 덩굴이 돋았어요')
+  await page.getByTestId('reader-prev').click()
+  await expect(line).toHaveText('🌿 지은 지 31일 된 집이에요')
+  await page.getByTestId('reader-prev').click()
+  await expect(line).toHaveText('🍃 지은 지 100일, 오늘 담쟁이가 올랐어요')
+  await page.getByTestId('reader-prev').click()
+  await expect(line).toHaveText('🍃 지은 지 101일 된 집이에요')
+  for (let i = 0; i < 4; i++) await page.getByTestId('reader-next').click()
+  // 30일이 안 된 집에는 나이를 말하지 않는다
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-09 29일의 한 줄')
+  await expect(line).toBeHidden()
+  await page.getByTestId('reader-close').click()
+  await read('2026-10-27')
+  await expect(line).toBeHidden()
+  await page.getByTestId('reader-close').click()
+
+  // 작년 오늘 쪽지로 1년 된 집에 간다
+  await page.getByTestId('memory').click()
+  await page.clock.runFor(1500)
+  await expect(line).toHaveText('🪺 지은 지 1년, 오늘 처마에 새 둥지가 생겼어요')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-aging.png' })
+  await page.getByTestId('reader-close').click()
+  await finishAnimations(page)
+  const target = page.getByTestId('house-2025-10-28')
+  const hb = (await target.boundingBox())!
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+  for (let i = 0; i < 2; i++) await page.mouse.wheel(0, -200)
+  await page.waitForTimeout(300)
+  // 별빛은 집 칸 안에 있고 누르기를 막지 않는다
+  const glint = target.getByTestId('aging-glint')
+  const gb = (await glint.boundingBox())!
+  const body = (await target.locator('.hit').boundingBox())!
+  expect(gb.x).toBeGreaterThanOrEqual(body.x - 12)
+  expect(gb.x + gb.width).toBeLessThanOrEqual(body.x + body.width + 12)
+  expect(await glint.evaluate((n) => getComputedStyle(n).pointerEvents)).toBe('none')
+  // 반짝임이 한창일 때를 멈춰 찍는다
+  await page.evaluate(() =>
+    document.getAnimations().forEach((a) => {
+      a.pause()
+      const t = a.effect?.getComputedTiming()
+      if ((a.effect as KeyframeEffect | null)?.target?.closest?.('.aging-glint')) a.currentTime = Number(t?.delay ?? 0) + 720
+    }),
+  )
+  await page.screenshot({ path: 'test-results/screens/aging-glint.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 움직임 줄이기면 반짝이지 않는다
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(glint).toBeHidden()
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
