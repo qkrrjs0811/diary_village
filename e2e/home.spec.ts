@@ -387,7 +387,8 @@ test('어제를 안 썼으면 "어제도 남길까요?"로 어제 칸에 쓴다'
   await expect(page.getByTestId('today-date')).toHaveText('10월 27일 화요일')
   await expect(page.getByTestId('write-yesterday')).toHaveCount(0)
   await expect(page.getByTestId('today-spot')).toBeAttached()
-  await page.clock.runFor(4000)
+  // 다섯째 날이라 새 이웃 보리가 광장으로 들어오는 것까지 보고 돌아온다
+  await page.clock.runFor(4000 + 3500)
   await page.screenshot({ path: 'test-results/screens/yesterday-built.png' })
 
   const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
@@ -563,6 +564,86 @@ test('새 주민이 오는 날 짓는 알림에 "새 이웃 ○○가 이사 왔
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-neighbor.png' })
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+})
+
+test('새 이웃이 온 날, 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  // 아홉 날을 썼고, 오늘이 열째 날이라 호두가 온다
+  const entries = monthEntries('2026-10', [3, 5, 7, 9, 11, 13, 15, 17, 19])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('resident-hodu')).toHaveCount(0)
+  await expect(page.locator('.resident.newcomer')).toHaveCount(0)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('build-note')).toContainText('🏡 새 이웃 호두가 이사 왔어요')
+  // 호두는 손님이 아니라 광장 길로 들어온다
+  const hodu = page.getByTestId('resident-hodu')
+  await expect(hodu).toHaveClass(/newcomer/)
+  await expect(page.locator('.resident.newcomer')).toHaveCount(1)
+  await expect(page.getByTestId('guest-hodu')).toHaveCount(0)
+  // 짓는 연출로 다가갔다 돌아오고, 열째 날이라 뜨는 축하 카드를 닫을 때까지는 광장 앞 가장자리에 숨어 기다린다
+  await page.clock.runFor(800 + 1800 + 900 + 100)
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await page.clock.runFor(3000)
+  await expect(hodu).not.toHaveClass(/coming/)
+  await page.getByTestId('celebrate-close').click()
+  // 광장 쪽으로 다가간 뒤(800) 뛰어 들어온다
+  await page.clock.runFor(900)
+  await expect(page.getByTestId('house-2026-10-20')).not.toBeInViewport()
+  await expect(hodu).toHaveClass(/coming/)
+  const at = async (t: number) => {
+    await page.evaluate((t) => {
+      for (const a of document.getAnimations()) {
+        a.pause()
+        a.currentTime = (a as CSSAnimation).animationName === 'newcomer-come' ? t : 2400
+      }
+    }, t)
+    return (await hodu.locator('.hit').boundingBox())!
+  }
+  const start = await at(250)
+  const mid = await at(700)
+  await page.screenshot({ path: 'test-results/screens/neighbor-arrive.png' })
+  // 끝(1800) 바로 앞: 거의 제 길에 섰다
+  const end = await at(1760)
+  // 섬 앞 가장자리(화면 아래쪽)에서 위로 들어와 제 길에 선다
+  expect(start.y).toBeGreaterThan(mid.y)
+  expect(mid.y).toBeGreaterThan(end.y)
+  await expect(hodu).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/neighbor-arrived.png' })
+  // 뛰어 오는 동안 맨 앞에 그렸다가, 다 오면 제 깊이 자리로 돌아간다
+  expect(await hodu.evaluate((n) => n.parentNode!.lastChild === n)).toBe(true)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await finishAnimations(page)
+  await expect.poll(() => hodu.evaluate((n) => n.parentNode!.lastChild === n)).toBe(false)
+  // 머문 뒤 원래 보기(오늘 집)로 돌아온다
+  await page.clock.runFor(3000)
+  await expect(page.getByTestId('house-2026-10-20')).toBeInViewport()
+
+  // 저장된 것은 기록뿐이다. 다시 열면 뛰어 오지 않고, 오늘은 광장 길을 그대로 걷는다
+  const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), KEY)
+  expect(Object.keys(saved).sort()).toEqual(['entries', 'version'])
+  await page.reload()
+  await expect(page.getByTestId('resident-hodu')).toHaveCount(1)
+  await expect(page.locator('.resident.newcomer')).toHaveCount(0)
+  await expect(page.getByTestId('guest-hodu')).toHaveCount(0)
+})
+
+test('움직임 줄이기면 새 이웃은 뛰어 오지 않고 바로 그 자리에 있다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 5, 7, 9, 11, 13, 15, 17, 19])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('resident-hodu')).toHaveCount(1)
+  await expect(page.locator('.resident.newcomer')).toHaveCount(0)
 })
 
 test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 건물의 말이 든 날은 그대로다', async ({ page }) => {

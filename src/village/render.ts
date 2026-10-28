@@ -7,7 +7,7 @@ import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX } from '../core/letter'
-import type { Guest, GuestPlay, Resident, Walk } from '../core/resident'
+import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Resident, type Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
@@ -1634,19 +1634,24 @@ function drawSpot(g: Element, s: DecorSpot) {
   })
 }
 
-/** 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다 */
-function drawResident(g: Element, walk: Walk) {
+/**
+ * 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다.
+ * come: 방금 이사 온 새 이웃이면 광장 앞 가장자리에 숨어 있다가 'coming'이 붙으면 통통 뛰어 제 길로 들어온다
+ */
+function drawResident(g: Element, walk: Walk, come = false) {
   const { resident: r, from, to } = walk
   const a = iso(from.gx, from.gy)
   const b = iso(to.gx, to.gy)
   const dx = b.x - a.x
   const seed = hash(r.id)
   const face = dx >= 0 ? 1 : -1
+  const gate = !come ? null : iso(plazaEntrance(from).gx, plazaEntrance(from).gy)
   const res = el('g', {
-    class: 'resident',
+    class: gate ? 'resident newcomer' : 'resident',
     'data-testid': `resident-${r.id}`,
     'data-resident': r.id,
-    style: `--dx:${dx.toFixed(1)}px;--dy:${(b.y - a.y).toFixed(1)}px;--dur:${9 + (seed % 5)}s;--lag:-${seed % 9}s;--f0:${face};--f1:${-face}`,
+    style: `--dx:${dx.toFixed(1)}px;--dy:${(b.y - a.y).toFixed(1)}px;--dur:${9 + (seed % 5)}s;--lag:-${seed % 9}s;--f0:${face};--f1:${-face}`
+      + (gate ? `;--cx:${(gate.x - a.x).toFixed(1)}px;--cy:${(gate.y - a.y).toFixed(1)}px` : ''),
   }, g)
   const stroll = el('g', { class: 'stroll' }, res)
   // 누르기 쉬운 넓은 투명 영역(가까이 보면 손가락보다 크다)
@@ -1864,6 +1869,8 @@ export interface DrawOptions {
   sign?: { landmark: Landmark; lines: [string, string] } | null
   /** 주민이 걷는 길(누적 날 수로 계산) */
   walks?: Walk[]
+  /** 방금 이사 온 새 이웃(광장 길을 걷는 주민만 광장 앞 가장자리에 숨어 있다가 'coming'이 붙으면 뛰어 들어온다) */
+  arrive?: string[]
   /** 오늘의 손님(기록·날짜로 계산) */
   guests?: Guest[]
   /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
@@ -1920,7 +1927,10 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     const { waiting } = opt.mailbox
     items.push({ depth: PLAZA.gx + MAILBOX.col + PLAZA.gy + MAILBOX.row + MAILBOX_AT.u + MAILBOX_AT.v - 0.5, draw: () => drawMailbox(things, waiting) })
   }
-  for (const w of opt.walks ?? []) items.push({ depth: w.depth, draw: () => drawResident(things, w) })
+  for (const w of opt.walks ?? []) {
+    const come = !!opt.arrive?.includes(w.resident.id) && onPlaza(w.from)
+    items.push({ depth: w.depth, draw: () => drawResident(things, w, come) })
+  }
   // 오늘 집을 방금 지었으면 손님이 짓는 연출 뒤에 놀러 온다
   const arrive = !!opt.newDate && opt.newDate === opt.today
   for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu, arrive && !gu.waiting) })

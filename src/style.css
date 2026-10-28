@@ -673,8 +673,26 @@ button { font: inherit; color: inherit; }
 }
 .resident .hop { animation: hop 0.5s ease-in-out infinite alternate; }
 @keyframes hop { to { transform: translateY(-1.6px); } }
+/* 새 이웃: 광장 앞 가장자리에 숨어 기다리다가(멈춤) 'coming'이 붙으면 통통 다섯 번 뛰어 제 길로 들어온다.
+   다 오면 놓아 주어 집 앞 옅게 하기가 그대로 먹는다 */
+.resident.newcomer { animation: newcomer-come 1.8s ease-out paused; }
+.resident.newcomer.coming { animation-play-state: running; }
+@keyframes newcomer-come {
+  0% { transform: translate(var(--cx), var(--cy)); opacity: 0; }
+  8% { opacity: 1; }
+  10% { transform: translate(calc(var(--cx) * 0.9), calc(var(--cy) * 0.9 - 6px)); }
+  20% { transform: translate(calc(var(--cx) * 0.8), calc(var(--cy) * 0.8)); }
+  30% { transform: translate(calc(var(--cx) * 0.65), calc(var(--cy) * 0.65 - 6px)); }
+  40% { transform: translate(calc(var(--cx) * 0.5), calc(var(--cy) * 0.5)); }
+  52% { transform: translate(calc(var(--cx) * 0.36), calc(var(--cy) * 0.36 - 6px)); }
+  64% { transform: translate(calc(var(--cx) * 0.22), calc(var(--cy) * 0.22)); }
+  76% { transform: translate(calc(var(--cx) * 0.1), calc(var(--cy) * 0.1 - 5px)); }
+  88% { transform: translate(0, 0); }
+  94% { transform: translate(0, -2.5px); }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .resident .stroll, .resident .face, .resident .hop { animation: none; }
+  .resident .stroll, .resident .face, .resident .hop, .resident.newcomer { animation: none; }
 }
 /* 오늘의 손님: 오늘 집 앞에서 살짝 들썩이고, 기다리는 손님은 말풍선이 천천히 깜빡인다 */
 .guest { cursor: pointer; }

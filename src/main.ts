@@ -18,7 +18,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, dayReplyLine, guestLine, neighborNote, reachedResidents,residentTalk, residentWalks, residentsOf, todayGuests, type Guest } from './core/resident'
+import { RESIDENTS, arrivedOn, dayReplyLine, guestLine, neighborNote, onPlaza, plazaEntrance, reachedResidents, residentTalk, residentWalks, residentsOf, todayGuests, type Guest, type Walk } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -257,14 +257,18 @@ const celebrateCard = createCelebration({ onVisit: visitLandmark })
 document.body.appendChild(celebrateCard.root)
 let celebrateTimer = 0
 /** before → 지금 기록으로 명소가 생기거나 마을 단계가 올랐으면 축하 카드를 띄운다. wait: 짓는 연출이 끝날 때까지 기다리는 시간 */
-function celebrate(before: Dated[], wait: number) {
+/** then: 축하 카드가 있으면 닫힌 뒤, 없으면 wait 뒤에 할 일(새 이웃 맞이) */
+function celebrate(before: Dated[], wait: number, then?: () => void) {
   const days = builtDays(save)
   const landmarks = reachedLandmarks(before, days)
   const stages = reachedStages(before, days)
-  if (landmarks.length === 0 && stages.length === 0) return
+  if (landmarks.length === 0 && stages.length === 0) {
+    if (then) welcomeTimer = window.setTimeout(then, wait)
+    return
+  }
   clearTimeout(celebrateTimer)
   const text = milestoneCard(landmarks, stages, days)
-  celebrateTimer = window.setTimeout(() => celebrateCard.open(text), wait)
+  celebrateTimer = window.setTimeout(() => celebrateCard.open(text, undefined, then), wait)
   // 소리는 누른 순간에 예약해야 폰이 막지 않는다. 카드가 뜨는 순간 울린다
   sound.cue('celebrate', '', wait)
 }
@@ -342,7 +346,9 @@ const card = createWriteCard({
     }
     const before = builtDays(save)
     save = r.save
-    render(r.entry.date)
+    // 새 이웃은 짓는 연출이 끝나고 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다
+    const comers = reachedResidents(before, builtDays(save))
+    render(r.entry.date, comers.map((x) => x.id))
     // 다가가 짓는 동안 새 집 앞을 가리는 나무·주민을 옅게 했다가, 원래 보기로 돌아올 때 되돌린다
     clearTimeout(veilTimer)
     veilFront(svg, r.entry.date)
@@ -354,18 +360,49 @@ const card = createWriteCard({
     const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
     const notes = [
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
-      neighborNote(reachedResidents(before, builtDays(save))),
+      neighborNote(comers),
       decorNote(reachedDecors(before, builtDays(save))),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)
     showNote(notes.length ? notes.join('\n') : null)
-    celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
+    celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back, welcomeNeighbor(comers.map((x) => x.id)))
     return null
   },
   onOpen: readEntry,
   onMemory: visitMemory,
   onRecap: (at) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), at),
 })
+
+/**
+ * 새 이웃 맞이: 광장 앞 가장자리 쪽으로 다가가 새 이웃이 통통 뛰어 들어오는 것을 보고 원래 보기로 돌아온다.
+ * 원래 보기로 돌아온 뒤(축하 카드가 있으면 닫은 뒤)에 부른다. 광장 길로 오는 새 이웃이 없으면 없다
+ */
+let welcomeTimer = 0
+function welcomeNeighbor(ids: string[]): (() => void) | undefined {
+  clearTimeout(welcomeTimer)
+  const w = drawn?.walks.find((x) => ids.includes(x.resident.id) && onPlaza(x.from))
+  if (!w || calm) return
+  const gate = plazaEntrance(w.from)
+  return () => {
+    const node = svg.querySelector(`.resident.newcomer[data-resident="${w.resident.id}"]`)
+    if (!node) return
+    // 짓는 연출처럼 다가가 머무는 동안 들어오고, 원래 보기로 돌아온다
+    camera.visit(iso((w.from.gx + gate.gx) / 2 + 0.5, (w.from.gy + gate.gy) / 2, 6))
+    welcomeTimer = window.setTimeout(() => {
+      // 뛰어 오는 동안은 맨 앞에 그려 우체통·명소에 가리지 않고, 다 오면 제 깊이 자리로 돌아간다
+      const parent = node.parentNode!
+      const next = node.nextSibling
+      parent.appendChild(node)
+      const land = (e: Event) => {
+        if (e.target !== node) return
+        node.removeEventListener('animationend', land)
+        if (node.parentNode === parent && (!next || next.parentNode === parent)) parent.insertBefore(node, next)
+      }
+      node.addEventListener('animationend', land)
+      node.classList.add('coming')
+    }, SHOW.go)
+  }
+}
 
 /** "N일 전 오늘"의 집으로 날아가 그 집이 반짝이고, 도착하면 그날 글을 연다 */
 let memoryTimer = 0
@@ -429,7 +466,7 @@ let pick: DecorId | null = null
 let picked: number | null = null
 let decorMsg = ''
 /** 마지막으로 그린 마을(누른 칸을 자리로 바꿀 때 쓴다) */
-let drawn: { village: Village; today: string; guests: Guest[] } | null = null
+let drawn: { village: Village; today: string; guests: Guest[]; walks: Walk[] } | null = null
 const HINT = '소품을 고르고 빈 자리(점선)를 눌러 놓아요. 놓은 소품은 눌러서 옮기거나 치워요'
 const decorName = (id: DecorId) => {
   const d = DECORS.find((x) => x.id === id)!
@@ -606,8 +643,8 @@ function showNote(text: string | null, delay = SHOW.go, action?: { label: string
   noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + (action ? 5000 : 2500))
 }
 
-/** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다 */
-function render(newDate?: string) {
+/** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다. comers: 방금 이사 온 새 이웃(광장으로 들어온다) */
+function render(newDate?: string, comers: string[] = []) {
   const today = dayKey(Date.now())
   // 지운 날은 빈 땅으로 돌아가지만 집을 지었던 날로 센다(명소·단계·주민을 빼앗지 않는다)
   const days = builtDays(save)
@@ -615,8 +652,11 @@ function render(newDate?: string) {
   const festival = festivalOn(days, today)
   // 오늘의 손님: 소품이 놓인 칸은 피해 오늘 집 앞에 선다. 손님이 된 주민은 걷지 않는다
   const decors = decorsOnMap(village, today, save)
-  const guests = todayGuests(village, residentsOf(days), save.entries, today, decors)
-  drawn = { village, today, guests }
+  // 오늘 이사 온 새 이웃은 손님보다 광장 길을 먼저 받는다(기록·날짜로 계산, 저장하지 않음)
+  const newcomers = [...new Set([...arrivedOn(days, today).map((x) => x.id), ...comers])]
+  const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers)
+  const walks = residentWalks(village, residentsOf(days), guests, newcomers)
+  drawn = { village, today, guests, walks }
   if (picked != null && !save.decor?.[picked]) picked = null
   // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
   const spots = decorating && (pick != null || picked != null) ? decorSpots(village, today, save) : []
@@ -632,7 +672,8 @@ function render(newDate?: string) {
     buildDelay: newDate && !calm ? SHOW.go : 0,
     landmarks: earnedLandmarks(days),
     sign: nextSign(days),
-    walks: residentWalks(village, residentsOf(days), guests),
+    walks,
+    arrive: calm ? [] : comers,
     guests,
     decors,
     festival: festival?.id,

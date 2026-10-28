@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, reachedResidents,dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { replyOf } from './reply'
@@ -468,5 +468,47 @@ describe('이웃 수첩: 이사 온 날', () => {
     expect(neighborNote([by('보리')])).toBe('🏡 새 이웃 보리가 이사 왔어요')
     expect(neighborNote([by('동글이')])).toBe('🏡 새 이웃 동글이가 이사 왔어요')
     expect(neighborNote([by('콩이'), by('모모')])).toBe('🏡 새 이웃 콩이와 모모가 이사 왔어요')
+  })
+})
+
+describe('이웃 수첩: 새 이웃이 광장으로 들어온다', () => {
+  const inPlaza = (s: { gx: number; gy: number }) => s.gx >= PLAZA.gx && s.gx < PLAZA.gx + PLAZA.w && s.gy >= PLAZA.gy && s.gy < PLAZA.gy + PLAZA.h
+
+  it('새 이웃은 광장 길을 먼저 받는다(다른 주민끼리 길이 겹치지 않는다)', () => {
+    const es = days(10, '2026-10-18')
+    const v = buildVillage(es, '2026-10-27')
+    const rs = residentsOf(es)
+    const plain = residentWalks(v, rs)
+    expect(inPlaza(plain.find((w) => w.resident.id === 'hodu')!.from)).toBe(false)
+    const walks = residentWalks(v, rs, [], ['hodu'])
+    expect(walks).toHaveLength(plain.length)
+    expect(inPlaza(walks.find((w) => w.resident.id === 'hodu')!.from)).toBe(true)
+    // 쓰는 길은 그대로이고 주인만 바뀐다
+    const lanes = (ws: typeof walks) => new Set(ws.map((w) => `${w.from.gx},${w.from.gy}`))
+    expect(lanes(walks).size).toBe(walks.length)
+    expect(lanes(walks)).toEqual(lanes(plain))
+    // 길이 모자라 빠지던 주민도 새 이웃이면 걷는다
+    const many = residentWalks(buildVillage([], '2026-10-27'), RESIDENTS, [], ['donggeul'])
+    expect(inPlaza(many.find((w) => w.resident.id === 'donggeul')!.from)).toBe(true)
+  })
+
+  it('이사 온 날의 새 이웃은 다른 주민이 있으면 손님이 되지 않는다', () => {
+    const today = '2026-10-27'
+    for (let n = 3; n <= 40; n++) {
+      const es = days(n, addDays(today, 1 - n))
+      const v = buildVillage(es, today)
+      const fresh = arrivedOn(es, today).map((r) => r.id)
+      const gs = todayGuests(v, residentsOf(es), es, today, [], fresh)
+      expect(gs.length).toBe(todayGuests(v, residentsOf(es), es, today).length)
+      for (const g of gs) expect(fresh).not.toContain(g.resident.id)
+    }
+    // 첫날처럼 다른 주민이 없으면 새 이웃이 손님이 된다
+    const one = days(1, today)
+    expect(todayGuests(buildVillage(one, today), residentsOf(one), one, today, [], ['kong'])[0].resident.id).toBe('kong')
+  })
+
+  it('들어오는 자리는 그 길과 같은 줄의 광장 앞 가장자리다', () => {
+    const at = { gx: PLAZA.gx + 4, gy: PLAZA.gy + 3 }
+    expect(plazaEntrance(at)).toEqual({ gx: at.gx, gy: PLAZA.gy + PLAZA.h })
   })
 })

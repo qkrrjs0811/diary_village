@@ -150,20 +150,42 @@ function plazaLanes(): Lane[] {
  * 주민마다 걷는 길을 정한다. 첫 주민은 가장 최근 구역(오늘 자리 근처), 다음은 광장,
  * 그다음은 오래된 구역 순으로 돌아가며 하나씩 고른다. 길이 모자라면 남는 주민은 빠진다
  */
-export function residentWalks(village: Village, residents: Resident[], guests: Guest[] = []): Walk[] {
+export function residentWalks(village: Village, residents: Resident[], guests: Guest[] = [], newcomers: readonly string[] = []): Walk[] {
   // 손님이 된 주민은 오늘 집 앞에 있으니 걷지 않는다(같은 주민이 두 군데 보이지 않게)
   const away = new Set(guests.map((g) => g.resident.id))
   residents = residents.filter((r) => !away.has(r.id))
   const blocks = [...village.blocks].reverse()
-  const queues = [blockLanes(blocks[0] ?? { month: '', bx: 0, by: 0, lots: [] }), plazaLanes(), ...blocks.slice(1).map(blockLanes)]
+  const plaza = plazaLanes()
+  const queues = [blockLanes(blocks[0] ?? { month: '', bx: 0, by: 0, lots: [] }), plaza, ...blocks.slice(1).map(blockLanes)]
   const lanes: Lane[] = []
   for (let i = 0; queues.some((q) => i < q.length); i++) for (const q of queues) if (i < q.length) lanes.push(q[i])
-  return residents.slice(0, lanes.length).map((resident, i) => {
+  // 새 이웃은 광장 길을 먼저 받아 광장으로 들어온다. 나머지 주민은 남은 길을 차례로 받는다
+  const fresh = residents.filter((r) => newcomers.includes(r.id)).slice(0, plaza.length)
+  const rest = residents.filter((r) => !fresh.includes(r))
+  const order: (Resident | undefined)[] = lanes.slice(0, residents.length).map(() => undefined)
+  fresh.forEach((r, i) => {
+    const at = lanes.indexOf(plaza[i])
+    if (at >= order.length) order.push(...Array(at + 1 - order.length).fill(undefined))
+    order[at] = r
+  })
+  for (let i = 0, k = 0; i < order.length && k < rest.length; i++) if (!order[i]) order[i] = rest[k++]
+  return order.flatMap((resident, i) => {
+    if (!resident) return []
     const { from, to } = lanes[i]
     // 길 한 칸 가운데를 기준으로, 뒤 칸 집보다 뒤에·앞 칸 집보다 먼저 그린다
     const depth = (from.gx + to.gx) / 2 + (from.gy + to.gy) / 2 - 0.25
     return { resident, from, to, depth }
   })
+}
+
+/** 광장 안 자리인지 */
+export function onPlaza(s: Spot): boolean {
+  return s.gx >= PLAZA.gx && s.gx < PLAZA.gx + PLAZA.w && s.gy >= PLAZA.gy && s.gy < PLAZA.gy + PLAZA.h
+}
+
+/** 새 이웃이 광장 길로 들어오기 시작하는 자리: 그 길과 같은 줄의 광장 앞 가장자리(섬 끝) */
+export function plazaEntrance(at: Spot): Spot {
+  return { gx: at.gx, gy: PLAZA.gy + PLAZA.h }
 }
 
 /** 손님 놀이: 오늘 건물 종류(보통 집은 'house') */
@@ -216,22 +238,24 @@ export function todayGuests(
   entries: readonly Entry[],
   today: string,
   taken: readonly Spot[] = [],
+  newcomers: readonly string[] = [],
 ): Guest[] {
   const lots = village.blocks.flatMap((b) => b.lots)
   const lot = lots.find((l) => l.date === today)
   if (!lot || residents.length === 0) return []
   const cell = (s: Spot) => `${Math.floor(s.gx)},${Math.floor(s.gy)}`
   const busy = new Set([...taken.map(cell), ...lots.filter((l) => l.entry && l.date !== today).map(cell)])
-  const inPlaza = (s: Spot) => s.gx >= PLAZA.gx && s.gx < PLAZA.gx + PLAZA.w && s.gy >= PLAZA.gy && s.gy < PLAZA.gy + PLAZA.h
   // 집 앞 왼쪽·오른쪽 가장자리(문 앞 한가운데는 비워 둔다)
   const spots = [
     { gx: lot.gx + 0.3, gy: lot.gy + 1 },
     { gx: lot.gx + 1, gy: lot.gy + 0.3 },
-  ].filter((s) => !busy.has(cell(s)) && !inPlaza(s))
+  ].filter((s) => !busy.has(cell(s)) && !onPlaza(s))
   const todays = entries.find((x) => x.date === today)
   const b = todays ? buildingOf(todays) : null
   const count = Math.min(todays ? (residents.length >= 3 ? 2 : 1) : 1, spots.length)
-  return guestOrder(residents, today)
+  // 오늘 이사 온 새 이웃은 광장으로 들어오니, 다른 주민이 모자랄 때만 손님이 된다
+  const order = guestOrder(residents, today)
+  return [...order.filter((r) => !newcomers.includes(r.id)), ...order.filter((r) => newcomers.includes(r.id))]
     .slice(0, count).map((resident, i) => ({
     resident,
     spot: spots[i],
