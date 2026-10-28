@@ -2357,8 +2357,18 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(page.getByTestId('book-cinema')).toHaveAttribute('data-found', 'false')
   await expect(page.getByTestId('book-cinema').locator('.book-name')).toHaveText('???')
 
-  // 칸은 손가락으로 누르기 충분히 크다
-  for (const id of ['book-cafe', 'book-well', 'book-close']) {
+  // 모은 것 네 칸은 책갈피로 넘긴다. 열면 건물 칸만 보인다
+  await expect(page.getByTestId('book-tab-buildings')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('book-landmark-count')).toHaveText('1 / 7')
+  await expect(page.getByTestId('book-neighbor-count')).toBeVisible()
+  await expect(page.getByTestId('book-landmarks')).toBeHidden()
+  await expect(page.getByTestId('book-neighbors')).toBeHidden()
+  await expect(page.getByTestId('book-decors')).toBeHidden()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/book-tab-buildings.png' })
+
+  // 칸과 책갈피는 손가락으로 누르기 충분히 크다
+  for (const id of ['book-cafe', 'book-close', 'book-tab-buildings', 'book-tab-landmarks', 'book-tab-neighbors', 'book-tab-decors']) {
     const b = (await page.getByTestId(id).boundingBox())!
     expect(b.height).toBeGreaterThanOrEqual(44)
     expect(b.width).toBeGreaterThanOrEqual(44)
@@ -2368,12 +2378,21 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(page.getByTestId('book-detail')).toHaveText("☕ 카페 · 2채 · 10월 10일에 '커피'에서 처음 생겼어요")
   await page.getByTestId('book-cinema').click()
   await expect(page.getByTestId('book-detail')).toHaveText('❔ 큰 화면 앞에 앉은 날에 생겨요')
+  await page.getByTestId('book-tab-landmarks').click()
+  await expect(page.getByTestId('book-buildings')).toBeHidden()
+  await expect(page.getByTestId('book-tab-landmarks')).toHaveAttribute('aria-selected', 'true')
+  const well = (await page.getByTestId('book-well').boundingBox())!
+  expect(well.height).toBeGreaterThanOrEqual(44)
   await page.getByTestId('book-well').click()
   await expect(page.getByTestId('book-landmark-detail')).toHaveText('🪣 우물 · 한 줄을 7일 남겨 생겼어요')
   await page.getByTestId('book-garden').click()
   await expect(page.getByTestId('book-landmark-detail')).toHaveText('❔ 2일 더 쓰면 광장에 새 명소가 생겨요')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/book-tab-landmarks.png' })
   // 꾸밈 소품: 12일이면 다섯 개가 열렸다
   await expect(page.getByTestId('book-decor-count')).toHaveText('5 / 12')
+  await page.getByTestId('book-tab-decors').click()
+  await expect(page.getByTestId('book-landmarks')).toBeHidden()
   await expect(page.getByTestId('book-decor-mailbox')).toHaveAttribute('data-found', 'true')
   await expect(page.getByTestId('book-decor-fence').locator('.book-name')).toHaveText('16일')
   for (const id of ['book-decor-pot', 'book-decor-tent']) {
@@ -2397,6 +2416,11 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
 
   await page.getByTestId('book-close').click()
   await expect(book).toBeHidden()
+  // 다시 열면 건물 칸부터(보던 책갈피는 저장하지 않는다)
+  await badge.click()
+  await expect(page.getByTestId('book-tab-buildings')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('book-buildings')).toBeVisible()
+  await page.getByTestId('book-close').click()
 
   // 오늘 영화 이야기를 쓰면 도감에 영화관이 들어온다(저장은 기록뿐)
   await page.getByTestId('write-input').fill('친구랑 영화를 봤다')
@@ -2563,6 +2587,7 @@ test('마을 수첩에서 꾸미기에 들어가 소품을 빈 자리에 놓고,
   const stored = async () => JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
 
   await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-decors').click()
   await page.getByTestId('book-decorate').click()
   await expect(page.getByTestId('book')).toBeHidden()
   await expect(page.getByTestId('write-card')).toBeHidden()
@@ -3206,6 +3231,7 @@ test('명소 축하·주민 누르기·소품 놓기에도 짧은 소리가 나�
   // 소품을 놓으면 나무 "톡" 한 음과 아주 짧은 떨림
   await hush()
   await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-decors').click()
   await page.getByTestId('book-decorate').click()
   await page.getByTestId('decorate-pick-bench').click()
   await finishAnimations(page)
@@ -4642,6 +4668,8 @@ test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아
   await page.getByTestId('village-stage').click()
   await expect(page.getByTestId('book-neighbor-count')).toHaveText('4 / 23')
   await expect(page.getByTestId('book-neighbors').locator('.book-cell')).toHaveCount(23)
+  await page.getByTestId('book-tab-neighbors').click()
+  await expect(page.getByTestId('book-tab-neighbors')).toHaveAttribute('aria-selected', 'true')
   for (const id of ['kong', 'momo', 'bori', 'dubu']) await expect(page.getByTestId(`book-neighbor-${id}`)).toHaveAttribute('data-found', 'true')
   await expect(page.getByTestId('book-neighbor-hodu')).toHaveAttribute('data-found', 'false')
   await expect(page.getByTestId('book-neighbor-hodu')).toContainText('10일')

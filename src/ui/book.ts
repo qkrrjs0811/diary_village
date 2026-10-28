@@ -9,7 +9,7 @@ import { residentIcon } from '../village/render'
 import { dateLabel } from './format'
 
 /**
- * 머리줄 단계 이름표를 누르면 여는 마을 수첩. 지금 단계, 건물 도감, 명소, 우리 이웃, 꾸밈 소품을 한 창에 모았다.
+ * 머리줄 단계 이름표를 누르면 여는 마을 수첩. 지금 단계 아래 건물 도감, 명소, 우리 이웃, 꾸밈 소품을 책갈피로 넘겨 본다.
  * 모두 기록에서 계산한다. 칸을 누르면 아래에 그 칸 이야기가 보인다
  */
 export function createBook(handlers: {
@@ -52,8 +52,13 @@ export function createBook(handlers: {
       </div>
       ${built.length ? `<button type="button" class="sheet-btn book-growth" data-testid="book-growth">▶ 마을이 자라 온 길</button>` : ''}
       <button type="button" class="sheet-btn book-calendar" data-testid="book-calendar">📅 기분 달력 · 🔍 찾기</button>
-      <div class="settings-group">
-        <div class="settings-label">건물 도감 <span class="book-count" data-testid="book-count">${found} / ${items.length}</span></div>
+      <div class="book-tabs" role="tablist" aria-label="모은 것">
+        <button type="button" class="book-tab" role="tab" data-testid="book-tab-buildings" data-pane="buildings"><b>🏠 건물</b><span data-testid="book-count">${found} / ${items.length}</span></button>
+        <button type="button" class="book-tab" role="tab" data-testid="book-tab-landmarks" data-pane="landmarks"><b>⛲ 명소</b><span data-testid="book-landmark-count">${marks.filter((m) => m.earned).length} / ${marks.length}</span></button>
+        <button type="button" class="book-tab" role="tab" data-testid="book-tab-neighbors" data-pane="neighbors"><b>🙂 이웃</b><span data-testid="book-neighbor-count">${arrivals.filter((a) => a.date).length} / ${arrivals.length}</span></button>
+        <button type="button" class="book-tab" role="tab" data-testid="book-tab-decors" data-pane="decors"><b>🌷 소품</b><span data-testid="book-decor-count">${decors.filter((d) => d.unlocked).length} / ${decors.length}</span></button>
+      </div>
+      <div class="settings-group book-pane" role="tabpanel" data-pane="buildings" aria-label="건물 도감">
         <div class="book-grid" data-testid="book-buildings">
           ${items
             .map(
@@ -66,8 +71,7 @@ export function createBook(handlers: {
         <div class="book-detail" data-testid="book-detail" role="status">칸을 누르면 이야기가 보여요</div>
         <button type="button" class="sheet-btn book-days" data-testid="book-building-days" hidden></button>
       </div>
-      <div class="settings-group">
-        <div class="settings-label">광장 명소 <span class="book-count">${marks.filter((m) => m.earned).length} / ${marks.length}</span></div>
+      <div class="settings-group book-pane" role="tabpanel" data-pane="landmarks" aria-label="광장 명소">
         <div class="book-grid seven" data-testid="book-landmarks">
           ${marks
             .map(
@@ -79,8 +83,7 @@ export function createBook(handlers: {
         </div>
         <div class="book-detail" data-testid="book-landmark-detail" role="status">칸을 누르면 이야기가 보여요</div>
       </div>
-      <div class="settings-group">
-        <div class="settings-label">우리 이웃 <span class="book-count" data-testid="book-neighbor-count">${arrivals.filter((a) => a.date).length} / ${arrivals.length}</span></div>
+      <div class="settings-group book-pane" role="tabpanel" data-pane="neighbors" aria-label="우리 이웃">
         <div class="book-grid six" data-testid="book-neighbors">
           ${arrivals
             .map(
@@ -93,8 +96,7 @@ export function createBook(handlers: {
         <div class="book-detail" data-testid="book-neighbor-detail" role="status">칸을 누르면 이야기가 보여요</div>
         <button type="button" class="sheet-btn book-days" data-testid="book-neighbor-day" hidden>📖 이사 온 날 글 보기</button>
       </div>
-      <div class="settings-group">
-        <div class="settings-label">꾸밈 소품 <span class="book-count" data-testid="book-decor-count">${decors.filter((d) => d.unlocked).length} / ${decors.length}</span></div>
+      <div class="settings-group book-pane" role="tabpanel" data-pane="decors" aria-label="꾸밈 소품">
         <div class="book-grid six" data-testid="book-decors">
           ${decors
             .map(
@@ -113,6 +115,14 @@ export function createBook(handlers: {
     sheet.querySelector('.book-stage b')!.textContent = `${stage.name} · 한 줄을 ${days}일 남겼어요`
     sheet.querySelector('.book-stage p')!.textContent = next ? `${next.left}일 더 쓰면 ${next.stage.icon} ${next.stage.name}` : '가장 큰 마을이 되었어요'
     sheet.querySelector('.close')!.addEventListener('click', close)
+    // 모은 것 네 칸은 책갈피로 넘겨 한 번에 한 칸만 본다. 열 때마다 건물부터(보던 칸은 저장하지 않는다)
+    const tabs = sheet.querySelectorAll<HTMLButtonElement>('.book-tab')
+    const turn = (pane: string) => {
+      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.pane === pane)))
+      sheet.querySelectorAll<HTMLElement>('.book-pane').forEach((p) => (p.hidden = p.dataset.pane !== pane))
+    }
+    tabs.forEach((t) => t.addEventListener('click', () => turn(t.dataset.pane!)))
+    turn('buildings')
     sheet.querySelector('.book-calendar')!.addEventListener('click', () => {
       close()
       handlers.onCalendar()
