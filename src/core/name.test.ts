@@ -40,6 +40,21 @@ describe('마을 이름', () => {
     const r = renameVillage(save(), '꽃길')
     expect(r.ok && r.save.entries).toEqual([entry])
   })
+
+  it('이름을 짓거나 비워도 지운 날·놓은 소품·편지는 그대로', () => {
+    const full: SaveData = {
+      ...save('햇살 마을'),
+      erased: [{ date: '2026-10-20', erasedAt: 9 }],
+      decor: [{ id: 'bench', at: '2026-10', col: 1, row: 2 }],
+      letters: [{ writtenOn: '2026-10-27', writtenAt: 7, opensOn: '2027-10-27', text: '안녕, 내년의 나' }],
+    }
+    for (const input of ['꽃길', '  ']) {
+      const r = renameVillage(full, input)
+      expect(r.ok && r.save.erased).toEqual(full.erased)
+      expect(r.ok && r.save.decor).toEqual(full.decor)
+      expect(r.ok && r.save.letters).toEqual(full.letters)
+    }
+  })
 })
 
 describe('마을 이름 저장', () => {

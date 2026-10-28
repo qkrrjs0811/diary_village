@@ -14,11 +14,12 @@ export const isVillageName = (name: unknown): name is string =>
 
 export const villageTitle = (save: SaveData) => save.villageName ?? DEFAULT_NAME
 
-/** 마을 이름을 바꾼다. 비우면 기본 이름으로 돌아간다. 기록은 건드리지 않는다 */
+/** 마을 이름을 바꾼다. 비우면 기본 이름으로 돌아간다. 이름 칸 말고는(기록·지운 날·소품·편지) 건드리지 않는다 */
 export function renameVillage(save: SaveData, input: string): { ok: true; save: SaveData } | { ok: false } {
   const name = cleanName(input)
   if ([...name].length > NAME_MAX) return { ok: false }
-  const next: SaveData = { version: 1, entries: save.entries }
+  const next: SaveData = { ...save }
+  delete next.villageName
   if (name) next.villageName = name
   return { ok: true, save: next }
 }
