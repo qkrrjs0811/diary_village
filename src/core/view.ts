@@ -70,6 +70,41 @@ export function openingView(center: Pt, unit: number, screen: Size, area: View, 
   return unitOf(fit, screen) < unit - 1e-9 ? fit : start
 }
 
+/** 가장 멀리 볼 때 마을 둘레에 비워 둘 화면 여백(px). 위는 날씨 칩 자리, 아래도 같게 해 마을이 화면 한가운데 온다 */
+export const FAR_INSET = { side: 20, top: 56, bottom: 56 }
+/** 마을이 작아도 이만큼은 멀리 볼 수 있다(칸 하나가 약 48px) */
+export const FAR_MIN = 1
+
+/**
+ * 가장 멀리 보기: 마을 전체(world)가 여백 안에 꽉 차게 화면 한가운데 온다(FAR_MIN 보다 가깝지 않다).
+ * 마을이 너무 커서 MAX_UNIT 에서도 다 안 들어오면 null(그땐 MAX_UNIT 까지 자유롭게 본다)
+ */
+export function farView(world: View, screen: Size): View | null {
+  const roomW = Math.max(1, screen.w - 2 * FAR_INSET.side)
+  const roomH = Math.max(1, screen.h - FAR_INSET.top - FAR_INSET.bottom)
+  const fit = Math.max(world.w / roomW, world.h / roomH)
+  if (fit > MAX_UNIT) return null
+  return viewAround({ x: world.x + world.w / 2, y: world.y + world.h / 2 }, Math.max(FAR_MIN, fit), screen)
+}
+
+/**
+ * 줄일 때(base → next) 가장 멀리 보기에 다가간 만큼 마을 쪽으로 가운데를 옮긴다.
+ * 끝까지 줄이면 farView 에서 멈춘다. 가까이 볼 때는 next 그대로(손가락 자리를 지킨다)
+ */
+export function settleZoom(base: View, next: View, world: View, screen: Size): View {
+  const far = farView(world, screen)
+  if (!far) return next
+  const ub = unitOf(base, screen)
+  const un = unitOf(next, screen)
+  const uf = unitOf(far, screen)
+  if (un <= ub + 1e-9) return next
+  if (un >= uf - 1e-9 || ub >= uf) return far
+  const t = (un - ub) / (uf - ub)
+  const cx = next.x + next.w / 2 + (far.x + far.w / 2 - next.x - next.w / 2) * t
+  const cy = next.y + next.h / 2 + (far.y + far.h / 2 - next.y - next.h / 2) * t
+  return { ...next, x: cx - next.w / 2, y: cy - next.h / 2 }
+}
+
 /** anchor(viewBox 좌표)를 화면에서 제자리에 두고 factor 배로 넓게(>1) 또는 좁게(<1) 본다 */
 export function zoomAt(view: View, factor: number, anchor: Pt, screen: Size): View {
   if (!(screen.w > 0 && screen.h > 0)) return view

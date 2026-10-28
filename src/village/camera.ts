@@ -1,6 +1,6 @@
 // 마을 보기: 한 손가락으로 끌어서 둘러보고, 두 손가락(또는 마우스 휠)으로 확대·축소한다.
 // 짧게 누르면(움직임이 거의 없으면) 누름으로 본다
-import { SHOW, buildUnit, easeInOut, fitBoxes, openingView, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
+import { SHOW, buildUnit, easeInOut, fitBoxes, openingView, settleZoom, showView, startView, tweenView, unitOf, viewAround, zoomAt, type Pt, type View } from '../core/view'
 
 export type { View }
 
@@ -20,6 +20,9 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
   const pointers = new Map<number, Pt>()
   let gesture: Gesture | null = null
   let moved = false
+  /** 마을(섬 전체) 자리. 멀리 줄일수록 이 마을을 화면 가운데로 데려온다 */
+  let world: View | null = null
+  const settle = (base: View, next: View) => (world ? settleZoom(base, next, world, screen()) : next)
 
   const apply = () => svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`)
   const screen = () => {
@@ -83,7 +86,7 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       // 처음 두 손가락 가운데 있던 자리가 지금 두 손가락 가운데로 따라온다
       const z = zoomAt(gesture.view, gesture.dist / dist, gesture.anchor, screen())
       const u = unitOf(z, screen()) || 1
-      view = { ...z, x: z.x - (mid.x - gesture.mid.x) * u, y: z.y - (mid.y - gesture.mid.y) * u }
+      view = settle(gesture.view, { ...z, x: z.x - (mid.x - gesture.mid.x) * u, y: z.y - (mid.y - gesture.mid.y) * u })
     }
     apply()
   })
@@ -104,7 +107,7 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
       e.preventDefault()
       stopShow()
       const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
-      view = zoomAt(view, Math.exp(Math.max(-100, Math.min(100, step)) * 0.002), toView({ x: e.clientX, y: e.clientY }, view), screen())
+      view = settle(view, zoomAt(view, Math.exp(Math.max(-100, Math.min(100, step)) * 0.002), toView({ x: e.clientX, y: e.clientY }, view), screen()))
       apply()
     },
     { passive: false },
@@ -115,6 +118,10 @@ export function createCamera(svg: SVGSVGElement, onTap: (target: Element, at: Pt
     toVillage: (p: Pt) => toView(p, view),
     /** 지금 화면 1px 이 마을 그림에서 몇인지 */
     unit: () => unitOf(view, screen()) || 1,
+    /** 마을(섬 전체) 자리를 알려 준다(그릴 때마다) */
+    setWorld(v: View | null) {
+      world = v
+    },
     show(v: View) {
       stopShow()
       view = v

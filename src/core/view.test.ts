@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILD_UNIT, FEW_UNIT, MAX_UNIT, MIN_UNIT, SHOW, START_UNIT, buildUnit, easeInOut, fitBoxes, openingView, showView, startView, tweenView, unitOf, viewAround, zoomAt, type View } from './view'
+import { BUILD_UNIT, FAR_INSET, FAR_MIN, FEW_UNIT, MAX_UNIT, MIN_UNIT, SHOW, START_UNIT, buildUnit, easeInOut, farView, fitBoxes, openingView, settleZoom, showView, startView, tweenView, unitOf, viewAround, zoomAt, type View } from './view'
 
 const screen = { w: 360, h: 480 }
 
@@ -176,5 +176,71 @@ describe('집이 몇 채 없을 때 처음 보기', () => {
   it('집이 넓게 퍼져 처음 보기보다 멀리 봐야 하면 지금처럼 오늘 자리 쪽으로 본다', () => {
     const wide = [{ x: -500, y: 0, w: 56, h: 80 }, { x: 500, y: 600, w: 56, h: 80 }, todayBox]
     expect(openingView(today, START_UNIT, phone, area, wide, 2, inset)).toEqual(startView(today, START_UNIT, phone, area))
+  })
+})
+
+describe('가장 멀리 보기', () => {
+  const phone = { w: 366, h: 568 }
+  // 마을(섬 전체)이 원점에서 한쪽으로 치우쳐 있다
+  const world = { x: 100, y: -50, w: 400, h: 260 }
+  const mid = (v: View) => ({ x: v.x + v.w / 2, y: v.y + v.h / 2 })
+
+  it('마을 전체가 여백 안에 다 들어오고 화면 가운데에 온다', () => {
+    const v = farView(world, phone)!
+    expect(mid(v).x).toBeCloseTo(300)
+    expect(mid(v).y).toBeCloseTo(80)
+    const u = unitOf(v, phone)
+    expect(world.w / u).toBeLessThanOrEqual(phone.w - 2 * FAR_INSET.side + 1e-6)
+    expect(world.h / u).toBeLessThanOrEqual(phone.h - FAR_INSET.top - FAR_INSET.bottom + 1e-6)
+    // 한쪽은 여백까지 꽉 찬다(너무 작지 않다)
+    expect(world.w / u).toBeCloseTo(phone.w - 2 * FAR_INSET.side)
+  })
+
+  it('마을이 작아도 어느 정도는 멀리 볼 수 있다', () => {
+    const v = farView({ x: 0, y: 0, w: 60, h: 40 }, phone)!
+    expect(unitOf(v, phone)).toBeCloseTo(FAR_MIN)
+    expect(FAR_MIN).toBeGreaterThan(START_UNIT)
+  })
+
+  it('마을이 너무 커서 가장 멀리서도 다 안 들어오면 따로 맞추지 않는다', () => {
+    const huge = { x: 0, y: 0, w: 5000, h: 3000 }
+    expect(farView(huge, phone)).toBeNull()
+    const base = viewAround({ x: 0, y: 0 }, 1, phone)
+    const next = zoomAt(base, 2, { x: 0, y: 0 }, phone)
+    expect(settleZoom(base, next, huge, phone)).toEqual(next)
+  })
+
+  it('끝까지 줄이면 마을 가운데의 가장 멀리 보기에서 멈춘다', () => {
+    const base = viewAround({ x: -300, y: 400 }, START_UNIT, phone)
+    const next = zoomAt(base, 100, { x: -300, y: 400 }, phone)
+    const v = settleZoom(base, next, world, phone)
+    const far = farView(world, phone)!
+    for (const k of ['x', 'y', 'w', 'h'] as const) expect(v[k]).toBeCloseTo(far[k])
+  })
+
+  it('반쯤 줄이면 마을 쪽으로 반쯤 다가온다', () => {
+    const far = farView(world, phone)!
+    const base = viewAround({ x: -300, y: 400 }, START_UNIT, phone)
+    const half = (START_UNIT + unitOf(far, phone)) / 2
+    const next = zoomAt(base, half / START_UNIT, mid(base), phone)
+    const v = settleZoom(base, next, world, phone)
+    expect(unitOf(v, phone)).toBeCloseTo(half)
+    expect(mid(v).x).toBeCloseTo((-300 + 300) / 2)
+    expect(mid(v).y).toBeCloseTo((400 + 80) / 2)
+  })
+
+  it('조금씩 여러 번 줄여도 마지막엔 마을 가운데에 닿는다', () => {
+    let v = viewAround({ x: -300, y: 400 }, START_UNIT, phone)
+    for (let i = 0; i < 40; i++) v = settleZoom(v, zoomAt(v, 1.2, { x: v.x, y: v.y }, phone), world, phone)
+    const far = farView(world, phone)!
+    expect(mid(v).x).toBeCloseTo(mid(far).x)
+    expect(mid(v).y).toBeCloseTo(mid(far).y)
+    expect(unitOf(v, phone)).toBeCloseTo(unitOf(far, phone))
+  })
+
+  it('가까이 볼 때는 손가락 자리를 그대로 지킨다', () => {
+    const base = viewAround({ x: -300, y: 400 }, 1, phone)
+    const next = zoomAt(base, 0.5, { x: -250, y: 380 }, phone)
+    expect(settleZoom(base, next, world, phone)).toEqual(next)
   })
 })

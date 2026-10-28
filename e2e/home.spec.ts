@@ -278,6 +278,36 @@ test('집이 몇 채 없을 때 처음 열면 그 집들과 오늘 자리가 화
   await page.screenshot({ path: 'test-results/screens/home-few-houses.png' })
 })
 
+for (const [name, days] of [['first', [27]], ['week', [21, 22, 23, 24, 25, 26, 27]]] as const) {
+  test(`${name}: 끝까지 멀리 보면 마을(섬)이 화면 가운데에 알맞은 크기로 온다`, async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+    await page.goto('./')
+    const entries = monthEntries('2026-10', [...days])
+    await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+    await page.reload()
+    const scene = (await page.getByTestId('village').boundingBox())!
+    // 한쪽 구석에서 줄이기 시작해도
+    await page.mouse.move(scene.x + 40, scene.y + scene.height - 60)
+    for (let i = 0; i < 20; i++) await page.mouse.wheel(0, 300)
+    await finishAnimations(page)
+    const land = (await page.locator('[data-testid="village"] .ground').boundingBox())!
+    // 섬 전체가 화면 안에 들고
+    expect(land.x).toBeGreaterThanOrEqual(scene.x)
+    expect(land.x + land.width).toBeLessThanOrEqual(scene.x + scene.width)
+    expect(land.y).toBeGreaterThanOrEqual(scene.y)
+    expect(land.y + land.height).toBeLessThanOrEqual(scene.y + scene.height)
+    // 가운데에 오며
+    expect(Math.abs(land.x + land.width / 2 - (scene.x + scene.width / 2))).toBeLessThan(4)
+    expect(Math.abs(land.y + land.height / 2 - (scene.y + scene.height / 2))).toBeLessThan(4)
+    // 너무 작지 않게 화면 가로를 넉넉히 채운다
+    expect(land.width).toBeGreaterThan(scene.width * 0.6)
+    // 더 줄여도 그대로다
+    await page.mouse.wheel(0, 300)
+    expect((await page.locator('[data-testid="village"] .ground').boundingBox())!.width).toBeCloseTo(land.width, 0)
+    await page.screenshot({ path: `test-results/screens/zoom-far-${name}.png` })
+  })
+}
+
 test('처음엔 오늘 자리 가까이 보고, 휠·두 손가락으로 확대·축소해도 누르기가 된다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

@@ -749,6 +749,9 @@ function render(newDate?: string, comers: string[] = []) {
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },
     firstSign: firstSignDate(days),
   })
+  // 가장 멀리 볼 때 화면 가운데로 데려올 마을(섬 전체) 자리
+  const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()
+  camera.setWorld(land.width > 0 ? { x: land.x, y: land.y, w: land.width, h: land.height } : null)
   const todayEntry = entryOn(save, today)
   const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }
   card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), yearRecapOf(save.entries, today) ?? recapOf(save.entries, today), prompts)
