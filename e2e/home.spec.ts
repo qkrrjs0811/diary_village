@@ -1360,6 +1360,60 @@ test('읽기 창에 그날 손님의 맞장구 한 줄이 보이고, 넘기기·
   expect(saved).not.toMatch(/곁에 있을게요|토닥토닥|함께한 시간|듣기 좋아요|둘러앉은/)
 })
 
+test('읽기 창의 작은 줄이 묶여 있다 — 건물·집 나이는 꼬리표 한 줄, 고친 날·처음 한마디는 옅은 한 줄', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-28T13:00:00+09:00') })
+  await page.goto('./')
+  const at = (d: string) => Date.parse(`${d}T22:00:00+09:00`)
+  const entries = [
+    { date: '2026-07-01', text: '바닷가에서 조개를 주웠다', mood: 'great', writtenAt: at('2026-07-01'), editedAt: at('2026-10-20') },
+    { date: '2026-10-27', text: '그냥 지나간 하루', mood: 'calm', writtenAt: at('2026-10-27') },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  await page.getByTestId('house-2026-07-01').dispatchEvent('click')
+  const building = page.getByTestId('reader-building')
+  const aging = page.getByTestId('reader-aging')
+  const edited = page.getByTestId('reader-edited')
+  const edge = page.getByTestId('reader-edge')
+  await expect(building).toBeVisible()
+  await expect(aging).toBeVisible()
+  await expect(edited).toBeVisible()
+  await expect(edge).toHaveText('🌱 가장 처음 지은 집이에요')
+  const box = async (l: typeof building) => (await l.boundingBox())!
+  const [b, a, e, g, text, reply] = await Promise.all([
+    box(building), box(aging), box(edited), box(edge),
+    box(page.getByTestId('reader-text')), box(page.getByTestId('reader-reply')),
+  ])
+  // 꼬리표 둘은 나란히 놓이고(좁으면 다음 줄로 내려가고) 겹치거나 창 밖으로 나가지 않는다
+  const side = a.x >= b.x + b.width && Math.abs(a.y - b.y) < 4
+  const below = a.y >= b.y + b.height
+  expect(side || below).toBe(true)
+  expect(b.x + b.width).toBeLessThanOrEqual(390)
+  expect(a.x + a.width).toBeLessThanOrEqual(390)
+  // 글 → 맞장구 말풍선 → 옅은 한 줄(고친 날·처음 한마디가 나란히) 차례
+  expect(text.y).toBeGreaterThanOrEqual(a.y + a.height)
+  expect(reply.y).toBeGreaterThanOrEqual(text.y + text.height)
+  expect(e.y).toBeGreaterThanOrEqual(reply.y + reply.height)
+  expect(Math.abs(g.y - e.y)).toBeLessThan(4)
+  expect(g.x).toBeGreaterThanOrEqual(e.x + e.width)
+  // 넘기기 단추는 옅은 줄 아래에 그대로 누를 수 있다
+  const prev = (await page.getByTestId('reader-prev').boundingBox())!
+  expect(prev.y).toBeGreaterThanOrEqual(g.y + g.height)
+  expect(prev.height).toBeGreaterThanOrEqual(44)
+  await page.waitForTimeout(500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/reader-tidy.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 건물도 세월도 없는 새 보통 집은 꼬리표 묶음이 통째로 숨어 빈 자리가 없다
+  await page.getByTestId('reader-next').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('그냥 지나간 하루')
+  await expect(page.locator('.reader-tags')).toBeHidden()
+  await expect(edited).toBeHidden()
+  await expect(edge).toHaveText('🏡 가장 최근에 지은 집이에요')
+})
+
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
   // 낮 하늘(저녁·밤은 아래 테스트)
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })

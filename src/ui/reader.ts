@@ -84,12 +84,16 @@ export function createReader(handlers: {
         </div>
         ${handlers.onTreasure ? '<button type="button" class="treasure-btn" data-testid="reader-treasure"></button>' : ''}
       </div>
-      <div class="reader-building" data-testid="reader-building" hidden></div>
-      <div class="reader-aging" data-testid="reader-aging" hidden></div>
+      <div class="reader-tags">
+        <span class="reader-building" data-testid="reader-building" hidden></span>
+        <span class="reader-aging" data-testid="reader-aging" hidden></span>
+      </div>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-reply" data-testid="reader-reply" hidden></div>
-      <div class="reader-edited" data-testid="reader-edited" hidden></div>
-      <div class="reader-edge" data-testid="reader-edge" hidden></div>
+      <div class="reader-foot">
+        <span class="reader-edited" data-testid="reader-edited" hidden></span>
+        <span class="reader-edge" data-testid="reader-edge" hidden></span>
+      </div>
       ${handlers.neighbors ? `<div class="reader-turn">
         <button type="button" class="turn-btn" data-testid="reader-prev">◀ 앞 날</button>
         <button type="button" class="turn-btn" data-testid="reader-next">뒷 날 ▶</button>
@@ -167,6 +171,10 @@ export function createReader(handlers: {
       }
     }
     // 넘긴 쪽에서 글이 살며시 들어온다(움직임 줄이기면 CSS 가 멈춘다)
+    // 작은 줄은 묶음째 숨겨 빈 자리가 남지 않게 한다
+    sheet.querySelectorAll<HTMLElement>('.reader-tags, .reader-foot').forEach((box) => {
+      box.hidden = [...box.children].every((c) => (c as HTMLElement).hidden)
+    })
     sheet.classList.remove('turn-from-prev', 'turn-from-next')
     if (from) {
       void sheet.offsetWidth
