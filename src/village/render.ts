@@ -99,8 +99,9 @@ function drawSlab(g: Element, labels: Element, block: Block) {
   // 집이 빽빽해도 지붕을 가리지 않고, 기둥은 땅과 함께 그려 집 뒤로 숨는다
   const foot = iso(x0, y0)
   const signTop = foot.y - SIGN_LIFT
-  el('rect', { x: foot.x - 1.5, y: signTop, width: 3, height: SIGN_LIFT, rx: 1.5, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, g)
-  el('ellipse', { cx: foot.x, cy: foot.y, rx: 4, ry: 2, fill: 'rgba(90,70,54,0.18)' }, g)
+  const post = el('g', { class: 'sign-post' }, g)
+  el('rect', { x: foot.x - 1.5, y: signTop, width: 3, height: SIGN_LIFT, rx: 1.5, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, post)
+  el('ellipse', { cx: foot.x, cy: foot.y, rx: 4, ry: 2, fill: 'rgba(90,70,54,0.18)' }, post)
   const m = Number(block.month.slice(5, 7))
   const sign = el('g', { class: 'month-sign', 'data-testid': `month-${block.month}` }, labels)
   el('rect', { x: foot.x - 20, y: signTop - 18, width: 40, height: 18, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
@@ -1987,9 +1988,18 @@ export function veilFront(svg: SVGSVGElement, date: string): number {
   return count
 }
 
-/** 옅게 한 나무·주민을 원래대로 */
+/**
+ * 집을 지어 다가가는 동안 구역 이름표("10월") 판과 기둥을 잠깐 감춘다. 가까이 보면 긴 팻말 판이 화면 위 끝에
+ * 잘리거나 오른쪽 위 날씨 칩 뒤에 걸리기 때문이다. 원래 보기로 돌아올 때 `unveil`이 되돌린다
+ */
+export function hushSigns(svg: SVGSVGElement) {
+  svg.classList.add('signs-hushed')
+}
+
+/** 옅게 한 나무·주민과 감춘 이름표를 원래대로 */
 export function unveil(svg: SVGSVGElement) {
   for (const node of svg.querySelectorAll('.veiled')) node.classList.remove('veiled')
+  svg.classList.remove('signs-hushed')
 }
 
 /** 구역 하나가 화면에 들어오는 viewBox */

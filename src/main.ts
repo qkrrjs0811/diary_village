@@ -35,7 +35,7 @@ import { drawSky } from './village/sky'
 import { dayPart, skyColors, weatherOf, windowsLit } from './core/weather'
 import { smokeOn } from './core/season'
 import { SHOW, START_UNIT } from './core/view'
-import { blockView, cellAt, drawVillage, iso, unveil, veilFront } from './village/render'
+import { blockView, cellAt, drawVillage, hushSigns, iso, unveil, veilFront } from './village/render'
 import type { Village } from './core/village'
 
 /** 브라우저 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 메모리에만 둔다 */
@@ -342,6 +342,7 @@ const card = createWriteCard({
     // 다가가 짓는 동안 새 집 앞을 가리는 나무·주민을 옅게 했다가, 원래 보기로 돌아올 때 되돌린다
     clearTimeout(veilTimer)
     veilFront(svg, r.entry.date)
+    hushSigns(svg)
     veilTimer = window.setTimeout(() => unveil(svg), (calm ? 0 : SHOW.go) + SHOW.hold)
     sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
     // 지은 건물·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)

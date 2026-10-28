@@ -2622,6 +2622,43 @@ test('집·건물 바로 앞 칸에는 나무 대신 꽃·풀이 나서 집을 �
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
 
+test('집을 지어 다가가는 동안 구역 이름표가 잘리거나 날씨 칩에 걸리지 않게 감췄다가 돌아온다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries: dayEntries('2026-10-24', 3) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+  const parts = [page.locator('svg .labels'), page.locator('svg .sign-post').first()]
+  const sign = page.getByTestId('month-2026-10')
+  const opacity = async () => Math.max(...(await Promise.all(parts.map((l) => l.evaluate((e) => Number(getComputedStyle(e).opacity))))))
+  await expect(sign).toBeVisible()
+  expect(await opacity()).toBe(1)
+
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('build-note')).toBeVisible()
+  await page.clock.runFor(1500)
+  await finishAnimations(page)
+  // 가까이 다가간 동안 이름표 판과 기둥은 보이지 않는다
+  await expect(page.locator('svg.signs-hushed')).toHaveCount(1)
+  await expect.poll(opacity).toBe(0)
+  await page.screenshot({ path: 'test-results/screens/build-sign-hushed.png' })
+
+  // 원래 보기로 돌아오면 이름표가 다시 보이고, 화면 안에서 날씨 칩과 겹치지 않는다
+  await page.clock.runFor(4000)
+  await finishAnimations(page)
+  await expect(page.locator('svg.signs-hushed')).toHaveCount(0)
+  await expect.poll(opacity).toBe(1)
+  const s = (await sign.boundingBox())!
+  const w = (await page.getByTestId('weather').boundingBox())!
+  expect(s.x).toBeGreaterThanOrEqual(0)
+  expect(s.x + s.width).toBeLessThanOrEqual(390)
+  const apart = s.x + s.width <= w.x || w.x + w.width <= s.x || s.y + s.height <= w.y || w.y + w.height <= s.y
+  expect(apart).toBe(true)
+  await page.screenshot({ path: 'test-results/screens/build-sign-back.png' })
+})
+
 test('집을 짓거나 읽을 때 그 집 앞을 가리는 나무·주민이 잠깐 옅어졌다가 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
