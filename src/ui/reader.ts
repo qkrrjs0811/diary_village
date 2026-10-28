@@ -68,7 +68,7 @@ export function createReader(handlers: {
     swipeTo(dx < 0 ? 'next' : 'prev')
   })
 
-  function showRead(entry: Entry, from?: 'prev' | 'next') {
+  function showRead(entry: Entry, from?: 'prev' | 'next', enter = true) {
     swipeTo = null
     const m = moodOf(entry.mood)
     // 문을 열고 들어간 그날의 방. 날짜·기분·건물로만 그리고 글은 담지 않는다. 빛은 지금 때(낮·저녁·밤)를 따른다
@@ -113,7 +113,7 @@ export function createReader(handlers: {
       heart.addEventListener('click', () => {
         const next = handlers.onTreasure?.(entry.date)
         if (!next) return
-        showRead(next)
+        showRead(next, undefined, false)
         sheet.querySelector<HTMLButtonElement>('[data-testid="reader-treasure"]')?.focus()
       })
     }
@@ -153,6 +153,8 @@ export function createReader(handlers: {
       void sheet.offsetWidth
       sheet.classList.add(`turn-from-${from}`)
     }
+    // 문을 열거나 다른 날로 넘기면 방이 옅게 밝아지고 커튼이 살랑인다(소중한 날 표시만 바꿀 때는 그대로)
+    if (enter) sheet.querySelector('.reader-room')!.classList.add('room-enter')
     sheet.querySelector('.close')!.addEventListener('click', close)
     sheet.querySelector('[data-testid="reader-edit"]')?.addEventListener('click', () => showEdit(entry))
     sheet.querySelector('[data-testid="reader-erase"]')?.addEventListener('click', () => showErase(entry))

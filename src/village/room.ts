@@ -110,7 +110,7 @@ function window_(view: Season, curtain: string, light: RoomLight): string {
     <path d="M${x + r} ${y} V${y + h} M${x} ${y + r + 4} H${x + w}" stroke="${LINE}" stroke-width="1.6"/>
     <rect x="${x - 6}" y="${y + h}" width="${w + 12}" height="5" rx="2.5" fill="#f2dfc4" ${S}/>
     <line x1="${x - 14}" y1="${y - 4}" x2="${x + w + 14}" y2="${y - 4}" stroke="${LINE}" stroke-width="2" stroke-linecap="round"/>
-    <g data-testid="room-curtain" fill="${curtain}" ${S}><path d="${left}"/><path d="${right}"/></g>
+    <g data-testid="room-curtain" fill="${curtain}" ${S}><path class="curtain-l" d="${left}"/><path class="curtain-r" d="${right}"/></g>
   </g>`
 }
 

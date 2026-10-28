@@ -3262,6 +3262,52 @@ for (const [part, time] of [['day', '13:00'], ['evening', '18:30'], ['night', '2
   })
 }
 
+test('읽기 창을 열거나 넘기면 방이 옅게 밝아지고 커튼이 살랑인다, 움직임 줄이기면 바로', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T18:30:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [5, 9, 26]) as Entry[]
+  const before = { version: 1, entries }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(before)])
+  await page.reload()
+
+  const anims = () => page.evaluate(() => {
+    const room = document.querySelector('[data-testid="reader-room"]')!
+    const name = (el: Element) => getComputedStyle(el).animationName
+    return { room: name(room), left: name(room.querySelector('.curtain-l')!), right: name(room.querySelector('.curtain-r')!), enter: room.classList.contains('room-enter') }
+  })
+  await page.getByTestId('house-2026-10-09').dispatchEvent('click')
+  expect(await anims()).toEqual({ room: 'room-in', left: 'curtain-sway', right: 'curtain-sway', enter: true })
+  await page.waitForTimeout(150)
+  await page.screenshot({ path: 'test-results/screens/reader-room-enter.png' })
+  // 소중한 날 표시만 바꾸면 방은 그대로 있다
+  await page.getByTestId('reader-treasure').click()
+  expect((await anims()).enter).toBe(false)
+  // 넘기면 새 방이 다시 옅게 들어온다(밀어 넘기기도 그대로)
+  await page.getByTestId('reader-next').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 26일의 한 줄')
+  expect((await anims()).enter).toBe(true)
+  const text = page.getByTestId('reader-text')
+  const box = (await text.boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  const at = (px: number) => ({ pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: px, clientY: y, bubbles: true })
+  await text.dispatchEvent('pointerdown', at(x))
+  await text.dispatchEvent('pointermove', at(x + 60))
+  await text.dispatchEvent('pointerup', at(x + 120))
+  await expect(text).toHaveText('2026-10 9일의 한 줄')
+  expect((await anims()).enter).toBe(true)
+  await page.waitForTimeout(1800)
+  await page.screenshot({ path: 'test-results/screens/reader-room-settled.png' })
+
+  // 움직임 줄이기면 방도 커튼도 바로 그 모습이다
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByTestId('reader-prev').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 5일의 한 줄')
+  expect(await anims()).toEqual({ room: 'none', left: 'none', right: 'none', enter: true })
+  const saved = JSON.parse(await page.evaluate((k) => localStorage.getItem(k)!, KEY))
+  expect(saved.entries.map((e: Entry) => e.text)).toEqual(before.entries.map((e) => e.text))
+})
+
 test('건물 16종의 방에는 저마다 대표 가구가 그림으로 놓이고, 방은 창 안에 다 보인다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
