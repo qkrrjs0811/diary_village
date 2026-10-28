@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { blockScenery, farScene, islandEdge, islandSlabs, outerSides, PLAZA_TREES, signSpots } from './scenery'
+import { blockScenery, farScene, islandEdge, islandSlabs, outerSides, PLAZA_GATES, PLAZA_TREES, roadside, signSpots } from './scenery'
 import { BLOCK_H, BLOCK_W, ROAD, buildVillage, hash } from './village'
-import { LANDMARKS } from './landmark'
+import { LANDMARKS, PLAZA } from './landmark'
+import { RESIDENTS, residentWalks } from './resident'
 import type { Entry } from './types'
 import { skyBits } from './weather'
 
@@ -270,6 +271,67 @@ describe('먼 바깥 풍경(구름 바다·먼 산)', () => {
       expect(light(night.hillFill)).toBeLessThan(light(day.hillFill))
       expect(light(night.seaFill)).toBeLessThan(light(day.seaFill))
       for (const c of [day, evening, night].flatMap((s) => [s.hillFill, s.hillLine, s.seaFill, s.seaLine, s.seaShade])) expect(c).toMatch(/^#[0-9a-f]{6}$/)
+    }
+  })
+})
+
+describe('길가(울타리 토막·꽃길·가로수)', () => {
+  const months = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10']
+  const village = buildVillage(months.map((m) => e(`${m}-05`)), '2026-10-28')
+  const bits = roadside(village)
+  const inside = (gx: number, gy: number, x0: number, y0: number, w: number, h: number) => gx > x0 && gx < x0 + w && gy > y0 && gy < y0 + h
+
+  it('저장하지 않고 구역 자리로만 정해 언제 열어도 같고, 한 줄을 써도 바뀌지 않는다', () => {
+    expect(roadside(village)).toEqual(bits)
+    const more = buildVillage([...months.map((m) => e(`${m}-05`)), e('2026-10-27'), e('2026-07-12')], '2026-10-28')
+    expect(roadside(more)).toEqual(bits)
+  })
+
+  it('울타리·꽃길·가로수가 모두 난다', () => {
+    for (const kind of ['fence', 'flowers', 'tree'] as const) expect(bits.some((b) => b.kind === kind)).toBe(true)
+  })
+
+  it('모두 길 위에 있어 집·명소·소품 칸(구역 안·광장 안)에 닿지 않는다', () => {
+    for (const b of bits) {
+      for (const k of village.blocks) expect(inside(b.gx, b.gy, k.bx * (BLOCK_W + ROAD), k.by * (BLOCK_H + ROAD), BLOCK_W, BLOCK_H)).toBe(false)
+      expect(inside(b.gx, b.gy, PLAZA.gx, PLAZA.gy, PLAZA.w, PLAZA.h)).toBe(false)
+    }
+  })
+
+  it('울타리는 구역 뒤쪽 두 길가(북·서)에만 있어 집 앞을 가리지 않는다', () => {
+    for (const b of bits.filter((x) => x.kind === 'fence')) expect(['north', 'west']).toContain(b.side)
+  })
+
+  it('가로수는 구역 왼쪽·오른쪽 모서리 길에만, 한 자리에 하나씩 선다', () => {
+    const trees = bits.filter((b) => b.kind === 'tree')
+    const corners = village.blocks.flatMap((k) => {
+      const x0 = k.bx * (BLOCK_W + ROAD) - ROAD / 2
+      const y0 = k.by * (BLOCK_H + ROAD) - ROAD / 2
+      return [`${x0},${y0 + BLOCK_H + ROAD}`, `${x0 + BLOCK_W + ROAD},${y0}`]
+    })
+    for (const t of trees) expect(corners).toContain(`${t.gx},${t.gy}`)
+    expect(new Set(trees.map((t) => `${t.gx},${t.gy}`)).size).toBe(trees.length)
+  })
+
+  it('이름표 기둥 둘레와 광장 돌길 입구는 비운다', () => {
+    for (const b of bits) {
+      for (const s of signSpots(village)) expect(Math.hypot(b.gx - s.gx, b.gy - s.gy)).toBeGreaterThanOrEqual(0.8)
+      for (const p of PLAZA_GATES) expect(Math.hypot(b.gx - p.gx, b.gy - p.gy)).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  it('주민이 걷는 길에서 떨어져 있다', () => {
+    const walks = residentWalks(village, RESIDENTS)
+    expect(walks.length).toBeGreaterThan(5)
+    for (const w of walks) {
+      for (const b of bits) {
+        // 한 칸 길(선분)과의 거리
+        const [ax, ay, bx, by] = [w.from.gx, w.from.gy, w.to.gx, w.to.gy]
+        const t = Math.max(0, Math.min(1, ((b.gx - ax) * (bx - ax) + (b.gy - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)))
+        const d = Math.hypot(b.gx - (ax + (bx - ax) * t), b.gy - (ay + (by - ay) * t))
+        expect(d).toBeGreaterThan(b.kind === 'tree' ? 0.4 : 0.1)
+        if (b.kind === 'fence') expect(d).toBeGreaterThan(0.5)
+      }
     }
   })
 })

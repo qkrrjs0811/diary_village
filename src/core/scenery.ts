@@ -159,6 +159,79 @@ export function islandEdge(village: Village, today: string): { rim: RimBit[]; cl
   return { rim, cliff }
 }
 
+/** 구역 테두리 길가에 선 것. gx·gy: 마을 칸 좌표(울타리·꽃길은 한 칸 토막의 가운데, 가로수는 선 자리) */
+export interface RoadBit {
+  block: string
+  /** 그 구역의 어느 쪽 길가인지(가로수는 모서리라 없다) */
+  side?: Side
+  gx: number
+  gy: number
+  kind: 'fence' | 'flowers' | 'tree'
+  seed: number
+}
+
+/** 광장 돌길이 둘레 길과 만나는 입구(마을 칸 좌표) */
+export const PLAZA_GATES: { gx: number; gy: number }[] = [
+  { gx: PLAZA.gx + PLAZA.w / 2, gy: PLAZA.gy },
+  { gx: PLAZA.gx + PLAZA.w, gy: PLAZA.gy + PLAZA.h / 2 },
+  { gx: PLAZA.gx + PLAZA.w / 2, gy: PLAZA.gy + PLAZA.h },
+  { gx: PLAZA.gx, gy: PLAZA.gy + PLAZA.h / 2 },
+]
+
+/** 풀밭 가장자리에서 길 쪽으로 떨어진 거리(칸). 앞쪽 길가는 주민 걷는 줄(0.25)보다 안쪽이다 */
+const BACK_IN = 0.14
+const FRONT_IN = 0.1
+const ROAD_SIGN_CLEAR = 1.2
+const GATE_CLEAR = 1
+
+/**
+ * 구역 테두리 길 안쪽 가장자리(풀밭과 길이 만나는 곳)의 낮은 울타리 토막·꽃길과, 구역 왼쪽·오른쪽 모서리 길의 가로수.
+ * 저장하지 않고 구역 달·자리로만 정해 언제 열어도 같고, 쓴 날 수·기분·글과 무관하다.
+ * 울타리는 뒤쪽 두 길가(북·서)에 한 토막씩만 이어 서서 집 앞을 가리지 않고, 앞쪽 두 길가(남·동)는
+ * 주민이 걷는 줄보다 풀밭 쪽으로 낮은 꽃만 난다. 이름표 기둥 둘레와 광장 돌길 입구는 비운다.
+ * 가로수는 앞 모서리(집 바로 앞)와 뒤 모서리(이름표)를 피해 왼쪽·오른쪽 모서리에만, 한 자리에 하나 선다
+ */
+export function roadside(village: Village): RoadBit[] {
+  const signs = signSpots(village)
+  const near = (p: { gx: number; gy: number }, list: { gx: number; gy: number }[], d: number) => list.some((s) => Math.hypot(p.gx - s.gx, p.gy - s.gy) < d)
+  const out: RoadBit[] = []
+  const trees = new Set<string>()
+  for (const b of village.blocks) {
+    const gx0 = b.bx * SPAN_X
+    const gy0 = b.by * SPAN_Y
+    for (const side of SIDES) {
+      const back = side === 'north' || side === 'west'
+      const len = side === 'north' || side === 'south' ? BLOCK_W : BLOCK_H
+      const edge = hash(`road:${b.month}:${side}`)
+      // 뒤쪽 길가: 세 길가 중 두 곳쯤에 2~3칸 이어진 울타리 한 토막
+      const run = 2 + (edge % 2)
+      const start = back && edge % 3 !== 0 ? 1 + ((edge >>> 4) % (len - run)) : -1
+      for (let k = 0; k < len; k++) {
+        const at =
+          side === 'north' ? { gx: gx0 + k + 0.5, gy: gy0 - BACK_IN }
+          : side === 'west' ? { gx: gx0 - BACK_IN, gy: gy0 + k + 0.5 }
+          : side === 'south' ? { gx: gx0 + k + 0.5, gy: gy0 + BLOCK_H + FRONT_IN }
+          : { gx: gx0 + BLOCK_W + FRONT_IN, gy: gy0 + k + 0.5 }
+        if (near(at, signs, ROAD_SIGN_CLEAR) || near(at, PLAZA_GATES, GATE_CLEAR)) continue
+        const seed = hash(`road:${b.month}:${side}:${k}`)
+        const kind = start >= 0 && k >= start && k < start + run ? 'fence' : seed % 5 < (back ? 3 : 2) ? 'flowers' : null
+        if (kind) out.push({ block: b.month, side, ...at, kind, seed })
+      }
+    }
+    const corners = [
+      { gx: gx0 - ROAD / 2, gy: gy0 + BLOCK_H + ROAD / 2 },
+      { gx: gx0 + BLOCK_W + ROAD / 2, gy: gy0 - ROAD / 2 },
+    ]
+    for (const c of corners) {
+      const key = `${c.gx},${c.gy}`
+      if (trees.has(key) || near(c, signs, SIGN_CLEAR) || near(c, PLAZA_GATES, GATE_CLEAR)) continue
+      trees.add(key)
+      out.push({ block: b.month, ...c, kind: 'tree', seed: hash(`road:${b.month}:${key}`) })
+    }
+  }
+  return out
+}
+
 /** 먼 산 봉우리 하나(화면 %). x: 가운데, w: 밑동 너비, h: 구름 바다 윗줄에서 꼭대기까지 높이 */
 export interface Hill {
   x: number

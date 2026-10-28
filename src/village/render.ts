@@ -9,7 +9,7 @@ import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX, MAILBOX_AT } from '../core/letter'
 import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Resident, type Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
-import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, type CliffBit, type RimBit, type Slab } from '../core/scenery'
+import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, roadside, type CliffBit, type RimBit, type RoadBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
 import { agingOf, agingTurnedToday, type AgingStage } from '../core/aging'
 
@@ -256,6 +256,61 @@ function drawFlowers(parent: Element, gx: number, gy: number, seed: number) {
     const p = iso(gx + u, gy + v)
     el('circle', { cx: p.x, cy: p.y, r: 1.8, fill: colors[i % 3] }, g)
   }
+}
+
+const FENCE = '#fff3df'
+/** 길가 토막 한 칸의 두 끝(뒤 → 앞). north·south 길가는 gx 쪽으로, west·east 길가는 gy 쪽으로 뻗는다 */
+const roadEnds = (b: RoadBit): [Pt, Pt] =>
+  b.side === 'north' || b.side === 'south' ? [iso(b.gx - 0.5, b.gy), iso(b.gx + 0.5, b.gy)] : [iso(b.gx, b.gy - 0.5), iso(b.gx, b.gy + 0.5)]
+
+/** 뒤쪽 길가의 낮은 울타리 한 칸(기둥 셋, 가로대 둘). 누르기를 통과한다 */
+function drawFence(g: Element, b: RoadBit, season: Season) {
+  const fence = el('g', { class: 'fence', 'pointer-events': 'none' }, g)
+  const [a, z] = roadEnds(b)
+  const H = 7
+  for (const h of [2.5, 5.2]) {
+    el('line', { x1: a.x, y1: a.y - h, x2: z.x, y2: z.y - h, stroke: LINE, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, fence)
+    el('line', { x1: a.x, y1: a.y - h, x2: z.x, y2: z.y - h, stroke: FENCE, 'stroke-width': 1.4, 'stroke-linecap': 'round' }, fence)
+  }
+  for (const t of [0.08, 0.5, 0.92]) {
+    const x = a.x + (z.x - a.x) * t
+    const y = a.y + (z.y - a.y) * t
+    el('rect', { x: x - 1.3, y: y - H, width: 2.6, height: H + 0.5, rx: 1.3, fill: FENCE, stroke: LINE, 'stroke-width': 0.6 }, fence)
+    if (season === 'winter') el('ellipse', { cx: x, cy: y - H, rx: 1.8, ry: 0.9, fill: '#ffffff' }, fence)
+  }
+}
+
+/** 길가 꽃길 한 칸: 풀 포기 사이로 작은 꽃(겨울엔 눈 얹은 풀만). 누르기를 통과한다 */
+function drawRoadFlowers(g: Element, b: RoadBit, season: Season) {
+  const row = el('g', { class: 'road-flowers', 'pointer-events': 'none' }, g)
+  const [a, z] = roadEnds(b)
+  const color = TUFT[season]
+  for (const t of [0.2, 0.5, 0.8]) {
+    const x = a.x + (z.x - a.x) * t
+    const y = a.y + (z.y - a.y) * t
+    el('path', { d: `M${x - 2.2},${y} q1,-3 0,-4 M${x},${y} v-4.5 M${x + 2.2},${y} q-1,-3 0,-4`, stroke: color, 'stroke-width': 1.1, 'stroke-linecap': 'round', fill: 'none' }, row)
+    if (season === 'winter') el('ellipse', { cx: x, cy: y - 4, rx: 2.2, ry: 1, fill: '#ffffff' }, row)
+  }
+  if (season === 'winter') return
+  const n = season === 'autumn' ? 2 : 4
+  for (let i = 0; i < n; i++) {
+    const t = 0.12 + (i / (n - 1 || 1)) * 0.76
+    const x = a.x + (z.x - a.x) * t
+    const y = a.y + (z.y - a.y) * t - 4 - ((b.seed >>> (i * 3)) % 3)
+    el('circle', { cx: x, cy: y, r: 1.6, fill: RIM_FLOWERS[(b.seed >>> (i * 2)) % RIM_FLOWERS.length], stroke: LINE, 'stroke-width': 0.3 }, row)
+  }
+}
+
+/** 구역 모서리 길의 동그란 가로수(돌 두른 화단 위). 누르기를 통과한다 */
+function drawStreetTree(g: Element, b: RoadBit, season: Season) {
+  const c = iso(b.gx, b.gy)
+  const tree = el('g', { class: 'tree street-tree', 'pointer-events': 'none' }, g)
+  el('ellipse', { cx: c.x, cy: c.y, rx: 8, ry: 4, fill: shade(TUFT[season], 0.15), stroke: LINE, 'stroke-width': 0.6 }, tree)
+  el('rect', { x: c.x - 1.6, y: c.y - 14, width: 3.2, height: 14, rx: 1.6, fill: '#a7805e' }, tree)
+  const color = LEAVES[season][b.seed % LEAVES[season].length]
+  el('circle', { cx: c.x, cy: c.y - 19, r: 8.5, fill: color, stroke: LINE }, tree)
+  el('circle', { cx: c.x - 2.8, cy: c.y - 22, r: 3.2, fill: shade(color, 0.3) }, tree)
+  if (season === 'winter') el('ellipse', { cx: c.x, cy: c.y - 26, rx: 6, ry: 2.6, fill: '#ffffff' }, tree)
 }
 
 /** 오늘 아직 안 쓴 자리: 반짝이는 표시 */
@@ -2012,6 +2067,13 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
     const gy = PLAZA.gy + row
     const seed = hash(`plaza:${col}:${row}`)
     items.push({ depth: gx + gy, draw: () => drawTree(things, gx, gy, seasonOf(opt.today.slice(0, 7)), seed) })
+  }
+  // 길가: 꽃길은 땅에, 뒤쪽 길가 울타리는 그 안쪽 칸 집보다 먼저(뒤에), 모서리 가로수는 선 자리 깊이에
+  for (const b of roadside(village)) {
+    const season = seasonOf(b.block)
+    if (b.kind === 'flowers') items.push({ depth: b.gx + b.gy - 0.7, draw: () => drawRoadFlowers(ground, b, season) })
+    else if (b.kind === 'fence') items.push({ depth: b.gx + b.gy - 0.7, draw: () => drawFence(things, b, season) })
+    else items.push({ depth: b.gx + b.gy, draw: () => drawStreetTree(things, b, season) })
   }
   for (const block of village.blocks) {
     const season = seasonOf(block.month)

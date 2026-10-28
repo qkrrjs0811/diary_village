@@ -2984,6 +2984,30 @@ test('빈 땅에 덤불과 풀 포기가 나서 마을이 덜 허전하고, 집�
   expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
 
+test('구역 길가에 낮은 울타리·꽃길과 모서리 가로수가 서고, 누르기를 막지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-14T13:00:00+09:00') })
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries: [...monthEntries('2026-08', [3, 10]), ...monthEntries('2026-09', [8, 20]), ...monthEntries('2026-10', [6, 7, 9, 12])] })
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, saved])
+  await page.reload()
+  await expect(page.getByTestId('house-2026-10-12')).toBeVisible()
+
+  expect(await page.locator('.fence').count()).toBeGreaterThan(0)
+  expect(await page.locator('.road-flowers').count()).toBeGreaterThan(0)
+  expect(await page.locator('.street-tree').count()).toBeGreaterThan(0)
+  const through = await page.locator('.fence, .road-flowers, .street-tree').evaluateAll((els) => els.every((e) => getComputedStyle(e).pointerEvents === 'none'))
+  expect(through).toBe(true)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/village-roadside.png' })
+
+  const house = (await page.getByTestId('house-2026-10-06').boundingBox())!
+  await page.mouse.move(house.x + house.width / 2, house.y + house.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -200)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/village-roadside-near.png' })
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
+})
+
 test('집을 지어 다가가는 동안 구역 이름표가 잘리거나 날씨 칩에 걸리지 않게 감췄다가 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
