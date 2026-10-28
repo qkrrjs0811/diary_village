@@ -1,5 +1,6 @@
 import { buildingInfo, buildingOf, hasFinal, type BuildingId } from './building'
 import { memoryDates } from './memory'
+import { replyOf } from './reply'
 import { PLAZA, writtenDays } from './landmark'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
 import type { Dated, Entry } from './types'
@@ -155,6 +156,8 @@ export interface Guest {
   waiting: boolean
   building: BuildingId | null
   play: GuestPlay | null
+  /** 첫 손님이 오늘 한 줄에 건네는 맞장구(R18). 둘째 손님·기다리는 손님은 null */
+  reply: string | null
 }
 
 /**
@@ -193,11 +196,17 @@ export function todayGuests(
     waiting: !todays,
     building: b?.id ?? null,
     play: todays ? (b?.id ?? 'house') : null,
+    reply: i === 0 ? replyOf(todays) : null,
   }))
 }
 
-/** 손님 한마디. 오늘 건물 이름만 말하고 글은 옮기지 않는다. 기다리는 말은 재촉하지 않는다 */
+/** 손님 한마디. 첫 손님은 오늘 한 줄에 맞장구를 치고(글 조각은 옮기지 않는다), 다른 손님은 놀이 말을 한다 */
 export function guestLine(g: Guest): string {
+  return g.reply ?? guestPlayLine(g)
+}
+
+/** 손님 놀이 말. 오늘 건물 이름만 말하고 글은 옮기지 않는다. 기다리는 말은 재촉하지 않는다 */
+export function guestPlayLine(g: Guest): string {
   if (g.waiting || !g.play) return '오늘 자리에서 기다리고 있어요.'
   const { line } = GUEST_PLAYS[g.play]
   return g.building ? `오늘 생긴 ${buildingInfo(g.building).name}에 ${line}` : `오늘 지은 집에 ${line}`

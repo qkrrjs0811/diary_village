@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, guestLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
+import { replyOf } from './reply'
 import { PLAZA } from './landmark'
 import { festivalLine, festivalOn } from './festival'
 import { BLOCK_H, BLOCK_W, ROAD, buildVillage } from './village'
@@ -315,9 +316,9 @@ describe('오늘의 손님', () => {
     }
   })
 
-  it('손님 한마디는 오늘 건물 이름만 말하고 글은 옮기지 않으며, 기다리는 말은 재촉하지 않는다', () => {
+  it('손님 놀이 말은 오늘 건물 이름만 말하고 글은 옮기지 않으며, 기다리는 말은 재촉하지 않는다', () => {
     const es = [e(today, '라떼 비밀일기')]
-    const line = guestLine(todayGuests(buildVillage(es, today), residentsOf(es), es, today)[0])
+    const line = guestPlayLine(todayGuests(buildVillage(es, today), residentsOf(es), es, today)[0])
     expect(line).toContain('카페')
     expect(line).not.toContain('비밀일기')
     expect(line).not.toContain('라떼')
@@ -327,7 +328,7 @@ describe('오늘의 손님', () => {
       BUILDINGS.map((b) => {
         const word = b.words.find((w) => findBuilding(w)?.id === b.id)!
         const x = [e(today, word)]
-        const l = guestLine(todayGuests(buildVillage(x, today), residentsOf(x), x, today)[0])
+        const l = guestPlayLine(todayGuests(buildVillage(x, today), residentsOf(x), x, today)[0])
         expect(l).toContain(b.name)
         expect(l.length).toBeLessThanOrEqual(30)
         return l
@@ -337,5 +338,27 @@ describe('오늘의 손님', () => {
     const wait = guestLine(todayGuests(buildVillage(past, today), residentsOf(past), past, today)[0])
     expect(wait).toBe('오늘 자리에서 기다리고 있어요.')
     expect(wait).not.toMatch(/빨리|얼른|왜|아직도|안 썼/)
+  })
+
+  it('첫 손님은 오늘 글에 맞장구를 치고, 둘째 손님은 놀이 말을 한다(글로 계산하고 저장하지 않는다)', () => {
+    const es = [...past, e(today, '친구랑 갓 구운 빵 먹었다')]
+    const gs = todayGuests(buildVillage(es, today), residentsOf(es), es, today)
+    expect(gs).toHaveLength(2)
+    expect(gs[0].reply).toBe(replyOf(es[es.length - 1]))
+    expect(guestLine(gs[0])).toBe(gs[0].reply)
+    expect(gs[1].reply).toBeNull()
+    expect(guestLine(gs[1])).toBe(guestPlayLine(gs[1]))
+    expect(guestLine(gs[1])).toContain('빵집')
+    // 고치면 말도 따라 바뀐다
+    const edited = [...past, e(today, '오늘 너무 속상했다')]
+    const g2 = todayGuests(buildVillage(edited, today), residentsOf(edited), edited, today)
+    expect(guestLine(g2[0])).toBe(replyOf(edited[edited.length - 1]))
+    expect(guestLine(g2[0])).not.toBe(guestLine(gs[0]))
+    // 손님이 한 명이어도 그 손님이 맞장구를 친다. 기다리는 손님은 맞장구가 없다
+    const one = [e(today, '오늘 회의만 세 번')]
+    expect(guestLine(todayGuests(buildVillage(one, today), residentsOf(one), one, today)[0])).toBe(replyOf(one[0]))
+    const wait = todayGuests(buildVillage(past, today), residentsOf(past), past, today)
+    expect(wait[0].reply).toBeNull()
+    expect(guestLine(wait[0])).toBe('오늘 자리에서 기다리고 있어요.')
   })
 })

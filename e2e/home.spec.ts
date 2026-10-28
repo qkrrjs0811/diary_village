@@ -544,7 +544,7 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   await page.getByTestId('write-input').fill('저녁에 동네 산책')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'park')
-  await expect(page.getByTestId('build-note')).toHaveText("🌳 '산책'을 찾아 공원이 생겼어요")
+  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n\S+: “공원이 생겨서 반가워요\.”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-park.png' })
@@ -686,7 +686,8 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
-  await expect(page.getByTestId('build-note')).toHaveText("☕ '커피'를 찾아 카페가 생겼어요")
+  // 찾아온 손님이 오늘 한 줄에 맞장구를 친다(퇴근 → 애씀)
+  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 생겼어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note.png' })
@@ -1048,15 +1049,15 @@ test('쓴 날이 쌓이면 둥근 주민이 늘어 길을 걷고, 누르면 한�
   await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
   await page.screenshot({ path: 'test-results/screens/resident-first.png' })
 
-  // 누르면 짧은 한마디. 다시 누르면 다른 말
+  // 누르면 짧은 한마디(오늘 한 줄의 맞장구). 다시 누르면 다른 말
   await kong.click({ force: true })
-  await expect(page.getByTestId('build-note')).toHaveText('콩이: “오늘 생긴 카페에 커피 마시러 왔어요.”')
+  await expect(page.getByTestId('build-note')).toHaveText('콩이: “카페가 생겨서 반가워요.”')
   const box = (await page.getByTestId('build-note').boundingBox())!
   expect(box.x).toBeGreaterThanOrEqual(0)
   expect(box.x + box.width).toBeLessThanOrEqual(390)
   await page.screenshot({ path: 'test-results/screens/resident-talk.png' })
   await kong.click({ force: true })
-  await expect(page.getByTestId('build-note')).not.toHaveText('콩이: “오늘 생긴 카페에 커피 마시러 왔어요.”')
+  await expect(page.getByTestId('build-note')).not.toHaveText('콩이: “카페가 생겨서 반가워요.”')
   await expect(page.getByTestId('build-note')).toContainText('콩이: “')
 
   // 40일을 쓴 마을에는 주민 10명. 둘은 오늘 집 손님이고 여덟이 오늘 구역 길과 광장을 걷는다
@@ -1126,13 +1127,19 @@ test('오늘의 손님: 쓰기 전엔 한 명이 오늘 자리 앞에서 기다�
   const house = (await page.getByTestId('house-2026-10-20').boundingBox())!
   await page.screenshot({ path: 'test-results/screens/guest-visit-close.png', clip: { x: house.x - 40, y: house.y - 10, width: house.width + 80, height: house.height + 40 } })
 
-  // 누르면 손님 한마디(글은 옮기지 않는다)
+  // 누르면 손님 한마디: 한 손님은 오늘 한 줄에 맞장구(좋았다 → 기쁨), 다른 손님은 놀이 말(글은 옮기지 않는다)
   const first = guests.first()
   const name = await first.getAttribute('data-guest')
-  await first.click({ force: true })
   const note = page.getByTestId('build-note')
-  await expect(note).toContainText('“오늘 생긴 빵집에 빵 사러 왔어요.”')
-  await expect(note).not.toContainText('냄새')
+  const heard: string[] = []
+  for (let i = 0; i < 2; i++) {
+    await guests.nth(i).click({ force: true })
+    await expect(note).toContainText('“')
+    heard.push((await note.textContent())!)
+    await expect(note).not.toContainText('냄새')
+  }
+  expect(heard.some((t) => t.includes('“오늘 생긴 빵집에 빵 사러 왔어요.”'))).toBe(true)
+  expect(heard.some((t) => /“(덩달아 웃음이 나요!|마을까지 환해졌어요\.|그 기분, 저도 나눠 가질게요\.)”/.test(t))).toBe(true)
   await page.screenshot({ path: 'test-results/screens/guest-talk.png' })
   expect(name).toBeTruthy()
 
@@ -1241,6 +1248,65 @@ test('움직임 줄이기면 오늘의 손님이 뛰어 오지 않고 바로 그
   const running = await page.evaluate(() => document.getAnimations().some((a) => (a as CSSAnimation).animationName === 'guest-come'))
   expect(running).toBe(false)
   await expect(page.locator('.guest').first()).toBeVisible()
+  // 맞장구 말풍선도 저절로 뜬다(좋았다 → 기쁨)
+  await expect(page.getByTestId('build-note')).toHaveText(/\n\S+: “(덩달아 웃음이 나요!|마을까지 환해졌어요\.|그 기분, 저도 나눠 가질게요\.)”$/)
+})
+
+test('주민의 맞장구: 한 줄을 쓰면 찾아온 손님이 말풍선으로 한 번 맞장구를 치고, 누르면 다시, 고치면 말이 바뀐다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [3, 6, 9, 12, 15])
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  const COMFORT = /“(곁에 있을게요\. 천천히 해요\.|오늘은 제가 토닥토닥 해 줄게요\.|괜찮아요, 마을이 곁에 있어요\.)”/
+  const TOGETHER = /“(함께한 시간이 따뜻해요\.|좋은 사람들 이야기, 듣기 좋아요\.|둘러앉은 마음이 느껴져요\.)”/
+  await page.getByTestId('mood-blue').click()
+  await page.getByTestId('write-input').fill('오늘은 조금 속상한 비밀이 있었다')
+  await page.getByTestId('write-submit').click()
+  const note = page.getByTestId('build-note')
+  // 보통 집이라 건물 알림은 없고, 새로 열린 소품 아래에 손님 맞장구 한 줄이 저절로 뜬다(글 조각은 옮기지 않는다)
+  await expect(note).toHaveText(new RegExp(`^🌼 꾸밈 소품 꽃밭이 열렸어요\\n\\S+: ${COMFORT.source}$`))
+  await expect(note).not.toContainText('비밀')
+  await page.clock.runFor(2600)
+  await finishAnimations(page)
+  await expect(note).toBeVisible()
+  const box = (await note.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/guest-reply.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  // 한 번만 뜨고 잠시 뒤 사라진다
+  await page.clock.runFor(8000)
+  await expect(note).toBeHidden()
+
+  // 그 손님을 누르면 다시 들린다
+  const ids = await page.locator('.guest').evaluateAll((list) => list.map((n) => n.getAttribute('data-guest')!))
+  expect(ids).toHaveLength(2)
+  let target = ''
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  for (const id of ids) {
+    await page.locator(`[data-guest="${id}"] .hit`).click({ force: true })
+    await expect(note).toBeVisible()
+    if (COMFORT.test((await note.textContent()) ?? '')) target = id
+  }
+  expect(target).toBeTruthy()
+
+  // 고치면 맞장구도 따라 바뀌고, 누르면 새 말부터 들린다
+  await page.getByTestId('house-2026-10-20').click()
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-input').fill('엄마랑 산책했다')
+  await page.getByTestId('edit-save').click()
+  await page.getByTestId('reader-close').click()
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.locator(`[data-guest="${target}"] .hit`).click({ force: true })
+  await expect(note).toHaveText(new RegExp(`^\\S+: ${TOGETHER.source}$`))
+  // 맞장구는 저장하지 않는다
+  const saved = await page.evaluate((k) => localStorage.getItem(k)!, KEY)
+  expect(saved).not.toMatch(/곁에 있을게요|토닥토닥|함께한 시간/)
 })
 
 test('오늘 기분에 따라 마을 하늘에 해·구름·비·별이 뜨고, 누르기를 막지 않는다', async ({ page }) => {
@@ -1764,7 +1830,7 @@ test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알�
   await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
   await page.getByTestId('write-submit').click()
   const note = page.getByTestId('build-note')
-  await expect(note).toHaveText("☕ '커피'를 찾아 카페가 생겼어요\n🪑 꾸밈 소품 벤치가 열렸어요")
+  await expect(note).toHaveText(/^☕ '커피'를 찾아 카페가 생겼어요\n🪑 꾸밈 소품 벤치가 열렸어요\n\S+: “.+”$/)
   await page.clock.runFor(1500)
   await finishAnimations(page)
   const box = (await note.boundingBox())!

@@ -343,8 +343,14 @@ const card = createWriteCard({
     veilFront(svg, r.entry.date)
     veilTimer = window.setTimeout(() => unveil(svg), (calm ? 0 : SHOW.go) + SHOW.hold)
     sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
-    // 지은 건물과 새로 열린 꾸밈 소품을 한 알림에 줄을 나눠 보인다
-    const notes = [buildingNote(buildingOf(r.entry)), decorNote(reachedDecors(before, builtDays(save)))].filter(Boolean)
+    // 지은 건물·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)
+    // 손님은 오늘 집에만 온다. 어제 칸을 쓴 날은 맞장구가 없다
+    const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
+    const notes = [
+      buildingNote(buildingOf(r.entry)),
+      decorNote(reachedDecors(before, builtDays(save))),
+      guest && `${guest.resident.name}: “${guest.reply}”`,
+    ].filter(Boolean)
     showNote(notes.length ? notes.join('\n') : null)
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back)
     return null
@@ -387,7 +393,8 @@ const camera = createCamera(svg, (target, at) => {
     const today = dayKey(Date.now())
     // 손님은 처음엔 손님 한마디(기다리다 집이 생기면 다시 처음부터), 다시 누르면 오늘 이야기 다음 차례를 잇는다
     const guest = gid ? drawn?.guests.find((g) => g.resident.id === gid) : undefined
-    const guestKey = `guest:${resident.id}:${guest?.play ?? 'wait'}`
+    // 글을 고쳐 맞장구가 바뀌면 다시 처음부터 그 말을 한다
+    const guestKey = `guest:${resident.id}:${guest ? guestLine(guest) : 'wait'}`
     if (guest && !taps.has(guestKey)) {
       taps.set(guestKey, 1)
       taps.set(resident.id, Math.max(1, taps.get(resident.id) ?? 0))
