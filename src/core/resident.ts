@@ -6,6 +6,7 @@ import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './villag
 import type { Dated, Entry } from './types'
 import { festivalLine, type Festival } from './festival'
 import { DECORS, type DecorId } from './decor'
+import type { Friend, FriendStep } from './friendship'
 
 export type Ears = 'none' | 'bunny' | 'bear' | 'cat' | 'leaf'
 
@@ -281,12 +282,15 @@ export interface Guest {
   play: GuestPlay | null
   /** 첫 손님이 오늘 한 줄에 건네는 맞장구(R18). 둘째 손님·기다리는 손님은 null */
   reply: string | null
+  /** 오늘 한 줄로 이 손님과 정 걸음이 올랐으면 그 걸음(R28). 아니면 null */
+  step: FriendStep | null
 }
 
 /**
  * 오늘의 손님. 오늘 집이 있으면 주민 한두 명(주민이 셋 이상이면 둘)이 그 집 앞에 놀러 오고,
  * 없으면 한 명이 오늘 자리 앞에서 기다린다. 주민·날짜·오늘 건물로만 정하고 저장하지 않는다.
- * 기분·글 길이는 보지 않는다. taken 은 소품이 놓인 칸이다. 그 칸과 다른 집 칸은 피하고, 자리가 없으면 오지 않는다
+ * 기분·글 길이는 보지 않는다. taken 은 소품이 놓인 칸이다. 그 칸과 다른 집 칸은 피하고, 자리가 없으면 오지 않는다.
+ * rose 는 오늘 한 줄로 정 걸음이 오른 이웃(`friendsRoseOn`)이다. 그 이웃이 먼저 손님이 되고, 없으면 예전 차례 그대로다
  */
 export function todayGuests(
   village: Village,
@@ -295,6 +299,7 @@ export function todayGuests(
   today: string,
   taken: readonly Spot[] = [],
   newcomers: readonly string[] = [],
+  rose: readonly Friend[] = [],
 ): Guest[] {
   const lots = village.blocks.flatMap((b) => b.lots)
   const lot = lots.find((l) => l.date === today)
@@ -310,7 +315,8 @@ export function todayGuests(
   const b = todays ? buildingOf(todays) : null
   const count = Math.min(todays ? (residents.length >= 3 ? 2 : 1) : 1, spots.length)
   // 오늘 이사 온 새 이웃은 광장으로 들어오니, 다른 주민이 모자랄 때만 손님이 된다
-  const order = guestOrder(residents, today)
+  const steps = new Map(todays ? rose.filter((f) => f.step).map((f) => [f.resident.id, f.step!]) : [])
+  const order = guestOrder(residents, today, [...steps.keys()])
   return [...order.filter((r) => !newcomers.includes(r.id)), ...order.filter((r) => newcomers.includes(r.id))]
     .slice(0, count).map((resident, i) => ({
     resident,
@@ -322,33 +328,52 @@ export function todayGuests(
     building: b?.id ?? null,
     play: todays ? (b?.id ?? 'house') : null,
     reply: i === 0 ? replyOf(todays) : null,
+    step: steps.get(resident.id) ?? null,
   }))
 }
 
-/** 그날 손님으로 오는 주민 순서. 주민·날짜로만 정한다 */
-function guestOrder(residents: Resident[], date: string): Resident[] {
-  return [...residents].sort((x, y) => hash(`guest:${date}:${x.id}`) - hash(`guest:${date}:${y.id}`) || (x.id < y.id ? -1 : 1))
+/** 그날 손님으로 오는 주민 순서. 주민·날짜로 정하고, 그날 정 걸음이 오른 이웃(rose)이 먼저 온다 */
+function guestOrder(residents: Resident[], date: string, rose: readonly string[] = []): Resident[] {
+  const first = (r: Resident) => (rose.includes(r.id) ? 0 : 1)
+  return [...residents].sort((x, y) => first(x) - first(y) || hash(`guest:${date}:${x.id}`) - hash(`guest:${date}:${y.id}`) || (x.id < y.id ? -1 : 1))
 }
 
 /**
  * 그날 첫 손님이 그날 한 줄에 건넨 맞장구(읽기 창용). built 는 지은 날(지운 날 포함)이다.
- * 그날까지 온 주민 중에서 고르므로 나중에 쓴 날이 늘어도 말하는 주민이 바뀌지 않고, 오늘이면 지금 손님과 같다
+ * 그날까지 온 주민 중에서 고르므로 나중에 쓴 날이 늘어도 말하는 주민이 바뀌지 않고, 오늘이면 지금 손님과 같다.
+ * rose 는 그날 정 걸음이 오른 이웃(`friendsRoseOn`)이다
  */
-export function dayReply(entry: Entry, built: readonly Dated[]): { resident: Resident; reply: string } | null {
-  const resident = guestOrder(residentsOf([...built.filter((d) => d.date <= entry.date), entry]), entry.date)[0]
+export function dayReply(entry: Entry, built: readonly Dated[], rose: readonly Friend[] = []): { resident: Resident; reply: string } | null {
+  const ids = rose.filter((f) => f.step).map((f) => f.resident.id)
+  const resident = guestOrder(residentsOf([...built.filter((d) => d.date <= entry.date), entry]), entry.date, ids)[0]
   const reply = replyOf(entry)
   return resident && reply ? { resident, reply } : null
 }
 
 /** 읽기 창에 보일 맞장구 한 줄 */
-export function dayReplyLine(entry: Entry, built: readonly Dated[]): string | null {
-  const r = dayReply(entry, built)
+export function dayReplyLine(entry: Entry, built: readonly Dated[], rose: readonly Friend[] = []): string | null {
+  const r = dayReply(entry, built, rose)
   return r ? `💬 ${r.resident.name}: “${r.reply}”` : null
 }
 
-/** 손님 한마디. 첫 손님은 오늘 한 줄에 맞장구를 치고(글 조각은 옮기지 않는다), 다른 손님은 놀이 말을 한다 */
+/** 걸음마다 덧붙이는 말 */
+const STEP_TAILS: Record<FriendStep['level'], string> = {
+  1: '반가워요!',
+  2: '자주 놀러 올게요.',
+  3: '늘 곁에 있을게요.',
+}
+
+/** 정 걸음이 오른 날 손님 첫 한마디: "이제 우리 친한 이웃이에요! 자주 놀러 올게요." */
+export function stepLine(step: FriendStep): string {
+  return `이제 우리 ${step.name}이에요! ${STEP_TAILS[step.level]}`
+}
+
+/**
+ * 손님 한마디. 정 걸음이 오른 손님은 걸음 인사를 하고, 첫 손님은 오늘 한 줄에 맞장구를 치며(글 조각은 옮기지 않는다),
+ * 다른 손님은 놀이 말을 한다
+ */
 export function guestLine(g: Guest): string {
-  return g.reply ?? guestPlayLine(g)
+  return g.step ? stepLine(g.step) : g.reply ?? guestPlayLine(g)
 }
 
 /** 손님 놀이 말. 오늘 건물 이름만 말하고 글은 옮기지 않는다. 기다리는 말은 재촉하지 않는다 */

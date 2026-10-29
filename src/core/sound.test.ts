@@ -126,6 +126,27 @@ describe('짧은 소리(축하·주민·소품)', () => {
   })
 })
 
+describe('하트 가락', () => {
+  it('그 이웃 목소리 높이에서 시작해 올라가고, 짓는 소리보다 크지 않다', () => {
+    const build = buildTune('calm', '2026-10-28')
+    for (const id of ['kong', 'momo', 'bori', 'dubu', 'hodu', 'somi', 'gomi', 'dalle']) {
+      const t = cueTune('friend', id)
+      expect(t[0].freq).toBe(cueTune('resident', id)[0].freq)
+      expect(t.length).toBeGreaterThanOrEqual(3)
+      for (let i = 1; i < t.length; i++) {
+        expect(t[i].freq).toBeGreaterThan(t[i - 1].freq)
+        expect(t[i].at).toBeGreaterThan(t[i - 1].at)
+      }
+      for (const n of t) {
+        expect(n.freq).toBeLessThan(1600)
+        expect(n.gain).toBeLessThanOrEqual(build[0].gain)
+      }
+    }
+    expect(cueTune('friend', 'kong')).toEqual(cueTune('friend', 'kong'))
+    expect(CUE_BUZZ.friend.reduce((a, x) => a + x, 0)).toBeLessThanOrEqual(150)
+  })
+})
+
 describe('자라 온 길 소리', () => {
   it('집이 오를수록 낮은 음에서 높은 음으로 올라간다(귀에 편한 높이)', () => {
     const n = 30

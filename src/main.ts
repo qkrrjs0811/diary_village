@@ -27,7 +27,7 @@ import { createCalendar } from './ui/calendar'
 import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { FIRST_GIFTS, firstSignDate, giftCard, reachedGifts } from './core/gift'
-import { friendNote, friendOf, friendStory, friendTokens, reachedFriends } from './core/friendship'
+import { friendNote, friendOf, friendStory, friendTokens, friendsRoseOn, reachedFriends } from './core/friendship'
 import { createReader } from './ui/reader'
 import { createGrowth } from './ui/growth'
 import { growthSteps } from './core/growth'
@@ -169,7 +169,7 @@ const reader = createReader({
     return { prev: near.prev ? entryOn(save, near.prev) ?? null : null, next: near.next ? entryOn(save, near.next) ?? null : null }
   },
   onTurn: turnTo,
-  reply: (entry) => dayReplyLine(entry, builtDays(save)),
+  reply: (entry) => dayReplyLine(entry, builtDays(save), friendsRoseOn(builtDays(save), entry.date)),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
   photo: (date) => photos[date] ?? null,
   // 사진을 붙이거나 떼면 마당 액자도 바로 바뀌게 다시 그린다
@@ -836,7 +836,7 @@ function render(newDate?: string, comers: string[] = []) {
   const decors = decorsOnMap(village, today, save)
   // 오늘 이사 온 새 이웃은 손님보다 광장 길을 먼저 받는다(기록·날짜로 계산, 저장하지 않음)
   const newcomers = [...new Set([...arrivedOn(days, today).map((x) => x.id), ...comers])]
-  const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers)
+  const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers, friendsRoseOn(days, today))
   // 놓아 둔 쉼터에는 손님·새 이웃이 아닌 이웃이 놀러 와 머문다(걷지 않는다)
   const hangouts = hangoutsOf(residentsOf(days), decors, [...guests.map((g) => g.resident.id), ...newcomers])
   const staying = new Set(hangouts.map((h) => h.resident.id))

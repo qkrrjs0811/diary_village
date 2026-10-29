@@ -84,6 +84,15 @@ export function reachedFriends(before: readonly Dated[], after: readonly Dated[]
   return friendsOf(after).filter((f) => f.level > (friendOf(f.resident, before)?.level ?? 0))
 }
 
+/**
+ * 그날 한 줄로 걸음이 오른 이웃(그날의 손님이 된다). 그날까지 지은 날을 날짜 순으로 세므로
+ * 나중에 쓴 날이 늘어도 바뀌지 않는다. 그날을 짓지 않았으면 없다
+ */
+export function friendsRoseOn(built: readonly Dated[], date: string): Friend[] {
+  if (!built.some((d) => d.date === date)) return []
+  return reachedFriends(built.filter((d) => d.date < date), built.filter((d) => d.date <= date))
+}
+
 /** 열린 자기 이야기(걸음만큼) */
 export function storiesOf(f: Friend): string[] {
   return (STORIES[f.resident.id] ?? []).slice(0, f.level)

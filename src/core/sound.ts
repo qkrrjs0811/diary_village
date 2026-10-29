@@ -58,7 +58,7 @@ export function buildTune(mood: MoodId, date: string): Note[] {
 export const BUZZ = [30, 40, 50]
 
 /** 짓기 말고 마을에서 나는 짧은 소리: 명소·단계 축하, 주민 누르기, 소품 놓기, 읽기 창 넘기기 */
-export type Cue = 'celebrate' | 'resident' | 'place' | 'turn'
+export type Cue = 'celebrate' | 'resident' | 'place' | 'turn' | 'friend'
 
 /** 축하는 C 장조 화음을 한 옥타브 넘게 차례로 올라간다(짓는 소리보다 길게) */
 const FANFARE = [72, 76, 79, 84, 88]
@@ -75,10 +75,18 @@ export function cueTune(cue: Cue, key = ''): Note[] {
       gain: GAIN * 0.9,
     }))
   }
-  if (cue === 'resident') {
+  if (cue === 'resident' || cue === 'friend') {
     let seed = 0
     for (const ch of key) seed = (seed * 31 + ch.charCodeAt(0)) % 9973
     const base = VOICES[seed % VOICES.length]
+    if (cue === 'friend') {
+      // 정이 오른 이웃의 하트 가락: 그 목소리에서 "두근두근 퐁" 하고 살짝 올라간다
+      return [
+        { freq: hz(base), at: 0, dur: 0.12, gain: GAIN * 0.55 },
+        { freq: hz(base + 2), at: 0.16, dur: 0.12, gain: GAIN * 0.55 },
+        { freq: hz(base + 5), at: 0.34, dur: 0.4, gain: GAIN * 0.6 },
+      ]
+    }
     return [
       { freq: hz(base), at: 0, dur: 0.12, gain: GAIN * 0.6 },
       { freq: hz(base + 5), at: 0.08, dur: 0.18, gain: GAIN * 0.6 },
@@ -110,6 +118,7 @@ export const CUE_BUZZ: Record<Cue, number[]> = {
   resident: [],
   place: [15],
   turn: [],
+  friend: [20, 60, 20],
 }
 
 /** 소리 켜기는 사용자가 직접 정한 값이라 따로 저장한다 */

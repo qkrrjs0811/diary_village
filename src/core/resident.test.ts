@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, onPlaza, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests, HANGOUT_PLAYS, hangoutsOf, hangoutLine } from './resident'
+import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, onPlaza, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests, HANGOUT_PLAYS, hangoutsOf, hangoutLine, stepLine } from './resident'
+import { FRIEND_STEPS, friendsRoseOn } from './friendship'
 import type { DecorId } from './decor'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
@@ -266,6 +267,58 @@ describe('오늘의 손님', () => {
     expect(todayGuests(buildVillage([], today), [], [], today)).toEqual([])
   })
 
+  it('정 걸음이 오른 날엔 그 이웃이 첫 손님이 되어 걸음 인사를 한다', () => {
+    const es = days(30, '2026-09-15')
+    const t = es[29].date
+    const v = buildVillage(es, t)
+    const rs = residentsOf(es)
+    const rose = friendsRoseOn(es, t)
+    const gs = todayGuests(v, rs, es, t, [], [], rose)
+    expect(gs[0].resident.id).toBe('kong')
+    expect(gs[0].step?.name).toBe('친한 이웃')
+    expect(guestLine(gs[0])).toBe(stepLine(gs[0].step!))
+    expect(guestLine(gs[0])).toContain('이제 우리 친한 이웃이에요')
+    // 둘째 손님은 걸음이 오르지 않았으니 놀이 말을 한다
+    expect(gs[1].step).toBeNull()
+    expect(gs[1].resident.id).not.toBe('kong')
+    expect(guestLine(gs[1])).toBe(guestPlayLine(gs[1]))
+    // 자리·인원은 그대로다
+    const plain = todayGuests(v, rs, es, t)
+    expect(gs.map((g) => g.spot)).toEqual(plain.map((g) => g.spot))
+    // 둘이 오르면 둘 다 손님이 되어 인사한다
+    const many = days(109, '2026-01-01')
+    const m = many[108].date
+    const both = todayGuests(buildVillage(many, m), residentsOf(many), many, m, [], [], friendsRoseOn(many, m))
+    expect(both.map((g) => g.resident.id).sort()).toEqual(['danchu', 'hodu'])
+    expect(both.every((g) => g.step !== null)).toBe(true)
+    // 걸음마다 인사가 다르다
+    expect(new Set([1, 2, 3].map((k) => stepLine(FRIEND_STEPS[k - 1]))).size).toBe(3)
+  })
+
+  it('정이 오르지 않은 날의 손님은 예전과 똑같다(지난 날 손님이 바뀌지 않는다)', () => {
+    const all = days(70, '2026-08-01')
+    for (let n = 1; n <= all.length; n++) {
+      const es = all.slice(0, n)
+      const t = es[n - 1].date
+      const rose = friendsRoseOn(es, t)
+      if (rose.length) continue
+      const v = buildVillage(es, t)
+      const rs = residentsOf(es)
+      const gs = todayGuests(v, rs, es, t, [], [], rose)
+      expect(gs).toEqual(todayGuests(v, rs, es, t))
+      for (const g of gs) {
+        expect(g.step).toBeNull()
+        expect(guestLine(g)).toBe(g.reply ?? guestPlayLine(g))
+      }
+    }
+    // 아직 안 쓴 날엔 걸음 손님이 없다
+    const es = all.slice(0, 29)
+    const t = addDays(es[28].date, 1)
+    const wait = todayGuests(buildVillage(es, t), residentsOf(es), es, t, [], [], friendsRoseOn(es, t))
+    expect(wait[0].waiting).toBe(true)
+    expect(wait[0].step).toBeNull()
+  })
+
   it('보통 집 앞엔 꽃다발, 건물 16종마다 다른 놀이를 한다', () => {
     const house = [e(today)]
     expect(todayGuests(buildVillage(house, today), residentsOf(house), house, today)[0].play).toBe('house')
@@ -378,6 +431,15 @@ describe('그날 맞장구', () => {
     expect(r.resident.id).toBe(gs[0].resident.id)
     expect(r.reply).toBe(gs[0].reply)
     expect(dayReplyLine(es[es.length - 1], es)).toBe(`💬 ${r.resident.name}: “${r.reply}”`)
+  })
+
+  it('정이 오른 날에는 그 이웃이 맞장구를 쳐 그날 첫 손님과 같다', () => {
+    const es = days(30, '2026-09-15')
+    const last = es[29]
+    const rose = friendsRoseOn(es, last.date)
+    const gs = todayGuests(buildVillage(es, last.date), residentsOf(es), es, last.date, [], [], rose)
+    expect(dayReply(last, es, rose)!.resident.id).toBe('kong')
+    expect(dayReply(last, es, rose)!.resident.id).toBe(gs[0].resident.id)
   })
 
   it('지난날은 그날까지 온 주민 중에서 고르고, 나중에 쓴 날이 늘어도 바뀌지 않는다', () => {

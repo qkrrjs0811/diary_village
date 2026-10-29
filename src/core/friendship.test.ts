@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FRIEND_STEPS, STORIES, friendOf, friendsOf, friendNote, friendStory, friendTokens, reachedFriends, storiesOf } from './friendship'
+import { FRIEND_STEPS, STORIES, friendOf, friendsOf, friendsRoseOn,friendNote, friendStory, friendTokens, reachedFriends, storiesOf } from './friendship'
 import { RESIDENTS, residentTalk } from './resident'
 import { addDays } from './date'
 import type { Dated } from './types'
@@ -142,5 +142,22 @@ describe('함께 쌓는 정', () => {
     expect(residentTalk(r, [], today, 2, [], null, story)).toEqual(residentTalk(r, [], today, 1, [], null, null))
     // 정 이야기는 여느 때 말 차례에서 다시 나오지 않는다
     for (let tap = 2; tap < 8; tap++) expect(residentTalk(r, [], today, tap, [], null, story).text).not.toBe(story)
+  })
+})
+
+describe('정이 오른 날', () => {
+  it('그날까지 날짜 순으로 지은 날을 세어 걸음이 오른 이웃을 찾는다', () => {
+    const built = days(30)
+    expect(friendsRoseOn(built, built[29].date).map((f) => [f.resident.id, f.level])).toEqual([['kong', 2]])
+    expect(friendsRoseOn(built, built[28].date).map((f) => f.resident.id)).toEqual(['gomi'])
+    expect(friendsRoseOn(built, built[27].date)).toEqual([])
+    // 나중 날이 늘거나 순서가 바뀌어도 그날 오른 이웃은 그대로다
+    expect(friendsRoseOn(days(60), built[29].date).map((f) => f.resident.id)).toEqual(['kong'])
+    expect(friendsRoseOn([...built].reverse(), built[29].date).map((f) => f.resident.id)).toEqual(['kong'])
+    // 그날을 짓지 않았으면 없다
+    expect(friendsRoseOn(built, addDays(built[29].date, 1))).toEqual([])
+    // 한 날에 둘이 오를 수 있다(호두 단짝, 단추 안녕)
+    const many = days(109)
+    expect(friendsRoseOn(many, many[108].date).map((f) => f.resident.id).sort()).toEqual(['danchu', 'hodu'])
   })
 })
