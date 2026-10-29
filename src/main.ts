@@ -432,6 +432,7 @@ const book = createBook({
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
   onEntry: (entry) => visitMemory(entry),
   onGrowth: () => growth.play(svg, growthSteps(save)),
+  onTurn: () => sound.cue('turn'),
 })
 document.body.appendChild(book.root)
 

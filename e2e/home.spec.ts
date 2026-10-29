@@ -3675,9 +3675,9 @@ test('명소 축하·주민 누르기·소품 놓기에도 짧은 소리가 나�
   expect(again.slice(4)).toEqual(again.slice(0, 4))
 
   // 소품을 놓으면 나무 "톡" 한 음과 아주 짧은 떨림
-  await hush()
   await page.getByTestId('village-stage').click()
-  await page.getByTestId('book-tab-decors').click()
+  await page.getByTestId('book-tab-decors').click() // 책갈피를 넘기는 책장 소리는 따로 본다
+  await hush()
   await page.getByTestId('book-decorate').click()
   await page.getByTestId('decorate-pick-bench').click()
   await finishAnimations(page)
@@ -4918,6 +4918,62 @@ test('읽기 창을 열거나 넘기면 방이 옅게 밝아지고 커튼이 살
   expect(await anims()).toEqual({ room: 'none', left: 'none', right: 'none', enter: true })
   const saved = JSON.parse(await page.evaluate((k) => localStorage.getItem(k)!, KEY))
   expect(saved.entries.map((e: Entry) => e.text)).toEqual(before.entries.map((e) => e.text))
+})
+
+test('마을 수첩 책갈피를 넘기면 책장 소리와 함께 칸이 옅게 바뀌고, 소리를 끄면 조용하고 움직임 줄이기면 바로다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const saved = JSON.stringify({ version: 1, entries: dayEntries('2026-10-10', 12) })
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, saved])
+  await page.reload()
+
+  const notes = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes.length)
+  const buzz = () => page.evaluate(() => (window as unknown as { buzz: unknown[] }).buzz)
+  const fade = (id: string) =>
+    page.evaluate((id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`)!.closest('.book-pane')!
+      return { name: getComputedStyle(el).animationName, in: el.classList.contains('pane-in') }
+    }, id)
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book')).toBeVisible()
+  // 열 때는 소리도 연출도 없다
+  const quiet = await notes()
+  expect((await fade('book-buildings')).in).toBe(false)
+
+  // 다른 칸으로 넘기면 책장 소리(두 음, 음마다 바탕음과 배음)가 나고 떨지 않으며, 새 칸이 옅게 떠오른다
+  await page.getByTestId('book-tab-landmarks').click()
+  await expect(page.getByTestId('book-landmarks')).toBeVisible()
+  expect((await notes()) - quiet).toBe(4)
+  expect(await buzz()).toEqual([])
+  expect(await fade('book-landmarks')).toEqual({ name: 'pane-in', in: true })
+  await page.waitForTimeout(80)
+  await page.screenshot({ path: 'test-results/screens/book-tab-turn.png' })
+  // 보던 칸을 다시 누르면 넘기지 않아 조용하다
+  const turned = await notes()
+  await page.getByTestId('book-tab-landmarks').click()
+  expect(await notes()).toBe(turned)
+  await page.getByTestId('book-tab-neighbors').click()
+  await expect(page.getByTestId('book-neighbors')).toBeVisible()
+  expect((await notes()) - turned).toBe(4)
+  expect(await fade('book-neighbors')).toEqual({ name: 'pane-in', in: true })
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: 'test-results/screens/book-tab-turned.png' })
+
+  // 소리를 끄면 넘겨도 조용하다
+  await page.evaluate(() => localStorage.setItem('diary-village:sound', 'off'))
+  const off = await notes()
+  await page.getByTestId('book-tab-decors').click()
+  await expect(page.getByTestId('book-decors')).toBeVisible()
+  expect(await notes()).toBe(off)
+
+  // 움직임 줄이기면 새 칸이 바로 보인다
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByTestId('book-tab-buildings').click()
+  await expect(page.getByTestId('book-buildings')).toBeVisible()
+  expect(await fade('book-buildings')).toEqual({ name: 'none', in: true })
+  // 저장은 기록 그대로다(보던 책갈피를 저장하지 않는다)
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(saved)
 })
 
 test('건물 16종의 방에는 저마다 대표 가구가 그림으로 놓이고, 방은 창 안에 다 보인다', async ({ page }) => {

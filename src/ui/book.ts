@@ -23,6 +23,8 @@ export function createBook(handlers: {
   onEntry: (entry: Entry) => void
   /** 단계 칸 아래 "마을이 자라 온 길"로 첫 집부터 오늘까지 다시 보는 장면을 연다 */
   onGrowth: () => void
+  /** 책갈피를 넘겨 다른 칸으로 갈 때(읽기 창과 같은 책장 소리) */
+  onTurn: () => void
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -133,7 +135,18 @@ export function createBook(handlers: {
       tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.pane === to)))
       sheet.querySelectorAll<HTMLElement>('.book-pane').forEach((p) => (p.hidden = p.dataset.pane !== to))
     }
-    tabs.forEach((t) => t.addEventListener('click', () => turn(t.dataset.pane!)))
+    // 다른 칸으로 넘기면 책장 소리와 함께 새 칸이 옅게 떠오른다(움직임 줄이기면 바로). 보던 칸을 다시 누르면 그대로
+    tabs.forEach((t) =>
+      t.addEventListener('click', () => {
+        if (t.dataset.pane === pane) return
+        turn(t.dataset.pane!)
+        const shown = sheet.querySelector<HTMLElement>(`.book-pane[data-pane="${pane}"]`)!
+        shown.classList.remove('pane-in')
+        void shown.offsetWidth
+        shown.classList.add('pane-in')
+        handlers.onTurn()
+      }),
+    )
     turn(resume ?? 'buildings')
     resume = null
     sheet.querySelector('.book-calendar')!.addEventListener('click', () => {
