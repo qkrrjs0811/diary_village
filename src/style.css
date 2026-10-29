@@ -926,8 +926,28 @@ button { font: inherit; color: inherit; }
   86% { transform: translate(0, -3px); }
   100% { transform: translate(0, 0); opacity: 1; }
 }
+/* 정 걸음이 오른 손님: 다 뛰어 온 뒤(+1.95s) 머리 위 하트가 퐁 커지며 떠올랐다 사라진다 */
+.guest-heart {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  pointer-events: none;
+  animation: guest-heart 1.8s ease-out calc(var(--delay, 0s) + 1.95s + var(--lag, 0s)) both;
+}
+@keyframes guest-heart {
+  0% { transform: translateY(2px) scale(0.2); opacity: 0; }
+  18% { transform: translateY(-1px) scale(1.25); opacity: 1; }
+  30% { transform: translateY(-2px) scale(1); }
+  75% { opacity: 1; }
+  100% { transform: translateY(-9px) scale(1); opacity: 0; }
+}
+/* 움직임 줄이기: 움직이지 않고 잠깐 보였다 사라진다 */
+@keyframes guest-heart-calm {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .guest .bob, .resident.hangout .bob, .guest .wait-bubble, .guest.arrive { animation: none; }
+  .guest-heart { animation: guest-heart-calm 2.4s linear var(--delay, 0s) both; }
 }
 /* 집을 지어 다가갈 때·집을 읽을 때 그 집 앞을 가리는 나무·주민을 잠깐 옅게 한다 */
 .things .tree, .things .resident { transition: opacity 0.35s ease; }

@@ -2260,6 +2260,16 @@ function drawGuest(g: Element, guest: Guest, arrive = false, token?: FriendToken
     el('rect', { x: b.x - 7, y: b.y - 4.5, width: 14, height: 9, rx: 4.5, fill: '#fffdf8', stroke: '#a7805e', 'stroke-width': 0.8 }, bubble)
     for (const k of [-2.6, 0, 2.6]) el('circle', { cx: b.x + k, cy: b.y, r: 0.9, fill: '#a7805e' }, bubble)
   }
+  // 정 걸음이 오른 손님: 다 뛰어 온 뒤 머리 위로 작은 하트가 퐁 떠올랐다 사라진다
+  if (arrive && guest.step) {
+    const h = { x: a.x, y: a.y - 27 }
+    const heart = el('g', { class: 'guest-heart', 'data-testid': `guest-heart-${r.id}`, 'data-step': String(guest.step.level) }, node)
+    el('path', {
+      d: `M${h.x} ${h.y + 4} C${h.x - 7} ${h.y - 0.5} ${h.x - 4.6} ${h.y - 6.4} ${h.x} ${h.y - 3} C${h.x + 4.6} ${h.y - 6.4} ${h.x + 7} ${h.y - 0.5} ${h.x} ${h.y + 4} Z`,
+      fill: '#ff9fb6', stroke: LINE, 'stroke-width': 0.7, 'stroke-linejoin': 'round',
+    }, heart)
+    el('ellipse', { cx: h.x - 2.2, cy: h.y - 2.2, rx: 1.1, ry: 0.7, fill: 'rgba(255,255,255,0.75)' }, heart)
+  }
 }
 
 /** 짓는 순간의 반짝임과 작은 먼지. 집 위에 따로 그려 집과 함께 늘어나지 않게 한다 */

@@ -498,7 +498,11 @@ const card = createWriteCard({
     sound.build(r.entry.mood, r.entry.date, calm ? 0 : SHOW.go)
     // 지은 건물·새 이웃·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)
     // 손님은 오늘 집에만 온다. 어제 칸을 쓴 날은 맞장구가 없다
+    // 정 걸음이 오른 이웃이 손님이면 다 뛰어 와 머리 위에 하트가 뜰 때 하트 가락을 울린다
+    // 알림은 "💛 …와 친한 이웃" 줄이 걸음을 알리니 손님 줄은 맞장구 그대로 두고, 걸음 인사는 손님을 누르면 들린다
     const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
+    const friend = drawn?.guests.find((g) => g.step && g.date === r.entry.date)
+    if (friend) sound.cue('friend', friend.resident.id, calm ? 0 : SHOW.go + 1950)
     // 첫 주 선물 소품은 축하 카드가 따로 알려 준다
     const opened = reachedDecors(before, builtDays(save)).filter((d) => !FIRST_GIFTS.some((g) => g.decor === d.id))
     const notes = [

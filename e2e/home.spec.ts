@@ -1167,6 +1167,82 @@ test('함께 쌓는 정: 서른째 날을 지으면 "콩이와 친한 이웃" �
   await expect(page.getByTestId('book-friend')).toHaveCount(0)
 })
 
+test('정이 오른 날의 손님: 서른째 날을 지으면 콩이가 손님으로 와 머리 위 하트·걸음 인사(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-09-28', 29)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  // 아직 짓지 않은 날은 하트가 없다
+  await expect(page.locator('.guest-heart')).toHaveCount(0)
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  // 걸음이 오른 콩이가 첫 손님이 되어 걸음 인사를 한다
+  await expect(page.getByTestId('guest-kong')).toHaveClass(/arrive/)
+  await expect(page.getByTestId('guest-heart-kong')).toHaveCount(1)
+  await expect(page.locator('.guest-heart')).toHaveCount(1)
+  await expect(page.getByTestId('build-note')).toContainText('💛 콩이와 친한 이웃이 되었어요')
+  // 하트는 짓는 연출과 뛰어 오기가 끝난 뒤 떠오른다
+  const pop = await page.evaluate(() =>
+    document.getAnimations().filter((a) => (a as CSSAnimation).animationName === 'guest-heart').map((a) => Number(a.effect!.getComputedTiming().delay)),
+  )
+  expect(pop).toHaveLength(1)
+  expect(pop[0]).toBeGreaterThanOrEqual(800 + 1950)
+  // 하트가 막 커진 모습
+  await page.evaluate(() => {
+    for (const a of document.getAnimations()) {
+      a.pause()
+      const name = (a as CSSAnimation).animationName
+      if (name === 'guest-heart') a.currentTime = Number(a.effect!.getComputedTiming().delay) + 500
+      else if (name === 'guest-come') a.currentTime = 99999
+      else a.currentTime = 2400
+    }
+  })
+  const heart = (await page.getByTestId('guest-heart-kong').boundingBox())!
+  const kong = (await page.getByTestId('guest-kong').locator('.hit').boundingBox())!
+  // 하트는 콩이 머리 위에 있다
+  expect(heart.y + heart.height).toBeLessThan(kong.y + kong.height / 2)
+  expect(Math.abs(heart.x + heart.width / 2 - (kong.x + kong.width / 2))).toBeLessThan(kong.width / 2)
+  expect(await page.getByTestId('guest-heart-kong').evaluate((n) => Number(getComputedStyle(n).opacity))).toBeGreaterThan(0.9)
+  const house = (await page.getByTestId('house-2026-10-27').boundingBox())!
+  await page.screenshot({ path: 'test-results/screens/friend-guest-heart.png', clip: { x: house.x - 70, y: house.y - 30, width: house.width + 140, height: house.height + 90 } })
+  // 다 떠오르면 사라진다
+  await finishAnimations(page)
+  expect(await page.getByTestId('guest-heart-kong').evaluate((n) => Number(getComputedStyle(n).opacity))).toBe(0)
+  // 저장된 칸은 한 줄이 더해진 것뿐이다
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(Object.keys(JSON.parse(before!)).sort())
+  expect(stored.entries).toHaveLength(30)
+  // 다시 열면 하트는 다시 뜨지 않고 콩이는 그대로 손님이다
+  await page.reload()
+  await expect(page.getByTestId('guest-kong')).toBeAttached()
+  await expect(page.locator('.guest-heart')).toHaveCount(0)
+  // 콩이를 누르면 걸음 인사를 한다
+  await page.getByTestId('guest-kong').click({ force: true })
+  await expect(page.getByTestId('build-note')).toContainText('콩이: “이제 우리 친한 이웃이에요!')
+})
+
+test('정이 오른 날의 손님: 움직임 줄이기면 하트가 움직이지 않고 잠깐 보였다 사라진다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries: dayEntries('2026-09-28', 29) })])
+  await page.reload()
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('guest-heart-kong')).toHaveCount(1)
+  const names = await page.evaluate(() => document.getAnimations().map((a) => (a as CSSAnimation).animationName))
+  expect(names).toContain('guest-heart-calm')
+  expect(names).not.toContain('guest-heart')
+  expect(await page.getByTestId('guest-heart-kong').evaluate((n) => Number(getComputedStyle(n).opacity))).toBeGreaterThan(0.9)
+  await finishAnimations(page)
+  expect(await page.getByTestId('guest-heart-kong').evaluate((n) => Number(getComputedStyle(n).opacity))).toBe(0)
+})
+
 test('함께 쌓는 정: 마을의 이웃이 걸음마다 정표를 달고, 누르면 열린 자기 이야기를 들려준다(빽빽한 마을, 저장 안 함)', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
