@@ -233,8 +233,9 @@ const settings = createSettings({
         render()
         return null
       },
-  exportFile: readOnly ? null : () => ({ name: backupFileName(dayKey(Date.now())), text: backupText(save) }),
-  planImport: readOnly ? null : (text) => planImport(save, text),
+  exportFile: readOnly ? null : () => ({ name: backupFileName(dayKey(Date.now())), text: backupText(save, photos) }),
+  // 사진 보관함을 쓸 수 없으면 사진은 두고 글만 가져온다
+  planImport: readOnly ? null : (text) => planImport(save, text, photoStore ? photos : null),
   applyImport(plan) {
     if (readOnly) return '지금은 가져올 수 없어요'
     try {
@@ -244,6 +245,8 @@ const settings = createSettings({
     }
     const before = builtDays(save)
     save = plan.save
+    // 백업에서 온 사진을 그날에 붙인다(폰에 있던 사진은 그대로다). 못 담으면 setPhoto 가 알린다
+    for (const [date, data] of Object.entries(plan.photos)) if (photos[date] !== data) setPhoto(date, data)
     render()
     celebrate(before, 0, undefined, false)
     return null
@@ -253,6 +256,7 @@ const settings = createSettings({
     if (t !== null) return `마지막 백업: ${dateLabel(dayKey(t))}`
     return save.entries.length ? '아직 백업한 적이 없어요' : ''
   },
+  photoCount: () => Object.keys(photos).length,
   onExported() {
     try {
       markBackedUp(kv, Date.now())

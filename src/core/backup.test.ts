@@ -26,7 +26,7 @@ describe('백업 가져오기', () => {
   it('빈 폰에 가져오면 모든 기록이 들어온다', () => {
     const backup = save(e('2026-10-01', '가'), e('2026-10-02', '나'))
     const r = planImport(save(), backupText(backup))
-    expect(r).toEqual({ ok: true, save: backup, total: 2, added: 2, kept: 0, lettersAdded: 0 })
+    expect(r).toEqual({ ok: true, save: backup, total: 2, added: 2, kept: 0, lettersAdded: 0, photos: {}, photosAdded: 0, photosLeft: 0 })
   })
 
   it('폰에 있는 글은 지우지 않고 없는 날만 더한다', () => {
@@ -47,6 +47,59 @@ describe('백업 가져오기', () => {
     const now = save(e('2026-10-01', '가'))
     const r = planImport(now, backupText(now))
     expect(r).toMatchObject({ ok: true, added: 0, kept: 1 })
+  })
+})
+
+const A = 'data:image/jpeg;base64,QUFB'
+const B = 'data:image/jpeg;base64,QkJC'
+const C = 'data:image/png;base64,Q0ND'
+
+describe('사진과 백업', () => {
+  it('사진을 백업 파일의 photos 칸에 담고, 글은 그대로 다시 읽힌다', () => {
+    const s = save(e('2026-10-01', '가'), e('2026-10-02', '나'))
+    const text = backupText(s, { '2026-10-02': B, '2026-10-01': A })
+    expect(JSON.parse(text).photos).toEqual({ '2026-10-01': A, '2026-10-02': B })
+    expect(parseSave(text)).toEqual(s)
+  })
+
+  it('사진이 없으면 photos 칸을 두지 않고, 글이 없는 날의 사진은 담지 않는다', () => {
+    const s = save(e('2026-10-01', '가'))
+    expect(JSON.parse(backupText(s))).not.toHaveProperty('photos')
+    expect(JSON.parse(backupText(s, {}))).not.toHaveProperty('photos')
+    expect(JSON.parse(backupText(s, { '2026-10-05': A }))).not.toHaveProperty('photos')
+  })
+
+  it('사진이 없는 이전 백업도 그대로 가져온다', () => {
+    const backup = save(e('2026-10-01', '가'))
+    const r = planImport(save(), backupText(backup), {})
+    expect(r).toMatchObject({ ok: true, added: 1, photos: {}, photosAdded: 0, photosLeft: 0 })
+  })
+
+  it('폰 사진은 지키고, 폰에 없는 날의 사진만 백업에서 더한다', () => {
+    const phone = save(e('2026-10-01', '폰'))
+    const backup = save(e('2026-10-01', '백업'), e('2026-10-02', '나'))
+    const r = planImport(phone, backupText(backup, { '2026-10-01': B, '2026-10-02': C }), { '2026-10-01': A })
+    expect(r).toMatchObject({ ok: true, photos: { '2026-10-01': A, '2026-10-02': C }, photosAdded: 1, photosLeft: 0 })
+  })
+
+  it('폰에 사진이 없던 날이면 그날 글이 폰에 있어도 백업 사진을 붙인다', () => {
+    const phone = save(e('2026-10-01', '폰'))
+    const r = planImport(phone, backupText(save(e('2026-10-01', '백업')), { '2026-10-01': B }), {})
+    expect(r).toMatchObject({ ok: true, added: 0, photos: { '2026-10-01': B }, photosAdded: 1 })
+  })
+
+  it('이상한 사진은 그 장만 버린다', () => {
+    const backup = save(e('2026-10-01', '가'), e('2026-10-02', '나'))
+    const raw = JSON.parse(backupText(backup, { '2026-10-01': A }))
+    raw.photos['2026-10-02'] = 'http://example.com/a.jpg'
+    const r = planImport(save(), JSON.stringify(raw), {})
+    expect(r).toMatchObject({ ok: true, added: 2, photos: { '2026-10-01': A }, photosAdded: 1 })
+  })
+
+  it('폰에 사진을 담을 수 없으면(null) 글만 가져오고 남긴 사진 수를 알려 준다', () => {
+    const backup = save(e('2026-10-01', '가'), e('2026-10-02', '나'))
+    const r = planImport(save(), backupText(backup, { '2026-10-01': A, '2026-10-02': B }), null)
+    expect(r).toMatchObject({ ok: true, added: 2, photos: {}, photosAdded: 0, photosLeft: 2 })
   })
 })
 

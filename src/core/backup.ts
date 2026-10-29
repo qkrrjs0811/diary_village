@@ -1,5 +1,6 @@
 import { addDays, dayKey } from './date'
 import { mergeLetters } from './letter'
+import { mergePhotos, photosShown, readPhotos, type Photos } from './photo'
 import { parseSave, type KV } from './storage'
 import { mergeMonthTitles } from './title'
 import type { Erased, SaveData } from './types'
@@ -7,8 +8,23 @@ import type { Erased, SaveData } from './types'
 /** 내려받는 백업 파일 이름. 날짜를 넣어 여러 번 받아도 헷갈리지 않게 */
 export const backupFileName = (today: string) => `diary-village-${today}.json`
 
-/** 백업 파일 내용. 저장 형식 그대로라 parseSave 로 다시 읽는다 */
-export const backupText = (save: SaveData) => JSON.stringify(save, null, 2)
+/**
+ * 백업 파일 내용. 저장 형식 그대로라 parseSave 로 다시 읽는다.
+ * 사진은 따로 photos 칸에 담는다(글이 남은 날만, 없으면 칸을 두지 않는다). parseSave 는 이 칸을 모르고 지나간다
+ */
+export function backupText(save: SaveData, photos: Photos = {}): string {
+  const shown = photosShown(save, photos)
+  return JSON.stringify(Object.keys(shown).length ? { ...save, photos: shown } : save, null, 2)
+}
+
+/** 백업 파일의 사진 묶음. 사진이 없는 이전 백업이면 빈 묶음 */
+function backupPhotos(text: string): Photos {
+  try {
+    return readPhotos((JSON.parse(text) as { photos?: unknown }).photos)
+  } catch {
+    return {}
+  }
+}
 
 export type ImportPlan =
   | { ok: false }
@@ -24,13 +40,19 @@ export type ImportPlan =
       kept: number
       /** 백업에만 있어 새로 더해지는 편지 수 */
       lettersAdded: number
+      /** 가져온 뒤 폰에 둘 사진 전부(폰 사진은 그대로) */
+      photos: Photos
+      /** 백업에서 새로 붙는 사진 수 */
+      photosAdded: number
+      /** 폰에 사진을 담을 수 없어 가져오지 못하는 사진 수 */
+      photosLeft: number
     }
 
 /**
  * 백업을 지금 기록에 더한다. 쓴 글은 사라지지 않아야 하므로 바꿔치기하지 않는다:
  * 폰에 있는 날은 폰의 글을 그대로 두고, 폰에 없는 날만 백업에서 더한다
  */
-export function planImport(current: SaveData, text: string): ImportPlan {
+export function planImport(current: SaveData, text: string, phonePhotos: Photos | null = {}): ImportPlan {
   const backup = parseSave(text)
   if (!backup) return { ok: false }
   const have = new Set(current.entries.map((e) => e.date))
@@ -54,8 +76,13 @@ export function planImport(current: SaveData, text: string): ImportPlan {
   // 달 이름도 두 쪽을 합친다. 같은 달은 폰의 이름을 지킨다
   const monthTitles = mergeMonthTitles(current.monthTitles, backup.monthTitles)
   if (Object.keys(monthTitles).length) save.monthTitles = monthTitles
-  const lettersAdded =letters.length - (current.letters?.length ?? 0)
-  return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length, lettersAdded }
+  const lettersAdded = letters.length - (current.letters?.length ?? 0)
+  // 사진도 폰 사진을 지키고 폰에 없는 날만 더한다. 폰에 담을 수 없으면(null) 글만 가져온다
+  const fromBackup = photosShown(save, backupPhotos(text))
+  const photos = phonePhotos ? mergePhotos(phonePhotos, fromBackup, save) : {}
+  const photosAdded = phonePhotos ? Object.keys(photos).filter((d) => !phonePhotos[d]).length : 0
+  const photosLeft = phonePhotos ? 0 : Object.keys(fromBackup).length
+  return { ok: true, save, total: backup.entries.length, added: fresh.length, kept: backup.entries.length - fresh.length, lettersAdded, photos, photosAdded, photosLeft }
 }
 
 /** 마지막으로 백업 파일을 내려받은 시각(ms). 사용자가 한 일이라 따로 둔다 */

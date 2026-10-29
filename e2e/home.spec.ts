@@ -769,6 +769,85 @@ test('"📷 사진"으로 그날에 사진을 붙이고, 읽기 창에 폴라로
   await expect(page.getByTestId('erase-note')).toContainText('지운 글은 되돌릴 수 없어요')
 })
 
+test('사진도 백업 파일에 담기고, 새 폰에 가져오면 그날에 다시 붙는다. 설정 창에 "사진 N장 · 폰에 보관 중"', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // 사진이 없으면 설정 창에 사진 줄이 없다
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('photo-note')).toBeHidden()
+  await page.getByTestId('settings-close').click()
+
+  await page.getByTestId('write-photo-file').setInputFiles(await bigPhoto(page))
+  await expect(page.getByTestId('write-photo-thumb')).toBeVisible()
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('바다')
+  await page.getByTestId('write-submit').click()
+  await expect.poll(() => storedPhoto(page, '2026-10-27')).toMatch(/^data:image\/jpeg;base64,/)
+  const photo = (await storedPhoto(page, '2026-10-27'))!
+  await page.clock.runFor(4000)
+
+  // 설정 창: 사진 수와 백업 안내
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('photo-note')).toHaveText('📷 사진 1장 · 폰에 보관 중이에요. 백업 파일에 함께 담겨요')
+  for (const id of ['backup-export', 'backup-import', 'settings-close']) await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 })
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/settings-photos.png' })
+
+  // 내려받은 파일에 사진이 담긴다. 저장 원본에는 여전히 없다
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('backup-export').click()])
+  const backup = JSON.parse(readFileSync(await download.path(), 'utf8'))
+  expect(backup.photos).toEqual({ '2026-10-27': photo })
+  expect(await page.evaluate((k) => localStorage.getItem(k)!, KEY)).not.toContain('data:image')
+
+  // 새 폰처럼 글도 사진도 비운 뒤 가져온다
+  await page.evaluate(
+    (k) =>
+      new Promise<void>((ok) => {
+        localStorage.removeItem(k)
+        const req = indexedDB.deleteDatabase('diary-village:photos')
+        req.onsuccess = () => ok()
+        req.onerror = () => ok()
+      }),
+    KEY,
+  )
+  await page.reload()
+  await page.waitForTimeout(500) // 사진 보관함을 여는 동안
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('photo-note')).toBeHidden()
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-27.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) })
+  await expect(page.getByTestId('import-summary')).toContainText('사진 1장도 그날에 붙여요.')
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/import-photos.png' })
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('settings-msg')).toHaveText('🏠 6일의 집을 다시 지었어요')
+  await expect.poll(() => storedPhoto(page, '2026-10-27')).toBe(photo)
+  await expect(page.getByTestId('photo-note')).toContainText('📷 사진 1장')
+  await page.getByTestId('settings-close').click()
+  await page.getByTestId('house-2026-10-27').dispatchEvent('click')
+  await expect(page.getByTestId('reader-photo')).toBeVisible()
+  await page.getByTestId('reader-close').click()
+
+  // 같은 파일을 다시 가져오면 더할 것이 없다(사진도 겹쳐 붙이지 않는다)
+  await page.getByTestId('settings-open').click()
+  await expect(page.getByTestId('photo-note')).toContainText('📷 사진 1장')
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-2026-10-27.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) })
+  await expect(page.getByTestId('import-summary')).not.toContainText('사진')
+  await expect(page.getByTestId('import-ok')).toBeDisabled()
+
+  // 사진이 없는 이전 백업도 그대로 읽힌다
+  await page.getByTestId('import-cancel').click()
+  const old = { version: 1, entries: [...entries, { date: '2026-10-21', text: '옛 백업의 한 줄', mood: 'calm', writtenAt: 1 }] }
+  await page.getByTestId('backup-file').setInputFiles({ name: 'diary-village-old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) })
+  await expect(page.getByTestId('import-summary')).toContainText('그중 1일을 마을에 더해요.')
+  await page.getByTestId('import-ok').click()
+  await expect(page.getByTestId('settings-msg')).toHaveText('🏠 1일의 집을 다시 지었어요')
+  await expect.poll(() => storedPhoto(page, '2026-10-27')).toBe(photo)
+})
+
 test('더 쓴 글은 읽기 창에 줄바꿈 그대로 보이고, 찾기에 조각으로 나오며, 백업으로 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

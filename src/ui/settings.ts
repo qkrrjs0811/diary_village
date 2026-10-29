@@ -19,6 +19,8 @@ export function createSettings(handlers: {
   applyImport: (plan: Extract<ImportPlan, { ok: true }>) => string | null
   /** 마지막 백업을 알리는 짧은 줄(없으면 빈 글) */
   backupNote: () => string
+  /** 폰에 보관 중인 사진 수 */
+  photoCount: () => number
   /** 백업 파일을 내려받은 뒤 */
   onExported: () => void
 }) {
@@ -55,6 +57,7 @@ export function createSettings(handlers: {
         <div class="settings-label">백업</div>
         <p class="settings-help">쓴 글을 파일로 받아 두면 폰을 바꿔도 마을을 다시 지을 수 있어요.</p>
         <p class="settings-help backup-note" data-testid="backup-note"></p>
+        <p class="settings-help photo-note" data-testid="photo-note"></p>
         <button type="button" class="settings-btn" data-testid="backup-export" ${handlers.exportFile ? '' : 'disabled'}>📦 백업 파일 내려받기</button>
         <button type="button" class="settings-btn" data-testid="backup-import" ${handlers.planImport ? '' : 'disabled'}>📂 백업 파일 가져오기</button>
         <input type="file" accept=".json,application/json" data-testid="backup-file" hidden />
@@ -72,6 +75,11 @@ export function createSettings(handlers: {
       note.hidden = !note.textContent
     }
     showNote()
+    // 사진은 폰 안에만 있어서, 폰을 바꾸면 백업 파일로만 옮겨 갈 수 있다
+    const photoNote = sheet.querySelector<HTMLElement>('[data-testid="photo-note"]')!
+    const photoCount = handlers.photoCount()
+    photoNote.textContent = photoCount ? `📷 사진 ${photoCount}장 · 폰에 보관 중이에요. 백업 파일에 함께 담겨요` : ''
+    photoNote.hidden = !photoCount
     sheet.querySelector('.close')!.addEventListener('click', close)
     const nameInput = sheet.querySelector<HTMLInputElement>('[data-testid="name-input"]')!
     const nameSave = sheet.querySelector<HTMLButtonElement>('[data-testid="name-save"]')!
@@ -152,7 +160,9 @@ export function createSettings(handlers: {
     if (plan.kept > 0) lines.push(`이미 쓴 ${plan.kept}일은 지금 글을 그대로 둬요.`)
     if (plan.added === 0) lines.push('새로 더할 날은 없어요.')
     if (plan.lettersAdded > 0) lines.push(`미래의 나에게 쓴 편지 ${plan.lettersAdded}통을 더해요.`)
-    const fresh = plan.added > 0 || plan.lettersAdded > 0
+    if (plan.photosAdded > 0) lines.push(`사진 ${plan.photosAdded}장도 그날에 붙여요.`)
+    if (plan.photosLeft > 0) lines.push(`사진 ${plan.photosLeft}장은 이 폰에 담을 수 없어 글만 가져와요.`)
+    const fresh = plan.added > 0 || plan.lettersAdded > 0 || plan.photosAdded > 0
     sheet.innerHTML = `
       <div class="edit-title">📂 백업 가져오기</div>
       <p class="settings-help confirm" data-testid="import-summary"></p>
@@ -171,7 +181,13 @@ export function createSettings(handlers: {
         msg.classList.add('err')
         return
       }
-      showMain(plan.added > 0 ? `🏠 ${plan.added}일의 집을 다시 지었어요` : `💌 편지 ${plan.lettersAdded}통을 우체통에 넣었어요`)
+      showMain(
+        plan.added > 0
+          ? `🏠 ${plan.added}일의 집을 다시 지었어요`
+          : plan.lettersAdded > 0
+            ? `💌 편지 ${plan.lettersAdded}통을 우체통에 넣었어요`
+            : `📷 사진 ${plan.photosAdded}장을 그날에 붙였어요`,
+      )
     })
   }
 
