@@ -1476,7 +1476,7 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'park')
   // 다섯째 날이라 새 이웃 보리도 이사 온다. 지난날에도 쓴 '산책'은 메아리 줄로 그날을 알린다
-  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n🏡 새 이웃 보리가 이사 왔어요\n\S+: “공원이 생겨서 반가워요\.”🔁 '산책' — \d+월 \d+일에도 썼어요$/)
+  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n🏡 새 이웃 보리가 이사 왔어요\n💬 \S+: “공원이 생겨서 반가워요\.”🔁 '산책' — \d+월 \d+일에도 썼어요$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-park.png' })
@@ -1621,7 +1621,7 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
   // 두 번째 카페라 몇 번째인지 한 마디를 더하고, 찾아온 손님이 오늘 한 줄에 맞장구를 친다(퇴근 → 애씀)
   // 열째 날이라 먼저 온 모모와 안녕 이웃이 된다(함께 쌓는 정)
-  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 두 번째로 생겼어요\n💛 모모와 안녕 이웃이 되었어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
+  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 두 번째로 생겼어요\n💛 모모와 안녕 이웃이 되었어요\n💬 \S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note.png' })
@@ -1653,7 +1653,7 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
   const note = page.getByTestId('build-note')
-  await expect(note).toHaveText(/^🪢 작은 시설 그네가 열렸어요(\n\S+: “.+”)?🪢 놓으러 가기$/)
+  await expect(note).toHaveText(/^🪢 작은 시설 그네가 열렸어요(\n💬 \S+: “.+”)?🪢 놓으러 가기$/)
 
   // 알림의 "놓으러 가기"로 시설 갈래에서 그네를 고른 채 꾸미기에 들어간다
   const go = page.getByTestId('note-go')
@@ -2350,7 +2350,7 @@ test('움직임 줄이기면 오늘의 손님이 뛰어 오지 않고 바로 그
   expect(running).toBe(false)
   await expect(page.locator('.guest').first()).toBeVisible()
   // 맞장구 말풍선도 저절로 뜬다(좋았다 → 기쁨)
-  await expect(page.getByTestId('build-note')).toHaveText(/\n\S+: “(덩달아 웃음이 나요!|마을까지 환해졌어요\.|그 기분, 저도 나눠 가질게요\.)”$/)
+  await expect(page.getByTestId('build-note')).toHaveText(/\n💬 \S+: “(덩달아 웃음이 나요!|마을까지 환해졌어요\.|그 기분, 저도 나눠 가질게요\.)”$/)
 })
 
 test('주민의 맞장구: 한 줄을 쓰면 찾아온 손님이 말풍선으로 한 번 맞장구를 치고, 누르면 다시, 고치면 말이 바뀐다', async ({ page }) => {
@@ -2367,7 +2367,7 @@ test('주민의 맞장구: 한 줄을 쓰면 찾아온 손님이 말풍선으로
   await page.getByTestId('write-submit').click()
   const note = page.getByTestId('build-note')
   // 보통 집이라 건물 알림은 없고, 손님 맞장구 한 줄이 저절로 뜬다(글 조각은 옮기지 않는다)
-  await expect(note).toHaveText(new RegExp(`^\\S+: ${COMFORT.source}$`))
+  await expect(note).toHaveText(new RegExp(`^💬 \\S+: ${COMFORT.source}$`))
   await expect(note).not.toContainText('비밀')
   await page.clock.runFor(2600)
   await finishAnimations(page)
@@ -3140,7 +3140,7 @@ test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알�
   await page.getByTestId('write-input').fill('퇴근길 커피 한 잔')
   await page.getByTestId('write-submit').click()
   const note = page.getByTestId('build-note')
-  await expect(note).toHaveText(/^☕ '커피'를 찾아 카페가 생겼어요\n🏮 꾸밈 소품 가로등이 열렸어요\n\S+: “.+”$/)
+  await expect(note).toHaveText(/^☕ '커피'를 찾아 카페가 생겼어요\n🏮 꾸밈 소품 가로등이 열렸어요\n💬 \S+: “.+”$/)
   await page.clock.runFor(1500)
   await finishAnimations(page)
   const box = (await note.boundingBox())!
@@ -5772,4 +5772,75 @@ test('이웃의 이사 기념일: 콩이가 이사 온 지 100일째 날 고깔�
   // 아직 안 온 이웃은 기념일 줄이 없다
   await page.getByTestId('book-neighbor-dotori').click()
   await expect(page.getByTestId('book-anniversary')).toHaveCount(0)
+})
+
+test('짓는 알림이 줄 많은 날에도 칸마다 잘리지 않고, 세 칸이 넘으면 "다음 ›"으로 넘겨 본다(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-29T13:00:00+09:00') })
+  await page.goto('./')
+  // 콩이가 7월 22일에 이사 와 오늘이 100일째. 어제 '커피'를 썼고, 오늘이 서른다섯째 날이라 해바라기가 열린다
+  const entries = [
+    ...dayEntries('2026-07-22', 99).filter((_, i) => i % 3 === 0),
+    { date: '2026-10-28', text: '커피를 샀다', mood: 'calm', writtenAt: Date.parse('2026-10-28T22:00:00+09:00') },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const before = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('카페 앞에서 커피를 마셨다')
+  await page.getByTestId('write-submit').click()
+  const note = page.getByTestId('build-note')
+  // 줄은 정해 둔 차례로 모두 들어 있다(건물 → … → 기념일 → 꾸밈 소품)
+  await expect(note).toContainText('카페가 두 번째로 생겼어요')
+  await expect(note).toContainText('🎉 콩이가 이사 온 지 100일 되는 날이에요')
+  await expect(note).toContainText('해바라기가 열렸어요')
+  const cells = note.locator('.note-cell')
+  const total = await cells.count()
+  expect(total).toBeGreaterThan(3)
+  const kinds = await cells.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!))
+  expect(kinds[0]).toBe('note-cell-building')
+  expect(kinds.indexOf('note-cell-anniversary')).toBeLessThan(kinds.indexOf('note-cell-decor'))
+
+  // 첫 장: 세 칸만, 말줄임 없이 감기고, 메아리 버튼은 마지막 장에
+  await page.clock.runFor(1500)
+  await finishAnimations(page)
+  const pages = note.getByTestId('note-page')
+  const count = Math.ceil(total / 3)
+  await expect(pages).toHaveCount(count)
+  await expect(pages.first().locator('.note-cell')).toHaveCount(3)
+  await expect(pages.nth(1)).toBeHidden()
+  await expect(page.getByTestId('note-echo')).toBeHidden()
+  await expect(page.getByTestId('note-count')).toHaveText(`1 / ${count}`)
+  const next = page.getByTestId('note-next')
+  const nb = (await next.boundingBox())!
+  expect(nb.height).toBeGreaterThanOrEqual(44)
+  expect(nb.width).toBeGreaterThanOrEqual(44)
+  const fits = () =>
+    note.locator('.note-page:not([hidden]) .note-text').evaluateAll((els) =>
+      els.every((e) => e.scrollWidth <= e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis' && e.getBoundingClientRect().height < 3 * parseFloat(getComputedStyle(e).lineHeight)),
+    )
+  expect(await fits()).toBe(true)
+  await expect(note).toBeInViewport({ ratio: 1 })
+  await page.screenshot({ path: 'test-results/screens/note-cells.png' })
+
+  // "다음 ›"을 누르면 알림은 닫히지 않고 다음 장으로 넘어간다. 마지막 장에 메아리 버튼
+  for (let i = 1; i < count; i++) await next.click()
+  await expect(note).toBeVisible()
+  await expect(pages.first()).toBeHidden()
+  await expect(pages.last()).toBeVisible()
+  await expect(next).toBeHidden()
+  await expect(page.getByTestId('note-echo')).toBeVisible()
+  await expect(page.getByTestId('note-echo')).toContainText("'커피' — 10월 28일에도 썼어요")
+  expect(await fits()).toBe(true)
+  await finishAnimations(page)
+  await expect(note).toBeInViewport({ ratio: 1 })
+  await page.screenshot({ path: 'test-results/screens/note-cells-next.png' })
+
+  // 넘긴 장은 저장하지 않는다
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(Object.keys(before).sort())
+  expect(stored.entries).toHaveLength(entries.length + 1)
+  // 넘긴 장의 칸 수만큼 머문 뒤 닫힌다
+  await page.clock.runFor(10000)
+  await expect(note).toBeHidden()
 })

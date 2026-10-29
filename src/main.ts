@@ -11,6 +11,7 @@ import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { echoNote, echoOf, echoTag } from './core/echo'
 import { anniversariesOn, anniversaryLine, anniversaryNote } from './core/anniversary'
+import { noteCells, notePages, noteStay, type NoteCell } from './core/note'
 import { toggleTreasured } from './core/treasure'
 import { arrivedLetters, eraseLetter, markLetterRead, receivedLetters, waitingLetters, writeLetter } from './core/letter'
 import { createLetterArrival, createLetterBox } from './ui/letters'
@@ -509,15 +510,15 @@ const card = createWriteCard({
     if (friend) sound.cue('friend', friend.resident.id, calm ? 0 : SHOW.go + 1950)
     // 첫 주 선물 소품은 축하 카드가 따로 알려 준다
     const opened = reachedDecors(before, builtDays(save)).filter((d) => !FIRST_GIFTS.some((g) => g.decor === d.id))
-    const notes = [
-      buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
-      neighborNote(comers),
-      friendNote(reachedFriends(before, builtDays(save))),
+    const cells = noteCells({
+      building: buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
+      neighbor: neighborNote(comers),
+      friend: friendNote(reachedFriends(before, builtDays(save))),
       // 이사 기념일은 오늘 한 줄을 지을 때만 알린다(어제 칸을 쓴 날은 "오늘은"이 맞지 않는다)
-      r.entry.date === dayKey(Date.now()) && anniversaryNote(anniversariesOn(builtDays(save), r.entry.date)),
-      decorNote(opened),
-      guest && `${guest.resident.name}: “${guest.reply}”`,
-    ].filter(Boolean)
+      anniversary: r.entry.date === dayKey(Date.now()) && anniversaryNote(anniversariesOn(builtDays(save), r.entry.date)),
+      decor: decorNote(opened),
+      guest: guest && `${guest.resident.name}: “${guest.reply}”`,
+    })
     // 작은 시설이 열렸으면 알림에서 바로 그 시설을 고른 채 꾸미기로 간다
     const facility = opened.find((d) => d.kind === 'facility')
     // 말의 메아리: 한 줄의 말을 지난날에도 썼으면 그날을 알리고, 누르면 그 집으로 날아가 글을 연다
@@ -526,7 +527,7 @@ const card = createWriteCard({
     const actions: NoteAction[] = []
     if (facility) actions.push({ label: `${facility.icon} 놓으러 가기`, run: () => setDecorating(true, facility.id) })
     if (echo && echoed) actions.push({ label: echoNote(echo, r.entry.date), run: () => visitMemory(echoed), testid: 'note-echo', soft: true })
-    showNote(notes.length ? notes.join('\n') : null, SHOW.go, actions)
+    showNote(cells.length ? cells : null, SHOW.go, actions)
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back, welcomeNeighbor(comers.map((x) => x.id)))
     return null
   },
@@ -827,25 +828,93 @@ let noteTimer = 0
 note.addEventListener('click', () => (note.hidden = true))
 /** 알림 안의 버튼. soft 면 줄처럼 옅게(말의 메아리 줄) */
 type NoteAction = { label: string; run: () => void; testid?: string; soft?: boolean }
-/** action: 알림 안에 둘 버튼(누르면 할 일을 하고 닫힌다). 버튼이 있으면 누를 틈을 조금 더 준다. 글이 비어도 버튼이 있으면 보인다 */
-function showNote(text: string | null, delay = SHOW.go, action?: NoteAction | NoteAction[] | null) {
+/**
+ * text: 한 줄 알림 글, 또는 짓는 알림의 칸(앞 아이콘 + 감기는 글). 칸은 한 장 세 칸씩 "다음 ›"으로 넘겨 본다(넘긴 장은 저장하지 않음).
+ * action: 알림 안에 둘 버튼(누르면 할 일을 하고 닫힌다). 칸이 여러 장이면 마지막 장에 둔다. 버튼이 있으면 누를 틈을 조금 더 준다. 글이 비어도 버튼이 있으면 보인다
+ */
+function showNote(text: string | NoteCell[] | null, delay = SHOW.go, action?: NoteAction | NoteAction[] | null) {
   clearTimeout(noteTimer)
   const actions = action ? [action].flat() : []
-  note.hidden = !text && !actions.length
+  note.hidden = !text?.length && !actions.length
   if (note.hidden) return
-  note.textContent = text ?? ''
-  note.classList.toggle('with-action', actions.length > 0)
-  for (const a of actions) {
+  const cells = Array.isArray(text) ? text : null
+  note.textContent = cells ? '' : (text as string | null) ?? ''
+  note.classList.toggle('with-action', !cells && actions.length > 0)
+  note.classList.toggle('with-cells', !!cells)
+  const buttons = actions.map((a) => {
     const go = document.createElement('button')
     go.type = 'button'
     go.className = a.soft ? 'note-go note-soft' : 'note-go'
     go.dataset.testid = a.testid ?? 'note-go'
     go.textContent = a.label
     go.addEventListener('click', a.run)
-    note.appendChild(go)
-  }
+    return go
+  })
   note.style.setProperty('--delay', `${calm ? 0 : delay}ms`)
-  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + (actions.length ? 5000 : 2500))
+  const close = (ms: number) => {
+    clearTimeout(noteTimer)
+    noteTimer = window.setTimeout(() => (note.hidden = true), ms)
+  }
+  const lead = delay + SHOW.hold + SHOW.back
+  if (!cells) {
+    note.append(...buttons)
+    return close(lead + noteStay(1, actions.length > 0))
+  }
+  // 모든 장을 그려 두고 지금 장만 보인다. 칸 사이 줄바꿈은 글로만 남는다(보이는 모양은 칸이 나눈다)
+  const pages = notePages(cells).map((page, p) => {
+    const box = document.createElement('div')
+    box.className = 'note-page'
+    box.dataset.testid = 'note-page'
+    box.hidden = p > 0
+    page.forEach((cell, i) => {
+      if (p > 0 || i > 0) box.append('\n')
+      const row = document.createElement('div')
+      row.className = 'note-cell'
+      row.dataset.testid = `note-cell-${cell.kind}`
+      const icon = document.createElement('span')
+      icon.className = 'note-icon'
+      icon.setAttribute('aria-hidden', 'true')
+      icon.textContent = cell.icon
+      const words = document.createElement('span')
+      words.className = 'note-text'
+      words.textContent = cell.text
+      row.append(icon, ' ', words)
+      box.append(row)
+    })
+    return box
+  })
+  note.append(...pages)
+  const tail = document.createElement('div')
+  tail.className = 'note-tail'
+  tail.hidden = pages.length < 2
+  const count = document.createElement('span')
+  count.className = 'note-count'
+  count.dataset.testid = 'note-count'
+  const next = document.createElement('button')
+  next.type = 'button'
+  next.className = 'note-next'
+  next.dataset.testid = 'note-next'
+  next.textContent = '다음 ›'
+  tail.append(count, next)
+  if (pages.length > 1) note.append(tail)
+  note.append(...buttons)
+  let at = 0
+  const show = () => {
+    const last = at === pages.length - 1
+    pages.forEach((page, p) => (page.hidden = p !== at))
+    for (const go of buttons) go.hidden = !last
+    count.textContent = `${at + 1} / ${pages.length}`
+    next.hidden = last
+    return noteStay(pages[at].children.length, last && buttons.length > 0)
+  }
+  next.addEventListener('click', (e) => {
+    // 넘기기는 알림을 닫지 않는다
+    e.stopPropagation()
+    at = Math.min(at + 1, pages.length - 1)
+    pages[at].classList.toggle('turned', !calm)
+    close(show())
+  })
+  close(lead + show())
 }
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다. comers: 방금 이사 온 새 이웃(광장으로 들어온다) */
