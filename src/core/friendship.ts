@@ -1,4 +1,5 @@
 import { hasFinal } from './building'
+import { hash } from './village'
 import { RESIDENTS, type Resident } from './resident'
 import type { Dated } from './types'
 
@@ -94,4 +95,15 @@ export function friendNote(reached: readonly Friend[]): string | null {
     .filter((f) => f.step)
     .map((f) => `${f.resident.name}${hasFinal(f.resident.name) ? '과' : '와'} ${f.step!.name}`)
   return parts.length ? `💛 ${parts.join(', ')}이 되었어요` : null
+}
+
+/** 마을 그림에서 이웃마다 달고 걷는 정표(지금 걸음의 것 하나). 걸음이 없는 이웃은 없다 */
+export function friendTokens(built: readonly Dated[]): Partial<Record<string, FriendToken>> {
+  return Object.fromEntries(friendsOf(built).flatMap((f) => (f.step ? [[f.resident.id, f.step.token]] : [])))
+}
+
+/** 주민을 누르면 가끔 꺼내는 자기 이야기. 열린 이야기 중 이웃·날짜로 하나 고른다(저장하지 않음). 걸음이 없으면 null */
+export function friendStory(f: Friend, today: string): string | null {
+  const open = storiesOf(f)
+  return open.length ? open[hash(`friend:${f.resident.id}:${today}`) % open.length] : null
 }

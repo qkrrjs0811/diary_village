@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FRIEND_STEPS, STORIES, friendOf, friendsOf, friendNote, reachedFriends, storiesOf } from './friendship'
-import { RESIDENTS } from './resident'
+import { FRIEND_STEPS, STORIES, friendOf, friendsOf, friendNote, friendStory, friendTokens, reachedFriends, storiesOf } from './friendship'
+import { RESIDENTS, residentTalk } from './resident'
 import { addDays } from './date'
 import type { Dated } from './types'
 
@@ -99,5 +99,48 @@ describe('함께 쌓는 정', () => {
     // 이름 끝에 받침이 있는 이웃이 없을 수도 있으니 직접 만든 이웃으로 본다
     const r = { ...byId('kong'), name: '별님' }
     expect(friendNote([{ ...friendOf(byId('kong'), days(10))!, resident: r }])).toBe('💛 별님과 안녕 이웃이 되었어요')
+  })
+
+  it('마을 그림 정표: 걸음이 있는 이웃만 지금 걸음의 정표 하나', () => {
+    const t = friendTokens(days(30))
+    // 콩이(1일)는 30일 함께해 친한 이웃 → 꽃 머리핀, 모모는 아직 안녕 이웃 → 목도리
+    expect(t.kong).toBe('pin')
+    expect(t.momo).toBe('scarf')
+    // 막 이사 온 이웃·아직 안 온 이웃은 정표가 없다
+    for (const r of RESIDENTS) {
+      const f = friendOf(r, days(30))
+      if (!f || f.level === 0) expect(t[r.id]).toBeUndefined()
+      else expect(t[r.id]).toBe(f.step!.token)
+    }
+    expect(friendTokens(days(100)).kong).toBe('star')
+    expect(friendTokens([])).toEqual({})
+  })
+
+  it('정 이야기 한마디: 열린 이야기 중 하나를 날짜로 고르고, 걸음이 없으면 없다', () => {
+    expect(friendStory(friendOf(byId('kong'), days(5))!, '2026-10-29')).toBeNull()
+    const kong = friendOf(byId('kong'), days(100))!
+    const seen = new Set<string>()
+    for (let i = 0; i < 40; i++) {
+      const day = addDays('2026-10-01', i)
+      const line = friendStory(kong, day)!
+      expect(storiesOf(kong)).toContain(line)
+      // 같은 날은 같은 이야기
+      expect(friendStory(kong, day)).toBe(line)
+      seen.add(line)
+    }
+    expect(seen.size).toBeGreaterThan(1)
+    // 안녕 이웃은 첫 이야기만
+    expect(friendStory(friendOf(byId('kong'), days(10))!, '2026-10-29')).toBe(STORIES.kong[0])
+  })
+
+  it('주민 한마디 차례에 정 이야기가 한 번 끼고, 없으면 차례가 그대로다', () => {
+    const r = byId('kong')
+    const today = '2026-10-29'
+    const story = STORIES.kong[0]
+    // 지난 글이 없으면: 오늘 이야기 → 정 이야기 → 여느 때 말
+    expect(residentTalk(r, [], today, 1, [], null, story)).toEqual({ text: story })
+    expect(residentTalk(r, [], today, 2, [], null, story)).toEqual(residentTalk(r, [], today, 1, [], null, null))
+    // 정 이야기는 여느 때 말 차례에서 다시 나오지 않는다
+    for (let tap = 2; tap < 8; tap++) expect(residentTalk(r, [], today, tap, [], null, story).text).not.toBe(story)
   })
 })

@@ -27,7 +27,7 @@ import { createCalendar } from './ui/calendar'
 import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { FIRST_GIFTS, firstSignDate, giftCard, reachedGifts } from './core/gift'
-import { friendNote, reachedFriends } from './core/friendship'
+import { friendNote, friendOf, friendStory, friendTokens, reachedFriends } from './core/friendship'
 import { createReader } from './ui/reader'
 import { createGrowth } from './ui/growth'
 import { growthSteps } from './core/growth'
@@ -621,7 +621,9 @@ const camera = createCamera(svg, (target, at) => {
     }
     const tap = taps.get(resident.id) ?? 0
     taps.set(resident.id, tap + 1)
-    const talk = residentTalk(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today))
+    // 정이 쌓인 이웃은 한마디 차례에 열린 자기 이야기 하나를 끼운다
+    const friend = friendOf(resident, builtDays(save))
+    const talk = residentTalk(resident, save.entries, today, tap, builtDays(save), festivalOn(builtDays(save), today), friend && friendStory(friend, today))
     // 지난 이야기면 "보러 가기"로 그 집에 날아가 글을 연다
     const told = talk.date ? entryOn(save, talk.date) : undefined
     return showNote(`${resident.name}: “${talk.text}”`, 0, told && { label: '보러 가기', run: () => visitMemory(told) })
@@ -867,6 +869,7 @@ function render(newDate?: string, comers: string[] = []) {
     arrive: calm ? [] : comers,
     guests,
     hangouts,
+    tokens: friendTokens(days),
     decors,
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },

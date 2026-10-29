@@ -9,6 +9,7 @@ import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX, MAILBOX_AT } from '../core/letter'
 import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Hangout, type Resident, type Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
+import type { FriendToken } from '../core/friendship'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, roadside, type CliffBit, type RimBit, type RoadBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
 import type { Critter } from '../core/critter'
@@ -2021,7 +2022,7 @@ function drawSpot(g: Element, s: DecorSpot) {
  * 둥근 주민 하나. from ↔ to 한 칸 길을 천천히 오가며 통통 걷는다.
  * come: 방금 이사 온 새 이웃이면 광장 앞 가장자리에 숨어 있다가 'coming'이 붙으면 통통 뛰어 제 길로 들어온다
  */
-function drawResident(g: Element, walk: Walk, come = false) {
+function drawResident(g: Element, walk: Walk, come = false, token?: FriendToken) {
   const { resident: r, from, to } = walk
   const a = iso(from.gx, from.gy)
   const b = iso(to.gx, to.gy)
@@ -2042,14 +2043,14 @@ function drawResident(g: Element, walk: Walk, come = false) {
   el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, stroll)
   const turn = el('g', { class: 'face' }, stroll)
   const body = el('g', { class: 'hop', style: `animation-delay:-${(seed % 7) / 10}s` }, turn)
-  drawBody(body, r, a)
+  drawBody(body, r, a, token)
 }
 
 /**
  * 쉼터에 놀러 온 이웃 하나. 쉼터 오른쪽 앞에 서서 쉼터 쪽(왼쪽)을 보며 살짝 들썩인다.
  * 누르면 여느 주민처럼 말한다. 꾸미기 중에는 누르기가 쉼터로 통과한다
  */
-function drawHangout(g: Element, h: Hangout) {
+function drawHangout(g: Element, h: Hangout, token?: FriendToken) {
   const { resident: r, spot } = h
   const a = iso(spot.gx, spot.gy)
   const node = el('g', { class: 'resident hangout', 'data-testid': `resident-${r.id}`, 'data-resident': r.id, 'data-hangout': h.decor }, g)
@@ -2057,18 +2058,18 @@ function drawHangout(g: Element, h: Hangout) {
   el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, node)
   const turn = el('g', { transform: `translate(${2 * a.x} 0) scale(-1 1)` }, node)
   const body = el('g', { class: 'bob', style: `animation-delay:-${(hash(r.id) % 9) / 10}s` }, turn)
-  drawBody(body, r, a)
+  drawBody(body, r, a, token)
 }
 
-/** 이웃 수첩 칸에 넣는 주민 얼굴 그림(마을의 주민과 같은 모양) */
-export function residentIcon(r: Resident): SVGSVGElement {
+/** 이웃 수첩 칸에 넣는 주민 얼굴 그림(마을의 주민과 같은 모양, 정표도 함께) */
+export function residentIcon(r: Resident, token?: FriendToken): SVGSVGElement {
   const svg = el('svg', { viewBox: '-9 -22 18 23', width: 30, height: 38, 'aria-hidden': 'true', class: 'resident-icon' })
-  drawBody(el('g', {}, svg), r, { x: 0, y: 0 })
+  drawBody(el('g', {}, svg), r, { x: 0, y: 0 }, token)
   return svg
 }
 
 /** 둥근 주민의 몸(귀·발·얼굴). a 는 발밑 땅 자리. 얼굴은 오른쪽을 본다 */
-function drawBody(body: Element, r: Resident, a: Pt) {
+function drawBody(body: Element, r: Resident, a: Pt, token?: FriendToken) {
   const c = { x: a.x, y: a.y - 7.5 }
   const ear = shade(r.color, -0.08)
   if (r.ears === 'bunny') {
@@ -2095,6 +2096,39 @@ function drawBody(body: Element, r: Resident, a: Pt) {
   for (const ex of [0.6, 3.6]) el('circle', { cx: c.x + ex, cy: c.y - 0.4, r: 0.75, fill: '#5a4636' }, body)
   el('path', { d: `M${c.x + 1.4} ${c.y + 1.6} q0.7 0.7 1.4 0`, fill: 'none', stroke: '#5a4636', 'stroke-width': 0.6, 'stroke-linecap': 'round' }, body)
   for (const ex of [-1.2, 5]) el('ellipse', { cx: c.x + ex, cy: c.y + 1.3, rx: 1.3, ry: 0.8, fill: '#ffaab8', opacity: 0.8 }, body)
+  if (token) drawToken(body, token, c)
+}
+
+/**
+ * 함께 쌓는 정의 정표. c 는 동그란 몸 가운데(반지름 6.6, 얼굴은 오른쪽).
+ * 안녕 이웃은 목도리, 친한 이웃은 꽃 머리핀, 단짝 이웃은 가슴에 별 배지
+ */
+function drawToken(body: Element, token: FriendToken, c: Pt) {
+  const g = el('g', { class: `friend-token token-${token}`, 'data-token': token }, body)
+  if (token === 'scarf') {
+    // 목에 두른 띠와 등 쪽(왼쪽)으로 늘어진 끝자락
+    el('path', { d: `M${c.x - 5.9} ${c.y + 2.4} q5.9 3 11.8 0 l-0.5 2 q-5.4 2.8 -10.8 0 z`, fill: '#f6a6a6', stroke: LINE, 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, g)
+    el('path', { d: `M${c.x - 4.2} ${c.y + 3.8} l-1.4 4 l2.4 0.4 l0.6 -3.8 z`, fill: '#f6a6a6', stroke: LINE, 'stroke-width': 0.6, 'stroke-linejoin': 'round' }, g)
+    for (const dx of [-1.6, 1.4, 4]) el('path', { d: `M${c.x + dx} ${c.y + 3.9} l0.5 1.3`, stroke: '#fff4f0', 'stroke-width': 0.7, 'stroke-linecap': 'round' }, g)
+  } else if (token === 'pin') {
+    // 머리 오른쪽 위에 꽂은 다섯 잎 꽃
+    const f = { x: c.x + 3.8, y: c.y - 5 }
+    for (let i = 0; i < 5; i++) {
+      const t = (i / 5) * Math.PI * 2 - Math.PI / 2
+      el('circle', { cx: f.x + Math.cos(t) * 1.3, cy: f.y + Math.sin(t) * 1.3, r: 1.1, fill: '#ffb8cc', stroke: LINE, 'stroke-width': 0.4 }, g)
+    }
+    el('circle', { cx: f.x, cy: f.y, r: 0.8, fill: '#ffe08a' }, g)
+  } else {
+    // 가슴의 노란 별 배지(둥근 바탕 위)
+    const s = { x: c.x - 2.6, y: c.y + 3.6 }
+    el('circle', { cx: s.x, cy: s.y, r: 2.3, fill: '#fffdf8', stroke: LINE, 'stroke-width': 0.5 }, g)
+    const pts = Array.from({ length: 10 }, (_, i) => {
+      const t = (i / 10) * Math.PI * 2 - Math.PI / 2
+      const k = i % 2 ? 0.75 : 1.75
+      return `${(s.x + Math.cos(t) * k).toFixed(2)},${(s.y + Math.sin(t) * k).toFixed(2)}`
+    })
+    el('polygon', { points: pts.join(' '), fill: '#ffd36b', stroke: '#c9a27e', 'stroke-width': 0.35, 'stroke-linejoin': 'round' }, g)
+  }
 }
 
 /** 손님 놀이 소품. (x, y)는 소품이 놓인 땅 자리. 작고 둥글게, 얇은 갈색 테두리 */
@@ -2191,7 +2225,7 @@ const PROP_ART: Record<GuestPlay, (g: Element, x: number, y: number) => void> = 
  * 오늘의 손님 하나. 집 앞 가장자리에 서서 살짝 들썩이고, 집 쪽을 보며 옆에 놀이 소품을 둔다.
  * arrive: 방금 지은 오늘 집이면 짓는 연출 뒤 바깥 길에서 통통 뛰어 그 자리로 온다
  */
-function drawGuest(g: Element, guest: Guest, arrive = false) {
+function drawGuest(g: Element, guest: Guest, arrive = false, token?: FriendToken) {
   const { resident: r, spot } = guest
   const a = iso(spot.gx, spot.gy)
   // 왼쪽 앞 자리(gx 가 칸 가운데)면 오른쪽(집 문)을 보고, 오른쪽 앞 자리면 왼쪽을 본다
@@ -2216,7 +2250,7 @@ function drawGuest(g: Element, guest: Guest, arrive = false) {
   }
   const turn = el('g', { transform: side === 1 ? '' : `translate(${2 * a.x} 0) scale(-1 1)` }, node)
   const body = el('g', { class: 'bob', style: `animation-delay:-${(hash(r.id) % 9) / 10}s` }, turn)
-  drawBody(body, r, a)
+  drawBody(body, r, a, token)
   // 기다리는 손님: 머리 위 작은 말풍선(…). 재촉하지 않는 조용한 표시
   if (guest.waiting) {
     // 오늘 자리 깃발과 겹치지 않게 바깥쪽(왼쪽) 위에 둔다
@@ -2273,6 +2307,8 @@ export interface DrawOptions {
   guests?: Guest[]
   /** 놓아 둔 쉼터에 놀러 온 이웃(놓은 순서로 계산) */
   hangouts?: Hangout[]
+  /** 이웃마다 달고 걷는 정표(함께한 날로 계산, 저장하지 않음) */
+  tokens?: Partial<Record<string, FriendToken>>
   /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
   decors?: (PlacedDecor & DecorSpot & { index: number })[]
   /** 꾸미기 중: 소품을 놓을 수 있는 빈 칸 */
@@ -2337,12 +2373,12 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   }
   for (const w of opt.walks ?? []) {
     const come = !!opt.arrive?.includes(w.resident.id) && onPlaza(w.from)
-    items.push({ depth: w.depth, draw: () => drawResident(things, w, come) })
+    items.push({ depth: w.depth, draw: () => drawResident(things, w, come, opt.tokens?.[w.resident.id]) })
   }
   // 오늘 집을 방금 지었으면 손님이 짓는 연출 뒤에 놀러 온다
   const arrive = !!opt.newDate && opt.newDate === opt.today
-  for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu, arrive && !gu.waiting) })
-  for (const h of opt.hangouts ?? []) items.push({ depth: h.depth, draw: () => drawHangout(things, h) })
+  for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu, arrive && !gu.waiting, opt.tokens?.[gu.resident.id]) })
+  for (const h of opt.hangouts ?? []) items.push({ depth: h.depth, draw: () => drawHangout(things, h, opt.tokens?.[h.resident.id]) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()
   for (const d of opt.decors ?? []) {

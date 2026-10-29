@@ -415,7 +415,7 @@ export function storyTalk(r: Resident, entries: readonly Entry[], today: string)
 /**
  * 주민을 누르면 하는 짧은 한마디. tap 은 지금까지 누른 횟수(0부터).
  * days 는 집을 지었던 날(지운 날 포함). 없으면 entries 로 센다.
- * 차례: 오늘 이야기 → (잔치 날이면) 잔치 한마디 → (지난 글이 있으면) 지난 이야기 → 여느 때 말
+ * 차례: 오늘 이야기 → (잔치 날이면) 잔치 한마디 → (지난 글이 있으면) 지난 이야기 → (정이 쌓였으면) 자기 이야기 friend → 여느 때 말
  */
 export function residentTalk(
   r: Resident,
@@ -424,6 +424,7 @@ export function residentTalk(
   tap: number,
   days: Dated[] = entries,
   festival: Festival | null = null,
+  friend: string | null = null,
 ): Talk {
   if (festival && tap >= 1) {
     if (tap === 1) return { text: festivalLine(festival, r.id) }
@@ -435,6 +436,11 @@ export function residentTalk(
       if (tap === 1) return story
       tap -= 1
     }
+  }
+  // 정이 쌓인 이웃은 열린 자기 이야기 하나를 털어놓는다
+  if (friend && tap >= 1) {
+    if (tap === 1) return { text: friend }
+    tap -= 1
   }
   return { text: usualLine(r, entries, today, tap, days) }
 }

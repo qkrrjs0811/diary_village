@@ -7,6 +7,7 @@ import { buildVillage } from '../src/core/village'
 import { yardOf } from '../src/core/yard'
 import { GROWTH_CALM_MS, growthDelays, growthNote, growthScenes, growthSteps } from '../src/core/growth'
 import type { Entry } from '../src/core/types'
+import { STORIES } from '../src/core/friendship'
 
 const KEY = 'diary-village:save'
 const moods = ['great', 'calm', 'meh', 'blue', 'tired']
@@ -1164,6 +1165,69 @@ test('함께 쌓는 정: 서른째 날을 지으면 "콩이와 친한 이웃" �
   // 아직 안 온 이웃은 정 줄이 없다
   await page.getByTestId('book-neighbor-dotori').click()
   await expect(page.getByTestId('book-friend')).toHaveCount(0)
+})
+
+test('함께 쌓는 정: 마을의 이웃이 걸음마다 정표를 달고, 누르면 열린 자기 이야기를 들려준다(빽빽한 마을, 저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  // 120일을 이어서 썼다: 콩이·모모는 단짝(별 배지), 뒤에 온 이웃은 친한(머리핀)·안녕(목도리)·아직 없음
+  const entries = dayEntries('2026-06-29', 120)
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+
+  const tokenOf = (id: string) => page.locator(`[data-resident="${id}"] .friend-token, [data-guest="${id}"] .friend-token`)
+  await expect(tokenOf('kong')).toHaveAttribute('data-token', 'star')
+  await expect(tokenOf('momo')).toHaveAttribute('data-token', 'star')
+  const tokens = await page.locator('.things .friend-token').evaluateAll((list) => list.map((n) => n.getAttribute('data-token')))
+  expect(new Set(tokens)).toEqual(new Set(['star', 'pin', 'scarf']))
+  // 막 이사 온 이웃(걸음 0)은 정표가 없다
+  const bare = await page.locator('.things [data-resident]:not(:has(.friend-token)), .things [data-guest]:not(:has(.friend-token))').count()
+  expect(bare).toBeGreaterThan(0)
+  // 정표는 제 몸 가까이에만 있다(옆 이웃·집 위로 삐져나오지 않음)
+  for (const node of await page.locator('.things .friend-token').all()) {
+    const box = (await node.boundingBox())!
+    const body = (await node.locator('xpath=..').boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(body.x - 2)
+    expect(box.x + box.width).toBeLessThanOrEqual(body.x + body.width + 2)
+    expect(box.y).toBeGreaterThanOrEqual(body.y - 2)
+    expect(box.y + box.height).toBeLessThanOrEqual(body.y + body.height + 2)
+  }
+
+  // 걷는 단짝 이웃을 누르면 오늘 이야기 → 지난 이야기 → 자기 이야기
+  // 처음 보기 화면 안(머리줄·카드에 가리지 않는 곳)에 있는 단짝 이웃 하나
+  const stars = page.locator('.things .resident:not(.hangout):has(.token-star)')
+  let id = ''
+  for (const node of await stars.all()) {
+    const b = (await node.boundingBox())!
+    if (b.x > 10 && b.x + b.width < 380 && b.y > 140 && b.y + b.height < 480) id = (await node.getAttribute('data-resident'))!
+  }
+  expect(id).not.toBe('')
+  const walker = page.locator(`.things [data-resident="${id}"]`)
+  const note = page.getByTestId('build-note')
+  for (let i = 0; i < 3; i++) await walker.click({ force: true })
+  const said = (await note.textContent())!
+  expect(STORIES[id].some((line) => said.includes(line))).toBe(true)
+  await expect(page.getByTestId('note-go')).toHaveCount(0)
+  // 정은 저장하지 않는다
+  expect(await page.evaluate((k) => localStorage.getItem(k), KEY)).toBe(before)
+
+  // 그 이웃 쪽으로 가까이 보아 정표를 확인한다
+  const wb = (await walker.boundingBox())!
+  await page.mouse.move(wb.x + wb.width / 2, wb.y + wb.height / 2)
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -300)
+  await page.waitForTimeout(600)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/friend-tokens.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 이웃 수첩 얼굴에도 같은 정표
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-neighbors').click()
+  await expect(page.getByTestId('book-neighbor-kong').locator('.friend-token')).toHaveAttribute('data-token', 'star')
+  await expect(page.getByTestId('book-neighbors').locator('.friend-token[data-token="pin"]').first()).toBeAttached()
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: 'test-results/screens/friend-book-tokens.png' })
 })
 
 test('새 이웃이 온 날, 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다(저장 안 함)', async ({ page }) => {

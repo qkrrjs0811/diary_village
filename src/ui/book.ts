@@ -207,7 +207,8 @@ export function createBook(handlers: {
     })
     sheet.querySelectorAll<HTMLButtonElement>('[data-testid="book-neighbors"] .book-cell').forEach((cell, i) => {
       const a = arrivals[i]
-      cell.querySelector('.book-icon')!.appendChild(residentIcon(a.resident))
+      // 마을에서 달고 걷는 정표를 수첩 얼굴에도 단다
+      cell.querySelector('.book-icon')!.appendChild(residentIcon(a.resident, friendOf(a.resident, built)?.step?.token))
       cell.addEventListener('click', () => {
         select(cell)
         // 이사 온 날 글이 남아 있을 때만 다시 읽으러 간다(지운 날이면 숨긴다)
