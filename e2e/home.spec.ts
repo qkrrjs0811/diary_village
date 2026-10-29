@@ -240,6 +240,39 @@ test('일요일에 시작해 날마다 쓴 달도 구역 이름표가 뒤쪽 첫
   await page.screenshot({ path: 'test-results/screens/month-sign-dense.png' })
 })
 
+test('구역 이름표 기둥은 둘레 집 높이에 맞춰, 빈 구역·낮은 구역은 짧고 빽빽한 구역은 지붕 위로 선다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-12-03T12:00:00+09:00') })
+  await page.goto('./')
+  // 9월은 앞쪽에 두 채뿐, 11월은 일요일부터 날마다(첫 줄 등대), 12월은 아직 빈 구역
+  const entries = [
+    ...monthEntries('2026-09', [24, 29]),
+    ...monthEntries('2026-10', [1, 2, 3, 5, 8, 9, 14, 20, 21, 27]),
+    ...monthEntries('2026-11', Array.from({ length: 30 }, (_, i) => i + 1)).map((e, i) => (i < 7 ? { ...e, text: `바닷가 ${e.text}` } : e)),
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText(`🏠 ${entries.length}채`)
+  const lift = async (m: string) => Number(await page.getByTestId(`month-${m}`).getAttribute('data-lift'))
+  expect(await lift('2026-12')).toBe(24)
+  expect(await lift('2026-09')).toBe(24)
+  expect(await lift('2026-11')).toBeGreaterThan(await lift('2026-10'))
+  expect(await lift('2026-11')).toBeLessThanOrEqual(62)
+  // 제 구역 집 지붕은 가리지 않는다
+  for (const m of ['2026-09', '2026-10', '2026-11']) {
+    const s = (await page.getByTestId(`month-${m}`).boundingBox())!
+    const own = await page.locator(`[data-testid^="house-${m}"]`).evaluateAll((list) => list.map((h) => h.getBoundingClientRect().toJSON()))
+    const hit = own.filter((h) => h.x < s.x + s.width && s.x < h.x + h.width && h.y < s.y + s.height && s.y < h.y + h.height)
+    expect(hit).toEqual([])
+  }
+  // 멀리 봐서 여러 구역 팻말을 함께 찍는다
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(300)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/month-sign-far.png' })
+})
+
 test('달 첫날에 열어도 이달 섬이 화면 가운데에 와서 빈 하늘이 한쪽으로 몰리지 않는다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-01T12:00:00+09:00') })
   await page.goto('./')
