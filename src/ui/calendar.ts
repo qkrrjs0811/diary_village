@@ -24,6 +24,7 @@ const monthDay = (date: string) => dateLabel(date).replace(/ \S+요일$/, '')
  * "소중한 날"로 바꾸면 사용자가 표시한 날만 날짜 순으로 모아 보이고, 누르면 그 집으로 간다
  * 마을 수첩 도감에서 건물을 골라 열면 그 건물이 선 날만 날짜 순으로 같은 쪽지 목록에 모아 보인다
  * 한 달 보기의 "📖 이 달 이어 읽기"는 그달 한 줄들을 같은 쪽지로 한 장에 잇고, 아래에서 이웃한 달로 넘긴다
+ * 한 해 보기에서는 그해 첫 달부터 이어 읽고, "📅 달력으로"를 누르면 들어온 달력으로 돌아간다
  */
 export function createCalendar(handlers: {
   onOpen: (entry: Entry) => void
@@ -76,7 +77,8 @@ export function createCalendar(handlers: {
       } else if (b.dataset.mode === 'year') {
         if (mode === 'month' || (gathered && before === 'month')) year = Number(month.slice(0, 4))
         mode = 'year'
-      } else if (gathered && before === 'month') {
+      } else if (gathered && (before === 'month' || mode === 'chapter')) {
+        // 이어 읽던 달이면 그달 달력으로
         mode = 'month'
       } else if (mode !== 'month') {
         mode = 'month'
@@ -255,12 +257,20 @@ export function createCalendar(handlers: {
       </div>`
           : ''
       }
+      ${r.firstDate ? `<div class="cal-read"><button type="button" class="cal-read-btn" data-testid="calendar-year-chapter">📖 ${year}년 첫 달부터 이어 읽기</button></div>` : ''}
       <div class="book-detail" data-testid="calendar-detail" role="status">${r.written ? '달을 누르면 그달 달력을 열어요' : '한 줄을 쓰면 그달이 기분 색으로 물들어요'}</div>`
     sheet.querySelector('[data-testid="calendar-prev"]')!.addEventListener('click', () => goYear(-1))
     sheet.querySelector('[data-testid="calendar-next"]')!.addEventListener('click', () => goYear(1))
     // 달 이름은 사용자가 쓴 글이라 textContent로만 넣는다(칸이 좁으면 말줄임, 다 읽을 땐 그달 달력에서)
     sheet.querySelectorAll<HTMLElement>('.cal-mtitle').forEach((name) => {
       name.textContent = titleOf(name.closest<HTMLElement>('.cal-month')!.dataset.testid!.slice(5))
+    })
+    // 그해 쓴 날이 있는 첫 달부터 읽고, 아래 "다음 달 ›"로 이어 간다
+    sheet.querySelector('[data-testid="calendar-year-chapter"]')?.addEventListener('click', () => {
+      before = 'year'
+      month = monthKey(r.firstDate!)
+      mode = 'chapter'
+      render()
     })
     sheet.querySelectorAll<HTMLButtonElement>('.cal-month').forEach((cell) =>
       cell.addEventListener('click', () => {
@@ -344,6 +354,7 @@ export function createCalendar(handlers: {
       <div class="cal-hits" data-testid="chapter-list"></div>
       <div class="cal-chapter-nav">
         <button type="button" class="cal-chapter-move" data-testid="chapter-prev" ${c.prev ? `aria-label="지난달 ${label(c.prev)} 이어 읽기"` : 'hidden'}>‹ ${c.prev ? label(c.prev) : ''}</button>
+        <button type="button" class="cal-chapter-move cal-chapter-back" data-testid="chapter-calendar">📅 달력으로</button>
         <button type="button" class="cal-chapter-move" data-testid="chapter-next" ${c.next ? `aria-label="다음 달 ${label(c.next)} 이어 읽기"` : 'hidden'}>${c.next ? label(c.next) : ''} ›</button>
       </div>`
     sheet.querySelector('[data-testid="chapter-title"]')!.textContent = c.heading
@@ -362,6 +373,13 @@ export function createCalendar(handlers: {
     }
     sheet.querySelector('[data-testid="chapter-prev"]')!.addEventListener('click', () => move(c.prev))
     sheet.querySelector('[data-testid="chapter-next"]')!.addEventListener('click', () => move(c.next))
+    // 들어온 달력으로 돌아간다(한 달 보기면 읽던 달, 한 해 보기면 읽던 달의 해)
+    sheet.querySelector('[data-testid="chapter-calendar"]')!.addEventListener('click', () => {
+      if (before === 'year') year = Number(month.slice(0, 4))
+      mode = before
+      render()
+      back.querySelector<HTMLElement>('.sheet')!.scrollTop = 0
+    })
   }
 
   /** 한 줄 쪽지 단추. 글은 textContent로만 넣고, 누르면 창을 닫고 그 집으로 간다 */

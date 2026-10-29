@@ -5926,3 +5926,65 @@ test('달력 한 달 보기에서 "📖 이 달 이어 읽기"로 그달 한 줄
   // 읽기만 했으니 저장은 그대로다
   expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)).toEqual(data)
 })
+
+test('돌아보기 쪽지와 한 해 보기에서 이어 읽기로 들어가고, "📅 달력으로" 들어온 달력에 돌아간다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-03T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-08', [3, 20]), ...monthEntries('2026-10', [2, 5, 9]), ...monthEntries('2026-11', [1])]
+  const data = { version: 1, entries, monthTitles: { '2026-10': '이사한 달' } }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.reload()
+
+  // 지난달 돌아보기 쪽지 → 10월 달력 → 돌아보기 줄 바로 아래 "📖 이 달 이어 읽기"
+  await page.getByTestId('recap').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  await page.getByTestId('calendar-chapter').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('10월 · 이사한 달')
+  const back = page.getByTestId('chapter-calendar')
+  await expect(back).toHaveText('📅 달력으로')
+  await back.scrollIntoViewIfNeeded()
+  // 세 단추는 한 줄에 겹치지 않고 놓인다(44px 이상, 화면 안)
+  const [p, c, n] = await Promise.all(['chapter-prev', 'chapter-calendar', 'chapter-next'].map(async (id) => (await page.getByTestId(id).boundingBox())!))
+  for (const b of [p, c, n]) {
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.x).toBeGreaterThanOrEqual(0)
+    expect(b.x + b.width).toBeLessThanOrEqual(390)
+  }
+  expect(p.x + p.width).toBeLessThanOrEqual(c.x)
+  expect(c.x + c.width).toBeLessThanOrEqual(n.x)
+  expect(Math.abs(p.y - n.y)).toBeLessThan(2)
+  await page.screenshot({ path: 'test-results/screens/chapter-nav-back.png' })
+  // 8월로 넘긴 뒤 "달력으로"는 읽던 8월 달력이다
+  await page.getByTestId('chapter-prev').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('8월')
+  await back.click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 8월')
+  await expect(page.getByTestId('calendar-mode-month')).toHaveAttribute('aria-pressed', 'true')
+
+  // 한 해 보기 → "📖 2026년 첫 달부터 이어 읽기"로 8월부터 읽는다
+  await page.getByTestId('calendar-mode-year').click()
+  const fromYear = page.getByTestId('calendar-year-chapter')
+  await expect(fromYear).toHaveText('📖 2026년 첫 달부터 이어 읽기')
+  expect((await fromYear.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await fromYear.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/chapter-year-button.png' })
+  await fromYear.click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('8월')
+  await expect(page.getByTestId('chapter-prev')).toBeHidden()
+  await back.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/chapter-from-year.png' })
+  await page.getByTestId('chapter-next').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('10월 · 이사한 달')
+  // 한 해 보기에서 들어왔으면 "달력으로"는 그해 한 해 보기다
+  await back.click()
+  await expect(page.getByTestId('calendar-mode-year')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년')
+  // 이어 읽다 "한 달"을 누르면 읽던 달 달력이다
+  await fromYear.click()
+  await page.getByTestId('chapter-next').click()
+  await page.getByTestId('calendar-mode-month').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+
+  // 읽기만 했으니 저장은 그대로다
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)).toEqual(data)
+})
