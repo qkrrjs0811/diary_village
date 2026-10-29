@@ -1,6 +1,7 @@
 import { hasFinal, type BuildingId } from '../core/building'
 import { collectionOf, landmarkBook } from '../core/collection'
 import { decorBook } from '../core/decor'
+import { FRIEND_STEPS, friendOf, storiesOf } from '../core/friendship'
 import { writtenDays } from '../core/landmark'
 import { arrivalsOf, hangoutLine, type Hangout } from '../core/resident'
 import { nextStage, stageOf } from '../core/stage'
@@ -100,9 +101,12 @@ export function createBook(handlers: {
         <div class="book-grid six" data-testid="book-neighbors">
           ${arrivals
             .map(
-              (a) => `<button type="button" class="book-cell${a.date ? '' : ' unknown'}" data-testid="book-neighbor-${a.resident.id}" data-found="${!!a.date}">
-                <span class="book-icon" aria-hidden="true"></span><span class="book-name">${a.date ? a.resident.name : `${a.resident.days}일`}</span>
-              </button>`,
+              (a) => {
+                const level = friendOf(a.resident, built)?.level ?? 0
+                return `<button type="button" class="book-cell${a.date ? '' : ' unknown'}" data-testid="book-neighbor-${a.resident.id}" data-found="${!!a.date}" data-level="${level}">
+                ${level ? `<span class="book-heart" aria-hidden="true">${'♥'.repeat(level)}</span>` : ''}<span class="book-icon" aria-hidden="true"></span><span class="book-name">${a.date ? a.resident.name : `${a.resident.days}일`}</span>
+              </button>`
+              },
             )
             .join('')}
         </div>
@@ -211,9 +215,41 @@ export function createBook(handlers: {
         dayBtn.hidden = !arrivedEntry
         // 쉼터에 놀러 가 있으면 "보리는 그네에서 놀아요"를 덧붙인다
         const h = hangouts.find((x) => x.resident.id === a.resident.id)
-        neighborDetail.textContent = a.date
+        neighborDetail.replaceChildren()
+        const about = part('span', 'friend-about', 'book-neighbor-about')
+        about.textContent = a.date
           ? `${a.resident.name} · ${dateLabel(a.date).replace(/ .요일$/, '')}에 이사 왔어요 · 좋아하는 것: ${a.resident.likes}${h ? ` · ${hangoutLine(h)}` : ''}`
           : `❔ ${a.left}일 더 쓰면 새 이웃이 와요`
+        neighborDetail.appendChild(about)
+        // 함께 쌓는 정: 하트 세 개(♡→♥), 걸음 이름, 열린 자기 이야기. 안 열린 이야기는 "N일 더"만 다정하게
+        const f = friendOf(a.resident, built)
+        if (!f) return
+        const step = part('span', 'friend-step', 'book-friend')
+        const hearts = part('span', 'friend-hearts', 'book-friend-hearts')
+        hearts.textContent = FRIEND_STEPS.map((s) => (f.level >= s.level ? '♥' : '♡')).join('')
+        hearts.setAttribute('aria-label', `하트 ${f.level}개`)
+        step.append(hearts, ` ${f.step ? `${f.step.name} · ` : ''}함께한 지 ${f.together}일`)
+        neighborDetail.appendChild(step)
+        const stories = storiesOf(f)
+        if (stories.length) {
+          const list = part('ul', 'friend-stories', 'book-friend-stories')
+          for (const s of stories) {
+            const li = document.createElement('li')
+            li.textContent = `“${s}”`
+            list.appendChild(li)
+          }
+          neighborDetail.appendChild(list)
+        }
+        if (f.left !== null) {
+          const next = part('span', 'friend-next', 'book-friend-next')
+          next.textContent = `${f.left}일 더 함께하면 ${stories.length ? '다음 ' : ''}이야기를 들려줘요`
+          neighborDetail.appendChild(next)
+        }
+        // 이야기가 길어져 칸 아래로 넘치면, 칸 이야기와 단추가 보이게 수첩 안에서 살짝 내려 준다
+        ;(dayBtn.hidden ? neighborDetail : dayBtn).scrollIntoView({
+          block: 'nearest',
+          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        })
       })
     })
     const decorDetail = sheet.querySelector<HTMLElement>('[data-testid="book-decor-detail"]')!
@@ -226,6 +262,13 @@ export function createBook(handlers: {
           : `❔ ${d.left}일 더 쓰면 ${d.decor.kind === 'facility' ? '작은 시설' : '새 소품'}이 열려요`
       })
     })
+  }
+
+  function part(tag: 'span' | 'ul', className: string, testid: string) {
+    const node = document.createElement(tag)
+    node.className = className
+    node.dataset.testid = testid
+    return node
   }
 
   function select(cell: HTMLElement) {

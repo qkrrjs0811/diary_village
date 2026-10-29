@@ -1107,6 +1107,65 @@ test('새 주민이 오는 날 짓는 알림에 "새 이웃 ○○가 이사 왔
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
 })
 
+test('함께 쌓는 정: 서른째 날을 지으면 "콩이와 친한 이웃" 알림, 이웃 수첩에 하트·이야기 줄·"N일 더"(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  // 9월 28일부터 29일을 썼고 하루는 지웠다(지운 날도 센다). 오늘이 서른째 날이다
+  const all = dayEntries('2026-09-28', 29)
+  const erased = [{ date: all[4].date, erasedAt: Date.parse('2026-10-20T09:00:00+09:00') }]
+  const entries = all.filter((_, i) => i !== 4)
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, erased })])
+  await page.reload()
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('build-note')).toContainText('💛 콩이와 친한 이웃이 되었어요')
+  await expect(page.getByTestId('build-note')).toContainText('🏡 새 이웃 감자가 이사 왔어요')
+  // 정은 저장하지 않는다: 저장된 칸은 한 줄이 더해진 것뿐이다
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(Object.keys(JSON.parse(before!)).sort())
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/friend-note.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  // 서른째 날이라 뜨는 축하 카드를 닫는다(명소·단계가 겹치면 한 장에 모인다)
+  await page.clock.runFor(800 + 1800 + 900 + 100)
+  await expect(page.getByTestId('celebrate')).toBeVisible()
+  await page.getByTestId('celebrate-close').click()
+  await page.clock.runFor(4000)
+
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-neighbors').click()
+  await expect(page.getByTestId('book-neighbor-kong')).toHaveAttribute('data-level', '2')
+  await expect(page.getByTestId('book-neighbor-gamja')).toHaveAttribute('data-level', '0')
+  await page.getByTestId('book-neighbor-kong').click()
+  await expect(page.getByTestId('book-friend-hearts')).toHaveText('♥♥♡')
+  await expect(page.getByTestId('book-friend')).toContainText('친한 이웃 · 함께한 지 30일')
+  await expect(page.getByTestId('book-friend-stories').locator('li')).toHaveText(['“낮잠 잘 때 콩자반 꿈을 자주 꿔요”', '“사실 이 마을에 제일 먼저 온 게 자랑이에요”'])
+  await expect(page.getByTestId('book-friend-next')).toHaveText('70일 더 함께하면 다음 이야기를 들려줘요')
+  // 칸은 그대로 손가락으로 누르기 충분하고, 수첩 창 안에서 잘리지 않는다
+  const cell = (await page.getByTestId('book-neighbor-kong').boundingBox())!
+  expect(cell.height).toBeGreaterThanOrEqual(44)
+  // 이야기가 길어도 수첩 안에서 칸 이야기와 "이사 온 날 글 보기"가 보이게 내려 준다
+  await expect(page.getByTestId('book-friend-next')).toBeInViewport({ ratio: 0.95 })
+  await expect(page.getByTestId('book-neighbor-day')).toBeInViewport({ ratio: 0.95 })
+  await expect(page.getByTestId('book-close')).toBeInViewport({ ratio: 0.95 })
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: 'test-results/screens/friend-book.png' })
+
+  // 막 이사 온 이웃은 걸음이 없고, 이야기는 "N일 더"만 다정하게
+  await page.getByTestId('book-neighbor-gamja').click()
+  await expect(page.getByTestId('book-friend-hearts')).toHaveText('♡♡♡')
+  await expect(page.getByTestId('book-friend')).toContainText('함께한 지 1일')
+  await expect(page.getByTestId('book-friend-stories')).toHaveCount(0)
+  await expect(page.getByTestId('book-friend-next')).toHaveText('9일 더 함께하면 이야기를 들려줘요')
+  // 아직 안 온 이웃은 정 줄이 없다
+  await page.getByTestId('book-neighbor-dotori').click()
+  await expect(page.getByTestId('book-friend')).toHaveCount(0)
+})
+
 test('새 이웃이 온 날, 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다(저장 안 함)', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-20T13:00:00+09:00') })
   await page.goto('./')
@@ -1367,7 +1426,8 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'cafe')
   // 두 번째 카페라 몇 번째인지 한 마디를 더하고, 찾아온 손님이 오늘 한 줄에 맞장구를 친다(퇴근 → 애씀)
-  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 두 번째로 생겼어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
+  // 열째 날이라 먼저 온 모모와 안녕 이웃이 된다(함께 쌓는 정)
+  await expect(page.getByTestId('build-note')).toHaveText(/^☕ '커피'를 찾아 카페가 두 번째로 생겼어요\n💛 모모와 안녕 이웃이 되었어요\n\S+: “(오늘도 애썼어요\.|바빴던 하루, 따뜻한 차 한 잔 어때요\?|고생 많았어요\. 오늘 밤은 편히 쉬어요\.)”$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note.png' })
@@ -2979,7 +3039,7 @@ test('놓아 둔 쉼터마다 이웃이 놀러 와 머물고, 쉼터를 옮기�
   await page.getByTestId('village-stage').click()
   await page.getByTestId('book-tab-neighbors').click()
   await page.getByTestId(`book-neighbor-${swinger}`).click()
-  await expect(page.getByTestId('book-neighbor-detail')).toContainText(/[은는] 그네에서 놀아요$/)
+  await expect(page.getByTestId('book-neighbor-about')).toContainText(/[은는] 그네에서 놀아요$/)
   await page.screenshot({ path: 'test-results/screens/hangout-book.png' })
 
   // 꾸미기에서 그네를 옮기면 같은 이웃이 새 자리로 따라간다(꾸미기 중에는 이웃을 눌러도 그네가 골라진다)
@@ -5185,10 +5245,10 @@ test('마을 수첩 "우리 이웃" 칸 — 온 주민은 이사 온 날·좋아
   await expect(day).toBeHidden()
   // 이사 온 날 글이 지워졌으면 보기 단추가 없다
   await page.getByTestId('book-neighbor-momo').click()
-  await expect(page.getByTestId('book-neighbor-detail')).toHaveText('모모 · 10월 3일에 이사 왔어요 · 좋아하는 것: 복숭아 우유')
+  await expect(page.getByTestId('book-neighbor-about')).toHaveText('모모 · 10월 3일에 이사 왔어요 · 좋아하는 것: 복숭아 우유')
   await expect(day).toBeHidden()
   await page.getByTestId('book-neighbor-dubu').click()
-  await expect(page.getByTestId('book-neighbor-detail')).toHaveText('두부 · 10월 7일에 이사 왔어요 · 좋아하는 것: 따끈한 두부 부침')
+  await expect(page.getByTestId('book-neighbor-about')).toHaveText('두부 · 10월 7일에 이사 왔어요 · 좋아하는 것: 따끈한 두부 부침')
   await expect(day).toBeVisible()
   for (const id of ['book-neighbor-dubu', 'book-neighbor-day']) {
     const b = (await page.getByTestId(id).boundingBox())!

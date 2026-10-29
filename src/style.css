@@ -255,6 +255,15 @@ button { font: inherit; color: inherit; }
 .book-cell.unknown .book-icon { filter: grayscale(1) brightness(0.3) opacity(0.25); }
 .book-cell.unknown .book-name { color: var(--ink-soft); }
 .book-detail { min-height: 20px; margin-top: 10px; font-size: 13px; line-height: 1.5; text-align: center; word-break: keep-all; }
+/* 함께 쌓는 정: 칸 귀퉁이 작은 하트, 칸 이야기의 하트 세 개와 이웃 자기 이야기 */
+.book-cell { position: relative; }
+.book-heart { position: absolute; top: 2px; right: 4px; font-size: 8px; line-height: 1; letter-spacing: -1px; color: #e88a9a; }
+.friend-about, .friend-step, .friend-next { display: block; }
+.friend-step { margin-top: 6px; font-weight: 600; }
+.friend-hearts { font-size: 15px; color: #e88a9a; letter-spacing: 1px; }
+.friend-stories { margin: 6px auto 0; padding: 8px 12px; max-width: 300px; list-style: none; border-radius: 14px; background: #fff4f0; border: 1px solid #f3d3cc; }
+.friend-stories li + li { margin-top: 2px; }
+.friend-next { margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
 
 .scene {
   position: relative;

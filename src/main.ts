@@ -27,6 +27,7 @@ import { createCalendar } from './ui/calendar'
 import { createDecorTray } from './ui/decorate'
 import { createCelebration } from './ui/celebrate'
 import { FIRST_GIFTS, firstSignDate, giftCard, reachedGifts } from './core/gift'
+import { friendNote, reachedFriends } from './core/friendship'
 import { createReader } from './ui/reader'
 import { createGrowth } from './ui/growth'
 import { growthSteps } from './core/growth'
@@ -503,6 +504,7 @@ const card = createWriteCard({
     const notes = [
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
       neighborNote(comers),
+      friendNote(reachedFriends(before, builtDays(save))),
       decorNote(opened),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)
