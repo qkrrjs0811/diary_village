@@ -886,6 +886,16 @@ button { font: inherit; color: inherit; }
 .cal-year { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; font-size: 13px; line-height: 1.5; text-align: center; color: var(--ink-soft); word-break: keep-all; }
 .cal-chip { display: inline-block; margin: 2px 2px 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: #fffaf0; color: var(--ink); font-size: 12px; white-space: nowrap; }
 .cal-recap { margin: -4px 0 10px; font-size: 12px; text-align: center; color: var(--ink-soft); word-break: keep-all; }
+/* 한 달 이어 읽기: 달력 아래 단추, 장 제목, 맨 아래 이웃한 달 넘기기 */
+.cal-read { display: flex; justify-content: center; margin: -2px 0 10px; }
+.cal-read-btn { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 22px; background: #fffaf0; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.cal-chapter-head { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 12px; text-align: center; word-break: keep-all; }
+.cal-chapter-head b { font-size: 17px; }
+.cal-chapter-head span { font-size: 12px; color: var(--ink-soft); }
+.cal-chapter-nav { display: flex; gap: 10px; margin-top: 12px; }
+.cal-chapter-nav [data-testid="chapter-next"] { margin-left: auto; }
+.cal-chapter-move { min-width: 88px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 22px; background: #fffaf0; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.cal-chapter-move[hidden] { display: none; }
 /* 지난 글의 집으로 날아가면 그 집이 살짝 뛰어오른다 */
 .house.remember { transform-box: fill-box; transform-origin: 50% 100%; animation: remember 0.6s ease-in-out 0.75s 2; }
 @keyframes remember { 50% { transform: translateY(-3px) scale(1.04); } }

@@ -5844,3 +5844,85 @@ test('짓는 알림이 줄 많은 날에도 칸마다 잘리지 않고, 세 칸�
   await page.clock.runFor(10000)
   await expect(note).toBeHidden()
 })
+
+test('달력 한 달 보기에서 "📖 이 달 이어 읽기"로 그달 한 줄들을 한 장에 읽고, 이웃한 달로 넘기고, 누르면 그 집 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-08', [3, 20]), ...monthEntries('2026-10', [2, 5, 9, 20, 26])] as Entry[]
+  entries[2] = { ...entries[2], text: '아침에 라떼 한 잔' }
+  entries[3] = { ...entries[3], more: '바람이 좋아서 오래 걸었다. 길가에 코스모스가 피어 있었다.', treasured: true }
+  entries[4] = { ...entries[4], text: '<b>소설</b>을 끝까지 읽었다' }
+  entries[6] = { ...entries[6], text: '이사 짐을 거의 다 풀었다. 창밖으로 노을이 길게 번지고 새 동네 골목이 조금씩 눈에 익어 간다' }
+  const erased = [{ date: '2026-10-10', erasedAt: Date.parse('2026-10-11T09:00:00+09:00') }]
+  const data = { version: 1, entries, erased, monthTitles: { '2026-10': '이사한 달' } }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.reload()
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+
+  // 쓴 날이 있는 달에만 단추가 있다
+  const read = page.getByTestId('calendar-chapter')
+  await expect(read).toHaveText('📖 이 달 이어 읽기')
+  expect((await read.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/chapter-button.png' })
+  await page.getByTestId('calendar-prev').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 9월')
+  await expect(read).toHaveCount(0)
+  await page.getByTestId('calendar-next').click()
+
+  // 장 제목과 그달 한 줄들이 날짜 순으로 이어진다(지운 날·빠진 날은 없다)
+  await read.click()
+  await expect(page.getByTestId('calendar-days')).toHaveCount(0)
+  await expect(page.getByTestId('chapter-title')).toHaveText('10월 · 이사한 달')
+  await expect(page.getByTestId('chapter-count')).toHaveText('2026년 · 한 줄 5일')
+  const list = page.getByTestId('chapter-list').locator('.cal-hit')
+  await expect(list).toHaveCount(5)
+  expect(await list.evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')))).toEqual([
+    'hit-2026-10-02',
+    'hit-2026-10-05',
+    'hit-2026-10-09',
+    'hit-2026-10-20',
+    'hit-2026-10-26',
+  ])
+  await expect(page.getByTestId('hit-2026-10-02').locator('.cal-hit-date')).toHaveText('10월 2일 금요일 · ☕')
+  await expect(page.getByTestId('hit-2026-10-05').locator('.cal-hit-date')).toHaveText('10월 5일 월요일 · 🏠 📝 💛')
+  // 긴 글은 표시만 하고 글은 넣지 않는다. 꺾쇠는 글자 그대로
+  await expect(page.getByTestId('chapter-list')).not.toContainText('코스모스')
+  await expect(page.getByTestId('hit-2026-10-09')).toContainText('<b>소설</b>을 끝까지 읽었다')
+  await expect(page.getByTestId('chapter-prev')).toHaveText('‹ 8월')
+  await expect(page.getByTestId('chapter-next')).toBeHidden()
+  for (const id of ['hit-2026-10-02', 'hit-2026-10-26', 'chapter-prev']) {
+    const b = (await page.getByTestId(id).boundingBox())!
+    expect(b.height).toBeGreaterThanOrEqual(44)
+    expect(b.x + b.width).toBeLessThanOrEqual(390)
+  }
+  await page.getByTestId('chapter-title').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/chapter-october-top.png' })
+  await page.getByTestId('chapter-prev').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/screens/chapter-october.png' })
+
+  // 쓴 날이 없는 9월은 건너뛰고 8월로 넘긴다
+  await page.getByTestId('chapter-prev').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('8월')
+  await expect(page.getByTestId('chapter-count')).toHaveText('2026년 · 한 줄 2일')
+  await expect(page.getByTestId('chapter-prev')).toBeHidden()
+  await expect(page.getByTestId('chapter-next')).toHaveText('10월 ›')
+  await page.screenshot({ path: 'test-results/screens/chapter-august.png' })
+
+  // "한 달"을 누르면 읽던 달의 달력으로 돌아온다
+  await page.getByTestId('calendar-mode-month').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 8월')
+  await read.click()
+  await page.getByTestId('chapter-next').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('10월 · 이사한 달')
+
+  // 한 줄을 누르면 창이 닫히고 그 집으로 가서 글을 연다
+  await page.getByTestId('hit-2026-10-20').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 20일의 한 줄')
+
+  // 읽기만 했으니 저장은 그대로다
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)).toEqual(data)
+})

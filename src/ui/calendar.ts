@@ -7,6 +7,7 @@ import { buildingInfo, hasFinal, type BuildingId } from '../core/building'
 import { daysOfBuilding } from '../core/collection'
 import { monthRecap, yearRecap } from '../core/recap'
 import { TITLE_MAX } from '../core/title'
+import { monthChapter } from '../core/chapter'
 import type { Entry } from '../core/types'
 import { dateLabel, recapLine, softMood as soft } from './format'
 
@@ -22,6 +23,7 @@ const monthDay = (date: string) => dateLabel(date).replace(/ \S+요일$/, '')
  * 위쪽 찾기 칸에 말을 넣으면 달력 대신 그 말이 들어간 지난 글을 보이고, 누르면 그 집으로 간다(폰 안에서만 찾는다)
  * "소중한 날"로 바꾸면 사용자가 표시한 날만 날짜 순으로 모아 보이고, 누르면 그 집으로 간다
  * 마을 수첩 도감에서 건물을 골라 열면 그 건물이 선 날만 날짜 순으로 같은 쪽지 목록에 모아 보인다
+ * 한 달 보기의 "📖 이 달 이어 읽기"는 그달 한 줄들을 같은 쪽지로 한 장에 잇고, 아래에서 이웃한 달로 넘긴다
  */
 export function createCalendar(handlers: {
   onOpen: (entry: Entry) => void
@@ -67,7 +69,7 @@ export function createCalendar(handlers: {
   })
   modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) =>
     b.addEventListener('click', () => {
-      const gathered = mode === 'treasure' || mode === 'building' || mode === 'photo'
+      const gathered = mode === 'treasure' || mode === 'building' || mode === 'photo' || mode === 'chapter'
       if (b.dataset.mode === 'treasure' || b.dataset.mode === 'photo') {
         if (mode === 'month' || mode === 'year') before = mode
         mode = b.dataset.mode as 'treasure' | 'photo'
@@ -96,7 +98,7 @@ export function createCalendar(handlers: {
   let today = ''
   let month = ''
   let year = 0
-  let mode: 'month' | 'year' | 'treasure' | 'building' | 'photo' = 'month'
+  let mode: 'month' | 'year' | 'treasure' | 'building' | 'photo' | 'chapter' = 'month'
   /** 건물 모아 보기에서 보이는 건물 */
   let kind: BuildingId | null = null
   /** 소중한 날·건물 모아 보기를 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
@@ -120,6 +122,7 @@ export function createCalendar(handlers: {
         ${m.moods.map((x) => `<span style="flex:${x.count};background:${soft(x.mood, 0.8)}"></span>`).join('')}
       </div>
       ${m.written ? `<div class="cal-recap" data-testid="calendar-recap">${recapLine(monthRecap(entries, month))}</div>` : ''}
+      ${m.written ? '<div class="cal-read"><button type="button" class="cal-read-btn" data-testid="calendar-chapter">📖 이 달 이어 읽기</button></div>' : ''}
       <div class="cal-grid cal-week" aria-hidden="true">${WEEK.map((w) => `<span>${w}</span>`).join('')}</div>
       <div class="cal-grid" data-testid="calendar-days">
         ${m.weeks
@@ -139,6 +142,11 @@ export function createCalendar(handlers: {
     sheet.querySelector('[data-testid="calendar-prev"]')!.addEventListener('click', () => go(-1))
     sheet.querySelector('[data-testid="calendar-next"]')!.addEventListener('click', () => go(1))
     showName(sheet.querySelector<HTMLElement>('[data-testid="calendar-name"]')!)
+    sheet.querySelector('[data-testid="calendar-chapter"]')?.addEventListener('click', () => {
+      before = 'month'
+      mode = 'chapter'
+      render()
+    })
     const detail = sheet.querySelector<HTMLElement>('[data-testid="calendar-detail"]')!
     sheet.querySelectorAll<HTMLButtonElement>('.cal-day').forEach((cell) => {
       const date = cell.dataset.testid!.slice(4)
@@ -324,6 +332,38 @@ export function createCalendar(handlers: {
     for (const entry of days) list.appendChild(note(entry, [{ text: entry.text, hit: false }]))
   }
 
+  /**
+   * 한 달 이어 읽기. 그달 한 줄들을 날짜 순으로 같은 쪽지에 잇고, 날짜 옆에 건물 아이콘·📝(긴 글)·💛(소중한 날)을 붙인다.
+   * 아래 "‹ 9월 · 11월 ›"로 쓴 날이 있는 이웃한 달로 넘긴다. 장 제목(달 이름)과 글은 textContent로만 넣는다
+   */
+  function showChapter() {
+    const c = monthChapter({ version: 1, entries, monthTitles: handlers.titles?.() }, month)
+    const label = (m: string) => `${Number(m.slice(5, 7))}월`
+    sheet.innerHTML = `
+      <div class="cal-chapter-head" data-testid="chapter-head"><b data-testid="chapter-title"></b><span data-testid="chapter-count">${c.written ? `${month.slice(0, 4)}년 · 한 줄 ${c.written}일` : '아직 쓴 날이 없어요'}</span></div>
+      <div class="cal-hits" data-testid="chapter-list"></div>
+      <div class="cal-chapter-nav">
+        <button type="button" class="cal-chapter-move" data-testid="chapter-prev" ${c.prev ? `aria-label="지난달 ${label(c.prev)} 이어 읽기"` : 'hidden'}>‹ ${c.prev ? label(c.prev) : ''}</button>
+        <button type="button" class="cal-chapter-move" data-testid="chapter-next" ${c.next ? `aria-label="다음 달 ${label(c.next)} 이어 읽기"` : 'hidden'}>${c.next ? label(c.next) : ''} ›</button>
+      </div>`
+    sheet.querySelector('[data-testid="chapter-title"]')!.textContent = c.heading
+    const list = sheet.querySelector('.cal-hits')!
+    for (const d of c.days) {
+      const hit = note(entries.find((e) => e.date === d.date)!, [{ text: d.text, hit: false }])
+      hit.querySelector('.cal-hit-date')!.textContent = `${dateLabel(d.date)} · ${d.icon}${d.more ? ' 📝' : ''}${d.treasured ? ' 💛' : ''}`
+      list.appendChild(hit)
+    }
+    const move = (to: string | null) => {
+      if (!to) return
+      month = to
+      showChapter()
+      // 넘긴 달은 장 제목부터 읽는다
+      back.querySelector<HTMLElement>('.sheet')!.scrollTop = 0
+    }
+    sheet.querySelector('[data-testid="chapter-prev"]')!.addEventListener('click', () => move(c.prev))
+    sheet.querySelector('[data-testid="chapter-next"]')!.addEventListener('click', () => move(c.next))
+  }
+
   /** 한 줄 쪽지 단추. 글은 textContent로만 넣고, 누르면 창을 닫고 그 집으로 간다 */
   function note(entry: Entry, parts: SearchPart[], more?: SearchPart[]) {
     const hit = document.createElement('button')
@@ -371,6 +411,7 @@ export function createCalendar(handlers: {
     else if (mode === 'treasure') showTreasured()
     else if (mode === 'photo') showPhotos()
     else if (mode === 'building' && kind) showBuilding(kind)
+    else if (mode === 'chapter') showChapter()
     else if (mode === 'year') showYear()
     else show()
   }
