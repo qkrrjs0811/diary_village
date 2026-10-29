@@ -18,6 +18,9 @@ import { yardOf, type YardTraceId } from '../core/yard'
 import { monthLabel } from '../core/title'
 import { SIGN_H, SIGN_MAX, signLift } from '../core/sign'
 
+/** 구역 이름표 누르기 칸의 가장 작은 폭·높이(마을 단위) */
+const SIGN_HIT = 34
+
 const NS = 'http://www.w3.org/2000/svg'
 /** 칸 하나의 화면 크기 */
 export const TW = 48
@@ -109,7 +112,11 @@ function drawSlab(g: Element, labels: Element, village: Village, block: Block, t
   const post = el('g', { class: 'sign-post' }, g)
   el('rect', { x: foot.x - 1.5, y: signTop, width: 3, height: lift, rx: 1.5, fill: '#a7805e', stroke: LINE, 'stroke-width': 0.6 }, post)
   el('ellipse', { cx: foot.x, cy: foot.y, rx: 4, ry: 2, fill: 'rgba(90,70,54,0.18)' }, post)
-  const sign = el('g', { class: 'month-sign', 'data-testid': `month-${block.month}`, 'data-lift': lift }, labels)
+  // 누르면 그달 기분 달력이 열린다. 보이는 팻말판은 작아서 투명한 누르기 칸을 위·옆으로 넓힌다
+  // (아래로 넓히면 제 구역 지붕 누르기를 가로챈다). 팻말 상자 재기에 섞이지 않게 팻말 밖에 둔다
+  const hitW = Math.max(w + 10, SIGN_HIT)
+  el('rect', { class: 'sign-hit', 'data-month': block.month, 'data-testid': `month-hit-${block.month}`, x: foot.x - hitW / 2, y: signTop + 2 - SIGN_HIT, width: hitW, height: SIGN_HIT, fill: 'transparent' }, labels)
+  const sign = el('g', { class: 'month-sign', 'data-month': block.month, 'data-testid': `month-${block.month}`, 'data-lift': lift }, labels)
   if (title) sign.setAttribute('data-title', title)
   el('rect', { x: foot.x - w / 2, y: signTop - SIGN_H, width: w, height: SIGN_H, rx: 9, fill: '#fffaf0', stroke: LINE }, sign)
   const t = el('text', { x: foot.x, y: signTop - 5, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#7a604a' }, sign)

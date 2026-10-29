@@ -1022,6 +1022,8 @@ button { font: inherit; color: inherit; }
 /* 집을 지어 다가가는 동안 구역 이름표가 화면 위 끝에 잘리거나 날씨 칩에 걸리지 않게 잠깐 감춘다 */
 .labels, .sign-post { transition: opacity 0.35s ease; }
 .signs-hushed .labels, .signs-hushed .sign-post { opacity: 0; }
+.signs-hushed .labels { pointer-events: none; }
+.month-sign, .sign-hit { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .labels, .sign-post { transition: none; } }
 /* 소중한 날 하트 깃발: 누르기는 집으로 통과하고, 하트가 살랑인다 */
 .treasure-flag { pointer-events: none; }

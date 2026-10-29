@@ -240,6 +240,51 @@ test('일요일에 시작해 날마다 쓴 달도 구역 이름표가 뒤쪽 첫
   await page.screenshot({ path: 'test-results/screens/month-sign-dense.png' })
 })
 
+test('구역 이름표를 누르면 그달 기분 달력 한 달 보기가 열리고, 끌면 열리지 않는다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-20T12:00:00+09:00') })
+  await page.goto('./')
+  const entries = [...monthEntries('2026-10', [1, 2, 3, 5, 8, 9, 14, 20, 21, 27]), ...monthEntries('2026-11', [2, 4, 9, 13, 18])]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  await expect(page.getByTestId('house-count')).toHaveText(`🏠 ${entries.length}채`)
+  await finishAnimations(page)
+  const cal = page.getByTestId('calendar')
+  // 누르는 자리는 44px 이상
+  const hit = page.getByTestId('month-hit-2026-11')
+  await expect(hit).toBeInViewport()
+  const hb = (await hit.boundingBox())!
+  expect(hb.width).toBeGreaterThanOrEqual(44)
+  expect(hb.height).toBeGreaterThanOrEqual(44)
+  // 팻말에서 끌기 시작하면 둘러보기만 하고 달력은 열리지 않는다
+  const sb = (await page.getByTestId('month-2026-11').boundingBox())!
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sb.x + sb.width / 2 + 60, sb.y + sb.height / 2 + 40, { steps: 6 })
+  await page.mouse.up()
+  await page.waitForTimeout(200)
+  await expect(cal).toBeHidden()
+  // 누르면 그달 달력이 열리고, 거기서 이어 읽기로 이어진다
+  await page.getByTestId('month-2026-11').click()
+  await expect(cal).toBeVisible()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 11월')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 5일')
+  await expect(page.getByTestId('calendar-chapter')).toBeVisible()
+  await page.getByTestId('calendar-close').click()
+  await expect(cal).toBeHidden()
+  // 멀리 봐서 지난 구역 팻말을 누르면 그달이 열린다
+  const box = (await page.getByTestId('village').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(300)
+  await expect(page.getByTestId('month-2026-10')).toBeInViewport()
+  await page.screenshot({ path: 'test-results/screens/month-sign-tap-far.png' })
+  await page.getByTestId('month-2026-10').click()
+  await expect(page.getByTestId('calendar-title')).toHaveText('2026년 10월')
+  await expect(page.getByTestId('calendar-count')).toHaveText('한 줄 10일')
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/month-sign-calendar.png' })
+})
+
 test('구역 이름표 기둥은 둘레 집 높이에 맞춰, 빈 구역·낮은 구역은 짧고 빽빽한 구역은 지붕 위로 선다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-12-03T12:00:00+09:00') })
   await page.goto('./')

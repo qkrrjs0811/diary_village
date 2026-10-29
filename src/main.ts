@@ -620,7 +620,10 @@ document.body.appendChild(calendar.root)
 const camera = createCamera(svg, (target, at) => {
   if (decorating) return decorTap(target, at)
   if (target.closest('.postbox')) return letterBox.open()
-  const id =target.closest('.landmark')?.getAttribute('data-landmark')
+  // 구역 이름표("10월")를 누르면 그달 기분 달력 한 달 보기
+  const month = target.closest('.sign-hit, .month-sign')?.getAttribute('data-month')
+  if (month) return calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), month)
+  const id = target.closest('.landmark')?.getAttribute('data-landmark')
   const landmark = LANDMARKS.find((l) => l.id === id)
   if (landmark) return showNote(`${landmark.icon} ${landmark.name} · 한 줄을 ${landmark.days}일 남겨 생겼어요`, 0)
   const gid = target.closest('.guest')?.getAttribute('data-guest')
