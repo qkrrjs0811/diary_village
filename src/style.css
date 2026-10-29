@@ -145,6 +145,11 @@ button { font: inherit; color: inherit; }
 .sound-toggle[aria-checked='true'] .switch { background: var(--accent); }
 .sound-toggle[aria-checked='true'] .switch i { transform: translateX(22px); }
 .sound-toggle + .settings-msg:empty { display: none; }
+.lock-row-go { flex: none; width: 32px; font-size: 26px; line-height: 1; color: var(--ink-soft); text-align: center; }
+.lock-choice { margin: -4px 0 16px; }
+.lock-field { display: block; margin-bottom: 10px; }
+.lock-field span { display: block; margin: 0 0 4px 4px; font-size: 13px; color: var(--ink-soft); }
+.lock-field .lock-pin { letter-spacing: 0.4em; }
 .sheet[data-testid='settings'] { max-height: 92vh; overflow-y: auto; }
 
 /* 마을 수첩은 폰 한 화면에 맞춘다. 위쪽과 "닫기"는 그대로, 책갈피 칸이 길면 그 칸 안에서만 스크롤 */

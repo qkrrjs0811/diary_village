@@ -227,6 +227,15 @@ const settings = createSettings({
       return false
     }
   },
+  lock: () => readLock(kv),
+  setLock(lock) {
+    try {
+      writeLock(kv, lock)
+      return true
+    } catch {
+      return false
+    }
+  },
   villageName: () => save.villageName ?? '',
   rename: readOnly
     ? null
