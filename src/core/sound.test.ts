@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BUZZ, CUE_BUZZ, SOUND_KEY, buildTune, cueTune, growthTune, soundOn, setSound, type Note } from './sound'
+import { BUZZ, CUE_BUZZ, SOUND_KEY, buildTune, cueTune, growthTune, monthSong, soundOn, setSound, type Note } from './sound'
 import { MOODS } from './mood'
 import type { KV } from './storage'
+import type { MoodId } from './types'
 
 const memory = (init: Record<string, string> = {}): KV & { m: Map<string, string> } => {
   const m = new Map(Object.entries(init))
@@ -161,5 +162,64 @@ describe('자라 온 길 소리', () => {
     }
     // 한 채뿐이어도 소리가 난다
     expect(growthTune(0, 1)[0].freq).toBeGreaterThan(250)
+  })
+})
+
+describe('이 달의 노래', () => {
+  const days = (n: number, mood: (i: number) => MoodId = () => 'calm') =>
+    Array.from({ length: n }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 9, 1 + i))
+      return { date: d.toISOString().slice(0, 10), mood: mood(i) }
+    })
+
+  it('쓴 날이 없으면 빈 가락이다', () => {
+    expect(monthSong([])).toEqual([])
+  })
+
+  it('쓴 날마다 한 음씩 날짜 순으로 잇고, 맨 끝은 첫 날 기분 으뜸음으로 맺는다', () => {
+    const song = monthSong([
+      { date: '2026-10-09', mood: 'blue' },
+      { date: '2026-10-02', mood: 'great' },
+      { date: '2026-10-05', mood: 'tired' },
+    ])
+    expect(song).toHaveLength(4)
+    expect(song.slice(0, 3).map((n) => n.date)).toEqual(['2026-10-02', '2026-10-05', '2026-10-09'])
+    expect(song[3].date).toBeNull()
+    // 첫 날(10월 2일, great) 음계의 으뜸음 C5
+    expect(song[3].freq).toBe(523.25)
+    for (let i = 1; i < song.length; i++) expect(song[i].at).toBeGreaterThan(song[i - 1].at)
+  })
+
+  it('기분은 음 높이만 바꾸고 음 길이·크기·시작은 같다', () => {
+    const shape = (s: Note[]) => s.map((n) => [n.at, n.dur, n.gain])
+    const songs = MOODS.map((m) => monthSong(days(10, () => m.id)))
+    for (const s of songs) expect(shape(s)).toEqual(shape(songs[0]))
+    const mixed = monthSong(days(10, (i) => MOODS[i % MOODS.length].id))
+    expect(shape(mixed)).toEqual(shape(songs[0]))
+    const dayNotes = mixed.filter((n) => n.date)
+    expect(new Set(dayNotes.map((n) => `${n.dur}/${n.gain}`)).size).toBe(1)
+    expect(new Set(songs.map((s) => s.map((n) => n.freq).join(','))).size).toBe(MOODS.length)
+  })
+
+  it('글 길이와 상관없다(날짜와 기분만 본다)', () => {
+    const short = [{ date: '2026-10-03', mood: 'meh' as const, text: '응' }]
+    const long = [{ date: '2026-10-03', mood: 'meh' as const, text: '아주 긴 글'.repeat(50), more: '더'.repeat(500) }]
+    expect(monthSong(long)).toEqual(monthSong(short))
+  })
+
+  it('날이 많아도 전체가 12초 안이고, 귀에 편한 높이다', () => {
+    for (const n of [1, 15, 31, 60]) {
+      const song = monthSong(days(n))
+      expect(song).toHaveLength(n + 1)
+      expect(Math.max(...song.map((x) => x.at + x.dur))).toBeLessThanOrEqual(12)
+      for (const x of song) {
+        expect(x.freq).toBeGreaterThan(250)
+        expect(x.freq).toBeLessThan(1100)
+      }
+    }
+  })
+
+  it('같은 달은 같은 가락이다', () => {
+    expect(monthSong(days(7))).toEqual(monthSong(days(7)))
   })
 })

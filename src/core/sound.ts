@@ -112,6 +112,39 @@ export function growthTune(index: number, total: number): Note[] {
   return [{ freq: hz(RISE[Math.min(RISE.length - 1, Math.max(0, k))]), at: 0, dur: 0.22, gain: GAIN * 0.5 }]
 }
 
+/** 이 달의 노래의 한 음. date는 그 음이 어느 날인지, 맺는 음은 null */
+export interface SongNote extends Note {
+  date: string | null
+}
+
+/** 이 달의 노래: 음 간격(초), 날 음 길이, 맺는 음 길이, 전체 길이 한도 */
+const SONG_STEP = 0.35
+const SONG_DUR = 0.3
+const SONG_END = 0.9
+const SONG_MAX = 12
+
+/**
+ * 이 달의 노래. 쓴 날(넘겨받은 날만, 날짜 순)마다 그날 기분 음계에서 날짜로 고른 한 음을 잇고,
+ * 맨 끝은 첫 날 기분의 으뜸음으로 맺는다. 기분은 음 높이만 바꾸고 길이·크기는 모두 같다.
+ * 빠진 날은 쉼표도 두지 않는다. 날이 많으면 음 간격을 줄여 전체를 12초 안에 맞춘다
+ */
+export function monthSong(days: { date: string; mood: MoodId }[]): SongNote[] {
+  if (days.length === 0) return []
+  const sorted = [...days].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const step = Math.min(SONG_STEP, (SONG_MAX - SONG_END) / sorted.length)
+  const dur = Math.min(SONG_DUR, step * 0.9)
+  const at = (k: number) => Math.round(k * step * 1000) / 1000
+  const notes: SongNote[] = sorted.map((d, k) => {
+    const scale = SCALES[d.mood] ?? SCALES.calm
+    let seed = 0
+    for (const ch of d.date) seed = (seed * 31 + ch.charCodeAt(0)) % 9973
+    return { freq: hz(scale[seed % scale.length]), at: at(k), dur, gain: GAIN * 0.7, date: d.date }
+  })
+  const first = SCALES[sorted[0].mood] ?? SCALES.calm
+  notes.push({ freq: hz(first[0]), at: at(sorted.length), dur: SONG_END, gain: GAIN * 0.7, date: null })
+  return notes
+}
+
 /** 짧은 소리의 떨림. 주민 누르기·책장 넘기기는 자주 하니 떨지 않는다 */
 export const CUE_BUZZ: Record<Cue, number[]> = {
   celebrate: [20, 40, 20, 40, 20],
