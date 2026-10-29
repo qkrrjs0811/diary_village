@@ -95,8 +95,11 @@ function birthdayOn(days: readonly Dated[], today: string): Festival | null {
   const year = Number(today.slice(0, 4))
   const years = year - Number(first.slice(0, 4))
   if (years < 1) return null
-  // 2월 29일에 시작한 마을은 평년엔 2월 28일에 연다
-  let md = first.slice(5)
-  if (md === '02-29' && !isDate(`${year}-02-29`)) md = '02-28'
-  return today.slice(5) === md ? { id: 'birthday', name: '마을 생일', icon: '🎂', years } : null
+  return today === yearlyDay(first, year) ? { id: 'birthday', name: '마을 생일', icon: '🎂', years } : null
+}
+
+/** from 과 같은 달·날의 year 해 날짜. 2월 29일은 평년엔 2월 28일로 맞춘다(마을 생일·이사 기념일이 함께 쓴다) */
+export function yearlyDay(from: string, year: number): string {
+  const md = from.slice(5)
+  return md === '02-29' && !isDate(`${year}-02-29`) ? `${year}-02-28` : `${year}-${md}`
 }
