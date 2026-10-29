@@ -15,11 +15,19 @@ export type DecorId =
   | 'roseArch'
   | 'bulbs'
   | 'tent'
+  | 'swing'
+  | 'platform'
+  | 'campfire'
+  | 'slide'
+  | 'seesaw'
+  | 'gazebo'
 
 export interface Decor {
   id: DecorId
   name: string
   icon: string
+  /** 꾸밈 소품(decor)인지, 마을에 놓는 작은 시설(facility)인지. 열리는 법·놓는 법은 같다 */
+  kind: 'decor' | 'facility'
   /** 누적으로 쓴 날 수가 이만큼이 되면 열린다. 연속 기록은 보지 않고 줄지 않는다 */
   days: number
 }
@@ -28,21 +36,29 @@ export interface Decor {
  * 내 손으로 꾸미는 꾸밈 소품(기획서 M4). 쓴 날이 쌓이면 하나씩 열린다.
  * 명소·마을 단계가 서는 날(7·10·14·30·50·60…)과 겹치지 않게 그 사이사이에 둔다.
  * 앞의 셋은 처음 며칠이 허전하지 않게 주는 첫 주 선물(2·3·5일째, `gift.ts`)이다. 날 수는 앞당기기만 해 이미 연 소품을 빼앗지 않는다.
+ * 작은 시설 여섯(그네·평상·모닥불·미끄럼틀·시소·정자)은 2026-10-29 사용자 요청("보상으로 시설을 원하는 곳에 배치")으로
+ * 원래 소품의 날 수를 그대로 둔 채 빈 날 사이에 끼웠다.
  * 글 길이·기분은 보지 않는다
  */
 export const DECORS: Decor[] = [
-  { id: 'pot', name: '화분', icon: '🪴', days: 2 },
-  { id: 'bench', name: '벤치', icon: '🪑', days: 3 },
-  { id: 'flowerbed', name: '꽃밭', icon: '🌼', days: 5 },
-  { id: 'lamp', name: '가로등', icon: '🏮', days: 9 },
-  { id: 'mailbox', name: '우체통', icon: '📮', days: 11 },
-  { id: 'fence', name: '울타리', icon: '🪵', days: 16 },
-  { id: 'pond', name: '연못', icon: '🐟', days: 21 },
-  { id: 'birdhouse', name: '새집', icon: '🐦', days: 26 },
-  { id: 'sunflower', name: '해바라기', icon: '🌻', days: 35 },
-  { id: 'roseArch', name: '장미 아치', icon: '🌹', days: 45 },
-  { id: 'bulbs', name: '꼬마 전구', icon: '💡', days: 65 },
-  { id: 'tent', name: '작은 텐트', icon: '⛺', days: 90 },
+  { id: 'pot', name: '화분', icon: '🪴', kind: 'decor', days: 2 },
+  { id: 'bench', name: '벤치', icon: '🪑', kind: 'decor', days: 3 },
+  { id: 'flowerbed', name: '꽃밭', icon: '🌼', kind: 'decor', days: 5 },
+  { id: 'lamp', name: '가로등', icon: '🏮', kind: 'decor', days: 9 },
+  { id: 'mailbox', name: '우체통', icon: '📮', kind: 'decor', days: 11 },
+  { id: 'swing', name: '그네', icon: '🪢', kind: 'facility', days: 13 },
+  { id: 'fence', name: '울타리', icon: '🪵', kind: 'decor', days: 16 },
+  { id: 'platform', name: '평상', icon: '🧺', kind: 'facility', days: 18 },
+  { id: 'pond', name: '연못', icon: '🐟', kind: 'decor', days: 21 },
+  { id: 'campfire', name: '모닥불', icon: '🔥', kind: 'facility', days: 24 },
+  { id: 'birdhouse', name: '새집', icon: '🐦', kind: 'decor', days: 26 },
+  { id: 'sunflower', name: '해바라기', icon: '🌻', kind: 'decor', days: 35 },
+  { id: 'slide', name: '미끄럼틀', icon: '🛝', kind: 'facility', days: 40 },
+  { id: 'roseArch', name: '장미 아치', icon: '🌹', kind: 'decor', days: 45 },
+  { id: 'bulbs', name: '꼬마 전구', icon: '💡', kind: 'decor', days: 65 },
+  { id: 'seesaw', name: '시소', icon: '⚖️', kind: 'facility', days: 80 },
+  { id: 'tent', name: '작은 텐트', icon: '⛺', kind: 'decor', days: 90 },
+  { id: 'gazebo', name: '정자', icon: '🛖', kind: 'facility', days: 150 },
 ]
 
 export function isDecorId(x: unknown): x is DecorId {
@@ -78,5 +94,5 @@ export function decorNote(reached: Decor[]): string | null {
   if (reached.length === 0) return null
   if (reached.length > 1) return `🎁 꾸밈 소품 ${reached.length}개가 열렸어요`
   const d = reached[0]
-  return `${d.icon} 꾸밈 소품 ${d.name}${hasFinal(d.name) ? '이' : '가'} 열렸어요`
+  return `${d.icon} ${d.kind === 'facility' ? '작은 시설' : '꾸밈 소품'} ${d.name}${hasFinal(d.name) ? '이' : '가'} 열렸어요`
 }

@@ -1080,14 +1080,14 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('house-2026-10-25').click()
   await expect(page.getByTestId('reader-building')).toBeHidden()
 
-  // 보통 집을 지으면 알림이 없다
+  // 보통 집을 지으면 건물 알림이 없다(13일째라 작은 시설 그네가 열린 것만 알려 준다)
   await page.getByTestId('reader-close').click()
   await page.getByTestId('write-yesterday').click()
   await page.getByTestId('mood-calm').click()
   await page.getByTestId('write-input').fill('일찍 잤다')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
-  await expect(page.getByTestId('build-note')).toBeHidden()
+  await expect(page.getByTestId('build-note')).toHaveText(/^🪢 작은 시설 그네가 열렸어요(\n\S+: “.+”)?$/)
 })
 
 test('건물이 없는 날은 한 줄의 말로 마당에 작은 흔적이 남고, 읽기 창에 한 줄로 알려 준다', async ({ page }) => {
@@ -2389,8 +2389,8 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(page.getByTestId('book-landmark-detail')).toHaveText('❔ 2일 더 쓰면 광장에 새 명소가 생겨요')
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/screens/book-tab-landmarks.png' })
-  // 꾸밈 소품: 12일이면 다섯 개가 열렸다
-  await expect(page.getByTestId('book-decor-count')).toHaveText('5 / 12')
+  // 꾸밈 소품·작은 시설 18가지 가운데 12일이면 다섯 개가 열렸다
+  await expect(page.getByTestId('book-decor-count')).toHaveText('5 / 18')
   await page.getByTestId('book-tab-decors').click()
   await expect(page.getByTestId('book-landmarks')).toBeHidden()
   await expect(page.getByTestId('book-decor-mailbox')).toHaveAttribute('data-found', 'true')
@@ -2404,6 +2404,8 @@ test('머리줄 단계 이름표를 누르면 마을 수첩이 열려 건물 도
   await expect(page.getByTestId('book-decor-detail')).toHaveText('🪑 벤치 · 한 줄을 3일 남겨 열렸어요')
   await page.getByTestId('book-decor-fence').click()
   await expect(page.getByTestId('book-decor-detail')).toHaveText('❔ 4일 더 쓰면 새 소품이 열려요')
+  await page.getByTestId('book-decor-swing').click()
+  await expect(page.getByTestId('book-decor-detail')).toHaveText('❔ 1일 더 쓰면 작은 시설이 열려요')
   await page.waitForTimeout(400)
   await page.getByTestId('book-decors').scrollIntoViewIfNeeded()
   await page.screenshot({ path: 'test-results/screens/book-decor.png' })
@@ -2492,6 +2494,39 @@ test('놓아 둔 꾸밈 소품 12종이 광장과 구역 빈 땅에 그려지고
   expect(stored.decor).toEqual(decor)
 })
 
+test('쓴 날 보상으로 열린 작은 시설 6종(그네·평상·모닥불·미끄럼틀·시소·정자)을 광장에 놓아 그린다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-05-30', 150) // 10월 26일까지 150일: 시설 6종이 모두 열렸다
+  const decor = [
+    { id: 'gazebo', at: 'plaza', col: 2, row: 0 },
+    { id: 'swing', at: 'plaza', col: 4, row: 0 },
+    { id: 'slide', at: 'plaza', col: 2, row: 1 },
+    { id: 'seesaw', at: 'plaza', col: 4, row: 1 },
+    { id: 'platform', at: 'plaza', col: 5, row: 5 },
+    { id: 'campfire', at: 'plaza', col: 4, row: 4 },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, decor })])
+  await page.reload()
+  await expect(page.locator('.decor')).toHaveCount(6)
+  for (const [i, d] of decor.entries()) await expect(page.getByTestId(`decor-${i}`)).toHaveAttribute('data-decor', d.id)
+  await finishAnimations(page)
+  await zoomToPlaza(page, 6)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/facility-plaza.png' })
+
+  // 수첩 소품 칸에 시설도 함께 모이고, 꾸미기 바구니에서 고를 수 있다
+  await page.getByTestId('village-stage').click()
+  await expect(page.getByTestId('book-decor-count')).toHaveText('18 / 18')
+  await page.getByTestId('book-tab-decors').click()
+  await page.getByTestId('book-decor-gazebo').click()
+  await expect(page.getByTestId('book-decor-detail')).toHaveText('🛖 정자 · 한 줄을 150일 남겨 열렸어요')
+  await page.getByTestId('book-decorate').click()
+  await expect(page.getByTestId('decorate').locator('.decor-pick')).toHaveCount(18)
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.decor).toEqual(decor)
+})
+
 test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알려 준다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
@@ -2499,7 +2534,7 @@ test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알�
   await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
   await page.reload()
   await page.getByTestId('village-stage').click()
-  await expect(page.getByTestId('book-decor-count')).toHaveText('3 / 12')
+  await expect(page.getByTestId('book-decor-count')).toHaveText('3 / 18')
   await expect(page.getByTestId('book-decor-lamp').locator('.book-name')).toHaveText('9일')
   await page.getByTestId('book-close').click()
 
@@ -2521,7 +2556,7 @@ test('쓴 날이 쌓여 꾸밈 소품이 열리면 지은 건물과 함께 알�
   await expect(page.getByTestId('celebrate')).toBeHidden()
 
   await page.getByTestId('village-stage').click()
-  await expect(page.getByTestId('book-decor-count')).toHaveText('4 / 12')
+  await expect(page.getByTestId('book-decor-count')).toHaveText('4 / 18')
   await expect(page.getByTestId('book-decor-lamp').locator('.book-name')).toHaveText('가로등')
   // 소품은 기록에서 계산한다(저장은 기록뿐)
   const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)

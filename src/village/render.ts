@@ -1849,6 +1849,94 @@ const DECOR_ART: Record<DecorId, (g: Element, P: Place, c: Pt) => void> = {
     el('line', { x1: top.x, y1: top.y, x2: top.x, y2: top.y - 8, stroke: '#a7805e', 'stroke-width': 1.2 }, g)
     el('path', { d: `M${top.x} ${top.y - 8} l6 1.8 l-6 1.8 z`, fill: '#7bb88f' }, g)
   },
+  swing(g, P) {
+    // 두 기둥 사이 가로대에 줄 두 가닥과 둥근 판자
+    shadow(g, P(0.5, 0.5), 16, 6)
+    const H = 30
+    for (const v of [0.22, 0.78]) {
+      el('line', { ...line(P(0.3, v), P(0.5, v, H)), stroke: '#a7805e', 'stroke-width': 2.4, 'stroke-linecap': 'round' }, g)
+      el('line', { ...line(P(0.7, v), P(0.5, v, H)), stroke: '#a7805e', 'stroke-width': 2.4, 'stroke-linecap': 'round' }, g)
+    }
+    el('line', { ...line(P(0.5, 0.18, H), P(0.5, 0.82, H)), stroke: '#8a6a4e', 'stroke-width': 2.6, 'stroke-linecap': 'round' }, g)
+    for (const v of [0.4, 0.6]) el('line', { ...line(P(0.5, v, H), P(0.5, v, 8)), stroke: '#c9a27e', 'stroke-width': 0.9 }, g)
+    poly(g, [P(0.42, 0.36, 8), P(0.58, 0.36, 8), P(0.58, 0.64, 8), P(0.42, 0.64, 8)], '#f08a7e', { 'stroke-linejoin': 'round' })
+  },
+  platform(g, P) {
+    // 낮은 나무 평상 위에 체크 돗자리와 바구니
+    shadow(g, P(0.5, 0.5), 18, 7)
+    for (const p of [P(0.18, 0.82), P(0.82, 0.82), P(0.82, 0.18)]) el('rect', { x: p.x - 1.3, y: p.y - 7, width: 2.6, height: 7, rx: 1, fill: '#8a6a4e' }, g)
+    poly(g, [P(0.15, 0.85, 6), P(0.85, 0.85, 6), P(0.85, 0.85, 9), P(0.15, 0.85, 9)], '#c59466')
+    poly(g, [P(0.85, 0.15, 6), P(0.85, 0.85, 6), P(0.85, 0.85, 9), P(0.85, 0.15, 9)], '#b9875c')
+    poly(g, [P(0.15, 0.15, 9), P(0.85, 0.15, 9), P(0.85, 0.85, 9), P(0.15, 0.85, 9)], '#e8bf92')
+    poly(g, [P(0.24, 0.24, 9.4), P(0.72, 0.24, 9.4), P(0.72, 0.72, 9.4), P(0.24, 0.72, 9.4)], '#ffd6e2')
+    for (const t of [0.4, 0.56]) {
+      el('line', { ...line(P(t, 0.24, 9.4), P(t, 0.72, 9.4)), stroke: '#ff9fb2', 'stroke-width': 1.4 }, g)
+      el('line', { ...line(P(0.24, t, 9.4), P(0.72, t, 9.4)), stroke: '#ff9fb2', 'stroke-width': 1.4 }, g)
+    }
+    const b = P(0.62, 0.62, 9.4)
+    el('path', { d: `M${b.x - 5} ${b.y - 6} h10 l-1.5 6 h-7 z`, fill: '#dcae82', stroke: LINE }, g)
+    el('path', { d: `M${b.x - 3.5} ${b.y - 6} a3.5 3.5 0 0 1 7 0`, fill: 'none', stroke: '#a7805e', 'stroke-width': 1 }, g)
+    el('circle', { cx: b.x - 2, cy: b.y - 7, r: 1.8, fill: '#f08a7e' }, g)
+  },
+  campfire(g, P) {
+    // 둥근 돌 둘레, 엇갈린 장작, 일렁이는 불꽃
+    const c = P(0.5, 0.5)
+    el('ellipse', { cx: c.x, cy: c.y, rx: 12, ry: 6, fill: '#b98b67', opacity: 0.4 }, g)
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2
+      el('ellipse', { cx: c.x + Math.cos(a) * 11, cy: c.y + Math.sin(a) * 5.5, rx: 3, ry: 2.2, fill: k % 2 ? '#d9cfc2' : '#c8bcae', stroke: LINE, 'stroke-width': 0.5 }, g)
+    }
+    el('line', { x1: c.x - 7, y1: c.y + 1, x2: c.x + 6, y2: c.y - 3, stroke: '#8a6a4e', 'stroke-width': 3, 'stroke-linecap': 'round' }, g)
+    el('line', { x1: c.x - 6, y1: c.y - 3, x2: c.x + 7, y2: c.y + 1, stroke: '#a7805e', 'stroke-width': 3, 'stroke-linecap': 'round' }, g)
+    const fire = el('g', { class: 'candle' }, g)
+    el('path', { d: `M${c.x} ${c.y - 18} q7 8 4 13 q-4 4 -8 0 q-3 -5 4 -13 z`, fill: '#ffb36b' }, fire)
+    el('path', { d: `M${c.x} ${c.y - 11} q3.5 4 2 6.5 q-2 2 -4 0 q-1.5 -2.5 2 -6.5 z`, fill: '#fff1a8' }, fire)
+  },
+  slide(g, P) {
+    // 사다리 오른쪽, 하늘색 미끄럼판이 앞으로 내려온다
+    shadow(g, P(0.5, 0.5), 18, 7)
+    const H = 24
+    for (const v of [0.38, 0.62]) el('line', { ...line(P(0.8, v), P(0.7, v, H)), stroke: '#f2a65a', 'stroke-width': 2.2, 'stroke-linecap': 'round' }, g)
+    for (let k = 1; k <= 4; k++) {
+      const t = k / 5
+      el('line', { ...line(P(0.8 - 0.1 * t, 0.38, H * t), P(0.8 - 0.1 * t, 0.62, H * t)), stroke: '#ffd56e', 'stroke-width': 1.6 }, g)
+    }
+    poly(g, [P(0.62, 0.36, H), P(0.74, 0.36, H), P(0.74, 0.64, H), P(0.62, 0.64, H)], '#ffd56e')
+    poly(g, [P(0.62, 0.38, H), P(0.62, 0.62, H), P(0.14, 0.62, 1), P(0.14, 0.38, 1)], '#9fd3ec', { 'stroke-linejoin': 'round' })
+    el('line', { ...line(P(0.62, 0.38, H + 2.5), P(0.14, 0.38, 3.5)), stroke: '#7bbcd9', 'stroke-width': 1.6, 'stroke-linecap': 'round' }, g)
+    el('line', { ...line(P(0.62, 0.62, H + 2.5), P(0.14, 0.62, 3.5)), stroke: '#7bbcd9', 'stroke-width': 1.6, 'stroke-linecap': 'round' }, g)
+  },
+  seesaw(g, P) {
+    // 가운데 받침 위로 비스듬한 판자, 양 끝에 둥근 손잡이
+    shadow(g, P(0.5, 0.5), 17, 6)
+    poly(g, [P(0.42, 0.5), P(0.58, 0.5), P(0.5, 0.5, 9)], '#a7805e', { 'stroke-linejoin': 'round' })
+    const a = P(0.14, 0.5, 3)
+    const b = P(0.86, 0.5, 15)
+    el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#7bb88f', 'stroke-width': 4.5, 'stroke-linecap': 'round' }, g)
+    el('line', { x1: a.x, y1: a.y - 1, x2: b.x, y2: b.y - 1, stroke: '#a3d99b', 'stroke-width': 1.4, 'stroke-linecap': 'round' }, g)
+    for (const [p, f] of [[P(0.24, 0.5, 4.7), '#ff9fb2'], [P(0.76, 0.5, 13.3), '#9fd3ec']] as const) {
+      el('line', { x1: p.x, y1: p.y, x2: p.x, y2: p.y - 6, stroke: '#8a6a4e', 'stroke-width': 1.4 }, g)
+      el('circle', { cx: p.x, cy: p.y - 6.5, r: 2.2, fill: f, stroke: LINE, 'stroke-width': 0.5 }, g)
+    }
+  },
+  gazebo(g, P) {
+    // 낮은 마루 위 네 기둥과 둥근 초록 지붕
+    shadow(g, P(0.5, 0.5), 20, 9)
+    poly(g, [P(0.12, 0.88), P(0.88, 0.88), P(0.88, 0.88, 3), P(0.12, 0.88, 3)], '#c59466')
+    poly(g, [P(0.88, 0.12), P(0.88, 0.88), P(0.88, 0.88, 3), P(0.88, 0.12, 3)], '#b9875c')
+    poly(g, [P(0.12, 0.12, 3), P(0.88, 0.12, 3), P(0.88, 0.88, 3), P(0.12, 0.88, 3)], '#f3dcbc')
+    const H = 26
+    for (const [u, v] of [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]] as const) el('line', { ...line(P(u, v, 3), P(u, v, H)), stroke: '#fff4e2', 'stroke-width': 3, 'stroke-linecap': 'round' }, g)
+    poly(g, [P(0.06, 0.06, H), P(0.94, 0.06, H), P(0.94, 0.94, H), P(0.06, 0.94, H)], '#8fcf8a', { 'stroke-linejoin': 'round' })
+    const top = P(0.5, 0.5, H + 16)
+    for (const [u, v] of [[0.94, 0.06], [0.94, 0.94], [0.06, 0.94]] as const) {
+      const q = P(u, v, H)
+      el('path', { d: `M${q.x} ${q.y} Q${(q.x + top.x) / 2} ${(q.y + top.y) / 2 + 4} ${top.x} ${top.y}`, fill: 'none', stroke: LINE, 'stroke-width': 0.8 }, g)
+    }
+    poly(g, [P(0.06, 0.94, H), P(0.94, 0.94, H), top], '#a3d99b', { 'stroke-linejoin': 'round' })
+    poly(g, [P(0.94, 0.06, H), P(0.94, 0.94, H), top], '#7cc47f', { 'stroke-linejoin': 'round' })
+    el('circle', { cx: top.x, cy: top.y - 2, r: 2.2, fill: '#ffd56e', stroke: LINE, 'stroke-width': 0.6 }, g)
+  },
 }
 
 /**

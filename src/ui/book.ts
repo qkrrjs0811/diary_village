@@ -208,7 +208,7 @@ export function createBook(handlers: {
         select(cell)
         decorDetail.textContent = d.unlocked
           ? `${d.decor.icon} ${d.decor.name} · 한 줄을 ${d.decor.days}일 남겨 열렸어요`
-          : `❔ ${d.left}일 더 쓰면 새 소품이 열려요`
+          : `❔ ${d.left}일 더 쓰면 ${d.decor.kind === 'facility' ? '작은 시설' : '새 소품'}이 열려요`
       })
     })
   }
