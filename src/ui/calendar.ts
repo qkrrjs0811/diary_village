@@ -406,6 +406,12 @@ export function createCalendar(handlers: {
       back.hidden = false
       if (naming) sheet.querySelector<HTMLInputElement>('[data-testid="calendar-name-input"]')?.focus()
     },
+    /** 그 말로 찾은 채 연다(읽기 창의 메아리 꼬리표). 찾기 칸을 비우면 이번 달 달력이다 */
+    openSearch(list: Entry[], erasedDates: string[], now: string, word: string) {
+      this.open(list, erasedDates, now)
+      input.value = word
+      render()
+    },
     /** 그 건물이 선 날 모아 보기로 연다. 한 달·한 해를 누르면 이번 달·올해 달력으로 간다 */
     openBuilding(list: Entry[], erasedDates: string[], now: string, id: BuildingId) {
       this.open(list, erasedDates, now)

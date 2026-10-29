@@ -64,3 +64,21 @@ export function echoOf(entries: readonly Entry[], date: string): Echo | undefine
   }
   return undefined
 }
+
+/** 짓는 알림 한 줄 "🔁 '바다' — 9월 3일에도 썼어요". 그날과 해가 다르면 해도 붙인다 */
+export function echoNote(echo: Echo, date: string): string {
+  const [y, m, d] = echo.last.split('-').map(Number)
+  const year = echo.last.slice(0, 4) === date.slice(0, 4) ? '' : `${y}년 `
+  return `🔁 '${echo.word}' — ${year}${m}월 ${d}일에도 썼어요`
+}
+
+/** 읽기 창 꼬리표: 그날의 메아리 말과 그 말을 쓴 날 수(그날·뒷날 포함, 찾기 창에서 보이는 수와 같다) */
+export function echoTag(entries: readonly Entry[], date: string): { word: string; days: number; text: string } | undefined {
+  const echo = echoOf(entries, date)
+  if (!echo) return undefined
+  const days = searchEntries(entries, echo.word).length
+  // 받침이 있는 말은 '을'(사진을), 없으면 '를'(바다를)
+  const c = echo.word.charCodeAt(echo.word.length - 1) - 0xac00
+  const josa = c >= 0 && c < 11172 && c % 28 !== 0 ? '을' : '를'
+  return { word: echo.word, days, text: `🔁 '${echo.word}'${josa} 쓴 날 ${days}일` }
+}

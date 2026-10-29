@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { echoOf, echoWords } from './echo'
+import { echoNote, echoOf, echoTag, echoWords } from './echo'
 import type { Entry } from './types'
 
 const e = (date: string, text: string, more?: string): Entry => ({
@@ -78,5 +78,37 @@ describe('말의 메아리', () => {
     const a = echoOf(list, '2026-10-01')
     const moody = list.map((x) => ({ ...x, mood: 'blue' as const, more: '아주 길게 쓴 긴 글'.repeat(20) }))
     expect(echoOf(moody, '2026-10-01')).toEqual(a)
+  })
+})
+
+describe('echoNote', () => {
+  it('짓는 알림 한 줄: 말과 가장 최근에 쓴 날', () => {
+    expect(echoNote({ word: '바다', last: '2026-09-03', days: 2 }, '2026-10-01')).toBe("🔁 '바다' — 9월 3일에도 썼어요")
+  })
+
+  it('해가 다르면 해도 붙인다', () => {
+    expect(echoNote({ word: '눈사람', last: '2025-12-24', days: 1 }, '2026-01-02')).toBe("🔁 '눈사람' — 2025년 12월 24일에도 썼어요")
+  })
+})
+
+describe('echoTag', () => {
+  const list = [
+    e('2026-09-03', '바다 보러 갔다'),
+    e('2026-10-01', '바다가 또 보고 싶다'),
+    e('2026-10-05', '바다 사진 정리'),
+  ]
+
+  it('읽기 창 꼬리표: 메아리 말과 그 말을 쓴 날 수(그날·뒷날 포함, 찾기 창과 같은 수)', () => {
+    expect(echoTag(list, '2026-10-01')).toEqual({ word: '바다', days: 3, text: "🔁 '바다'를 쓴 날 3일" })
+  })
+
+  it('받침이 있는 말은 을', () => {
+    const cats = [e('2026-09-01', '사진 찍기'), e('2026-09-02', '사진 한 장')]
+    expect(echoTag(cats, '2026-09-02')?.text).toBe("🔁 '사진'을 쓴 날 2일")
+  })
+
+  it('그날 이전에 같은 말이 없으면 없다', () => {
+    expect(echoTag(list, '2026-09-03')).toBeUndefined()
+    expect(echoTag(list, '2026-10-09')).toBeUndefined()
   })
 })

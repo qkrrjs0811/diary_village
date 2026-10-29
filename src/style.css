@@ -472,6 +472,15 @@ button { font: inherit; color: inherit; }
   font-size: 14px;
   cursor: pointer;
 }
+/* 말의 메아리 줄: 알림 안 옅은 둥근 줄. 누르면 그날 집으로 */
+.note-go.note-soft {
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  background: #e9f2f4;
+  color: var(--ink);
+  font-weight: 600;
+}
+.build-note > .note-go:first-child { margin-top: 0; }
 @keyframes note-in { from { opacity: 0; transform: translate(-50%, 10px); } }
 @media (prefers-reduced-motion: reduce) { .build-note { animation: none; } }
 
@@ -1148,6 +1157,7 @@ svg.growing .labels { opacity: 0.75; }
 .reader-building-btn .reader-building { border: 1px solid var(--line); }
 .reader-building-btn .reader-building::after { content: ' ›'; color: var(--ink-soft); }
 .reader-building-btn:active .reader-building { filter: brightness(0.96); }
+.reader-building-btn .reader-echo { background: #e9f2f4; }
 .reader-text { margin: 10px 0 14px; font-size: 21px; font-weight: 500; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
 /* 더 쓴 글: 한 줄 바로 아래, 줄바꿈 그대로. 길면 이 칸 안에서만 굴러가고 창은 그대로다 */
 .reader-more {

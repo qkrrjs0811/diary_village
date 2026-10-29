@@ -1243,6 +1243,60 @@ test('정이 오른 날의 손님: 움직임 줄이기면 하트가 움직이지
   expect(await page.getByTestId('guest-heart-kong').evaluate((n) => Number(getComputedStyle(n).opacity))).toBe(0)
 })
 
+test('말의 메아리: 지난날에도 쓴 말이면 알림에 그날 한 줄, 누르면 그날 글, 읽기 창 꼬리표로 찾기 창(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const at = (d: string) => Date.parse(`${d}T21:00:00+09:00`)
+  const entries = [
+    { date: '2026-09-03', text: '할머니 댁에 다녀왔다', mood: 'great', writtenAt: at('2026-09-03') },
+    { date: '2026-10-01', text: '할머니랑 전화했다', mood: 'calm', writtenAt: at('2026-10-01') },
+    { date: '2026-10-10', text: '비 오는 날 산책', mood: 'meh', writtenAt: at('2026-10-10') },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const before = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('할머니가 보고 싶다')
+  await page.getByTestId('write-submit').click()
+  const echo = page.getByTestId('note-echo')
+  await expect(echo).toHaveText("🔁 '할머니' — 10월 1일에도 썼어요")
+  await finishAnimations(page)
+  const box = (await echo.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  const note = (await page.getByTestId('build-note').boundingBox())!
+  expect(note.x).toBeGreaterThanOrEqual(0)
+  expect(note.x + note.width).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'test-results/screens/echo-note.png' })
+
+  // 누르면 그날 집으로 날아가 글을 연다
+  await echo.click()
+  await expect(page.getByTestId('reader')).toBeVisible()
+  await expect(page.getByTestId('reader-text')).toHaveText('할머니랑 전화했다')
+  // 그날 글의 꼬리표: 그 말을 쓴 날 수(오늘 포함)
+  const tag = page.getByTestId('reader-echo')
+  await expect(tag).toHaveText("🔁 '할머니'를 쓴 날 3일")
+  expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/echo-reader.png' })
+  // 누르면 찾기 창이 그 말로 열린다
+  await tag.click()
+  await expect(page.getByTestId('reader')).toBeHidden()
+  await expect(page.getByTestId('calendar')).toBeVisible()
+  await expect(page.getByTestId('calendar-search')).toHaveValue('할머니')
+  await expect(page.getByTestId('search-hits').locator('[data-testid^="hit-20"]')).toHaveCount(3)
+  // 처음 쓴 날·메아리가 없는 날에는 꼬리표가 없다
+  await page.getByTestId('hit-2026-09-03').click()
+  await expect(page.getByTestId('reader-text')).toHaveText('할머니 댁에 다녀왔다')
+  await expect(page.getByTestId('reader-echo')).toBeHidden()
+
+  // 저장된 것은 한 줄이 더해진 것뿐이다
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(Object.keys(before).sort())
+  expect(stored.entries.slice(0, 3)).toEqual(before.entries)
+  expect(stored.entries).toHaveLength(4)
+})
+
 test('함께 쌓는 정: 마을의 이웃이 걸음마다 정표를 달고, 누르면 열린 자기 이야기를 들려준다(빽빽한 마을, 저장 안 함)', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
   await page.goto('./')
@@ -1421,8 +1475,8 @@ test('흔한 하루의 말로 새 건물(식당·공원 등)이 서고, 원래 �
   await page.getByTestId('write-input').fill('저녁에 동네 산책')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-27')).toHaveAttribute('data-building', 'park')
-  // 다섯째 날이라 새 이웃 보리도 이사 온다
-  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n🏡 새 이웃 보리가 이사 왔어요\n\S+: “공원이 생겨서 반가워요\.”$/)
+  // 다섯째 날이라 새 이웃 보리도 이사 온다. 지난날에도 쓴 '산책'은 메아리 줄로 그날을 알린다
+  await expect(page.getByTestId('build-note')).toHaveText(/^🌳 '산책'을 찾아 공원이 생겼어요\n🏡 새 이웃 보리가 이사 왔어요\n\S+: “공원이 생겨서 반가워요\.”🔁 '산책' — \d+월 \d+일에도 썼어요$/)
   await page.clock.runFor(1500)
   await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
   await page.screenshot({ path: 'test-results/screens/build-note-park.png' })

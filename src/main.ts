@@ -9,6 +9,7 @@ import { loadSave, writeSave, type KV } from './core/storage'
 import { TITLE_MAX, setMonthTitle } from './core/title'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
+import { echoNote, echoOf, echoTag } from './core/echo'
 import { toggleTreasured } from './core/treasure'
 import { arrivedLetters, eraseLetter, markLetterRead, receivedLetters, waitingLetters, writeLetter } from './core/letter'
 import { createLetterArrival, createLetterBox } from './ui/letters'
@@ -171,6 +172,8 @@ const reader = createReader({
   onTurn: turnTo,
   reply: (entry) => dayReplyLine(entry, builtDays(save), friendsRoseOn(builtDays(save), entry.date)),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
+  echo: (entry) => echoTag(save.entries, entry.date) ?? null,
+  onEcho: (word) => calendar.openSearch(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), word),
   photo: (date) => photos[date] ?? null,
   // 사진을 붙이거나 떼면 마당 액자도 바로 바뀌게 다시 그린다
   onPhoto: readOnly
@@ -514,7 +517,13 @@ const card = createWriteCard({
     ].filter(Boolean)
     // 작은 시설이 열렸으면 알림에서 바로 그 시설을 고른 채 꾸미기로 간다
     const facility = opened.find((d) => d.kind === 'facility')
-    showNote(notes.length ? notes.join('\n') : null, SHOW.go, facility && { label: `${facility.icon} 놓으러 가기`, run: () => setDecorating(true, facility.id) })
+    // 말의 메아리: 한 줄의 말을 지난날에도 썼으면 그날을 알리고, 누르면 그 집으로 날아가 글을 연다
+    const echo = echoOf(save.entries, r.entry.date)
+    const echoed = echo && save.entries.find((x) => x.date === echo.last)
+    const actions: NoteAction[] = []
+    if (facility) actions.push({ label: `${facility.icon} 놓으러 가기`, run: () => setDecorating(true, facility.id) })
+    if (echo && echoed) actions.push({ label: echoNote(echo, r.entry.date), run: () => visitMemory(echoed), testid: 'note-echo', soft: true })
+    showNote(notes.length ? notes.join('\n') : null, SHOW.go, actions)
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back, welcomeNeighbor(comers.map((x) => x.id)))
     return null
   },
@@ -806,24 +815,27 @@ const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? 
 const note = app.querySelector<HTMLElement>('.build-note')!
 let noteTimer = 0
 note.addEventListener('click', () => (note.hidden = true))
-/** action: 알림 안에 둘 버튼(누르면 할 일을 하고 닫힌다). 버튼이 있으면 누를 틈을 조금 더 준다 */
-function showNote(text: string | null, delay = SHOW.go, action?: { label: string; run: () => void }) {
+/** 알림 안의 버튼. soft 면 줄처럼 옅게(말의 메아리 줄) */
+type NoteAction = { label: string; run: () => void; testid?: string; soft?: boolean }
+/** action: 알림 안에 둘 버튼(누르면 할 일을 하고 닫힌다). 버튼이 있으면 누를 틈을 조금 더 준다. 글이 비어도 버튼이 있으면 보인다 */
+function showNote(text: string | null, delay = SHOW.go, action?: NoteAction | NoteAction[] | null) {
   clearTimeout(noteTimer)
-  note.hidden = !text
-  if (!text) return
-  note.textContent = text
-  note.classList.toggle('with-action', !!action)
-  if (action) {
+  const actions = action ? [action].flat() : []
+  note.hidden = !text && !actions.length
+  if (note.hidden) return
+  note.textContent = text ?? ''
+  note.classList.toggle('with-action', actions.length > 0)
+  for (const a of actions) {
     const go = document.createElement('button')
     go.type = 'button'
-    go.className = 'note-go'
-    go.dataset.testid = 'note-go'
-    go.textContent = action.label
-    go.addEventListener('click', action.run)
+    go.className = a.soft ? 'note-go note-soft' : 'note-go'
+    go.dataset.testid = a.testid ?? 'note-go'
+    go.textContent = a.label
+    go.addEventListener('click', a.run)
     note.appendChild(go)
   }
   note.style.setProperty('--delay', `${calm ? 0 : delay}ms`)
-  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + (action ? 5000 : 2500))
+  noteTimer = window.setTimeout(() => (note.hidden = true), delay + SHOW.hold + SHOW.back + (actions.length ? 5000 : 2500))
 }
 
 /** newDate: 방금 지은 집이 있으면 그 집으로 다가가 짓는 연출을 보인다. comers: 방금 이사 온 새 이웃(광장으로 들어온다) */

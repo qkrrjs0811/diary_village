@@ -41,6 +41,10 @@ export function createReader(handlers: {
   reply?: (entry: Entry) => string | null
   /** 건물 꼬리표를 누르면 그 건물이 선 날 모아 보기를 연다(읽기 창은 닫힌다) */
   onBuilding?: (id: BuildingId) => void
+  /** 그날 한 줄의 말이 지난날에도 나왔으면 메아리 꼬리표(없으면 null) */
+  echo?: (entry: Entry) => { word: string; text: string } | null
+  /** 메아리 꼬리표를 누르면 찾기 창이 그 말로 열린다(읽기 창은 닫힌다) */
+  onEcho?: (word: string) => void
   /** 그날 붙인 사진(없으면 null) */
   photo?: (date: string) => string | null
   /** 사진 보관함을 못 쓰거나 저장 못 하는 상태면 null. 고치기에서 사진을 붙이거나(data) 뗀다(null) */
@@ -105,6 +109,7 @@ export function createReader(handlers: {
         ${handlers.onBuilding
           ? '<button type="button" class="reader-building-btn" data-testid="reader-building" hidden><span class="reader-building"></span></button>'
           : '<span class="reader-building" data-testid="reader-building" hidden></span>'}
+        <button type="button" class="reader-building-btn reader-echo-btn" data-testid="reader-echo" hidden><span class="reader-building reader-echo"></span></button>
         <span class="reader-yard" data-testid="reader-yard" hidden></span>
         <span class="reader-aging" data-testid="reader-aging" hidden></span>
         <span class="reader-edited" data-testid="reader-edited" hidden></span>
@@ -145,6 +150,17 @@ export function createReader(handlers: {
         if (!handlers.onBuilding) return
         close()
         handlers.onBuilding(found.id)
+      })
+    }
+    // 말의 메아리: 같은 말이 나온 날들을 찾기 창에서 이어 읽는다. 글로 계산하므로 고치면 따라 바뀐다
+    const echo = handlers.onEcho ? handlers.echo?.(entry) : null
+    if (echo) {
+      const line = sheet.querySelector<HTMLElement>('[data-testid="reader-echo"]')!
+      line.querySelector('.reader-echo')!.textContent = echo.text
+      line.hidden = false
+      line.addEventListener('click', () => {
+        close()
+        handlers.onEcho?.(echo.word)
       })
     }
     // 건물이 없는 날의 마당 흔적. 글에서 찾은 말이 있을 때만 알려 준다
