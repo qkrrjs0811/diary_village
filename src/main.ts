@@ -20,7 +20,7 @@ import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandm
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
 import { RESIDENTS, arrivedOn, dayReplyLine, guestLine, neighborNote, onPlaza, plazaEntrance, reachedResidents, residentTalk, residentWalks, residentsOf, todayGuests, hangoutsOf, type Guest, type Hangout, type Walk } from './core/resident'
-import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
+import { DECORS, decorBook, decorNote, reachedDecors, unlockedDecors, type Decor, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
 import { createCalendar } from './ui/calendar'
@@ -443,14 +443,17 @@ const card = createWriteCard({
     // 지은 건물·새 이웃·새로 열린 꾸밈 소품·찾아온 손님의 맞장구를 한 알림에 줄을 나눠 보인다(손님을 누르면 다시 들린다)
     // 손님은 오늘 집에만 온다. 어제 칸을 쓴 날은 맞장구가 없다
     const guest = drawn?.guests.find((g) => g.reply && g.date === r.entry.date)
+    // 첫 주 선물 소품은 축하 카드가 따로 알려 준다
+    const opened = reachedDecors(before, builtDays(save)).filter((d) => !FIRST_GIFTS.some((g) => g.decor === d.id))
     const notes = [
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
       neighborNote(comers),
-      // 첫 주 선물 소품은 축하 카드가 따로 알려 준다
-      decorNote(reachedDecors(before, builtDays(save)).filter((d) => !FIRST_GIFTS.some((g) => g.decor === d.id))),
+      decorNote(opened),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)
-    showNote(notes.length ? notes.join('\n') : null)
+    // 작은 시설이 열렸으면 알림에서 바로 그 시설을 고른 채 꾸미기로 간다
+    const facility = opened.find((d) => d.kind === 'facility')
+    showNote(notes.length ? notes.join('\n') : null, SHOW.go, facility && { label: `${facility.icon} 놓으러 가기`, run: () => setDecorating(true, facility.id) })
     celebrate(before, calm ? 0 : SHOW.go + SHOW.hold + SHOW.back, welcomeNeighbor(comers.map((x) => x.id)))
     return null
   },
@@ -612,6 +615,7 @@ app.appendChild(tray.root)
 
 /** id: 바구니에서 미리 고를 소품(첫 주 선물의 "놓으러 가기") */
 function setDecorating(on: boolean, id: DecorId | null = null) {
+  if (on && !decorating) tray.reset()
   decorating = on
   pick = on ? id : null
   picked = null
@@ -784,7 +788,13 @@ function render(newDate?: string, comers: string[] = []) {
   card.root.hidden = decorating
   tray.root.hidden = !decorating
   scene.classList.toggle('decorating', decorating)
-  if (decorating) tray.render(unlockedDecors(days), pick, picked != null, decorMsg)
+  if (decorating) {
+    // 빈 갈래에는 다음에 열릴 것을 보인다
+    const book = decorBook(days)
+    const ahead = (kind: Decor['kind']) => book.find((d) => !d.unlocked && d.decor.kind === kind)
+    const next = Object.fromEntries((['decor', 'facility'] as const).flatMap((k) => (ahead(k) ? [[k, ahead(k)!]] : [])))
+    tray.render(unlockedDecors(days), pick, picked != null, decorMsg, next)
+  }
   drawVillage(svg, village, {
     spots,
     picked: decorating ? (picked ?? undefined) : undefined,

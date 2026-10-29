@@ -435,7 +435,7 @@ button { font: inherit; color: inherit; }
 /* 주민의 지난 이야기: 글이 길면 줄을 바꾸고, 아래에 "보러 가기" */
 .build-note.with-action {
   width: max-content;
-  white-space: normal;
+  white-space: pre-line;
   word-break: keep-all;
   border-radius: 20px;
   padding: 10px 14px;
@@ -536,6 +536,9 @@ button { font: inherit; color: inherit; }
 
 /* 꾸미기 모드: 한 줄 카드 자리에 오는 소품 바구니. 소품은 옆으로 넘겨 본다 */
 .decorate[hidden] { display: none; }
+.decor-kinds { display: flex; gap: 4px; margin-bottom: 8px; padding: 3px; border-radius: 22px; background: var(--chip); }
+.decor-kind { min-height: 44px; }
+.decor-empty { flex: 1; margin: 0; padding: 14px 8px; min-height: 56px; box-sizing: border-box; border: 1px dashed var(--line); border-radius: 16px; font-size: 13px; line-height: 1.5; text-align: center; word-break: keep-all; color: var(--ink-soft); }
 .decor-picks { display: flex; gap: 6px; margin: 0 -4px 8px; padding: 2px 4px 4px; overflow-x: auto; scrollbar-width: none; }
 .decor-picks::-webkit-scrollbar { display: none; }
 .decor-pick {

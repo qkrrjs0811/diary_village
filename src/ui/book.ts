@@ -67,7 +67,7 @@ export function createBook(handlers: {
         <button type="button" class="book-tab" role="tab" data-testid="book-tab-buildings" data-pane="buildings"><b>🏠 건물</b><span data-testid="book-count">${found} / ${items.length}</span></button>
         <button type="button" class="book-tab" role="tab" data-testid="book-tab-landmarks" data-pane="landmarks"><b>⛲ 명소</b><span data-testid="book-landmark-count">${marks.filter((m) => m.earned).length} / ${marks.length}</span></button>
         <button type="button" class="book-tab" role="tab" data-testid="book-tab-neighbors" data-pane="neighbors"><b>🙂 이웃</b><span data-testid="book-neighbor-count">${arrivals.filter((a) => a.date).length} / ${arrivals.length}</span></button>
-        <button type="button" class="book-tab" role="tab" data-testid="book-tab-decors" data-pane="decors"><b>🌷 소품</b><span data-testid="book-decor-count">${decors.filter((d) => d.unlocked).length} / ${decors.length}</span></button>
+        <button type="button" class="book-tab" role="tab" data-testid="book-tab-decors" data-pane="decors"><b>🌷 꾸미기</b><span data-testid="book-decor-count">${decors.filter((d) => d.unlocked).length} / ${decors.length}</span></button>
       </div>
       <div class="settings-group book-pane" role="tabpanel" data-pane="buildings" aria-label="건물 도감">
         <div class="book-grid" data-testid="book-buildings">
@@ -107,7 +107,7 @@ export function createBook(handlers: {
         <div class="book-detail" data-testid="book-neighbor-detail" role="status">칸을 누르면 이야기가 보여요</div>
         <button type="button" class="sheet-btn book-days" data-testid="book-neighbor-day" hidden>📖 이사 온 날 글 보기</button>
       </div>
-      <div class="settings-group book-pane" role="tabpanel" data-pane="decors" aria-label="꾸밈 소품">
+      <div class="settings-group book-pane" role="tabpanel" data-pane="decors" aria-label="꾸미기 소품·시설">
         <div class="book-grid six" data-testid="book-decors">
           ${decors
             .map(

@@ -1087,7 +1087,27 @@ test('글에 나온 말로 건물이 정해지고, 지으면 알려 주고, 읽�
   await page.getByTestId('write-input').fill('일찍 잤다')
   await page.getByTestId('write-submit').click()
   await expect(page.getByTestId('house-2026-10-26')).toHaveAttribute('data-building', 'house')
-  await expect(page.getByTestId('build-note')).toHaveText(/^🪢 작은 시설 그네가 열렸어요(\n\S+: “.+”)?$/)
+  const note = page.getByTestId('build-note')
+  await expect(note).toHaveText(/^🪢 작은 시설 그네가 열렸어요(\n\S+: “.+”)?🪢 놓으러 가기$/)
+
+  // 알림의 "놓으러 가기"로 시설 갈래에서 그네를 고른 채 꾸미기에 들어간다
+  const go = page.getByTestId('note-go')
+  await expect(go).toHaveText('🪢 놓으러 가기')
+  await page.clock.runFor(1500)
+  await finishAnimations(page)
+  const nb = (await note.boundingBox())!
+  expect(nb.x).toBeGreaterThanOrEqual(0)
+  expect(nb.x + nb.width).toBeLessThanOrEqual(390)
+  expect((await go.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/facility-note.png' })
+  await go.click()
+  await expect(note).toBeHidden()
+  await expect(page.getByTestId('decorate')).toBeVisible()
+  await expect(page.getByTestId('decorate-kind-facility')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('decorate-pick-swing')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪢 그네를 놓을 빈 자리를 눌러요')
+  expect(await page.locator('.spot').count()).toBeGreaterThan(0)
+  await page.screenshot({ path: 'test-results/screens/facility-go.png' })
 })
 
 test('건물이 없는 날은 한 줄의 말로 마당에 작은 흔적이 남고, 읽기 창에 한 줄로 알려 준다', async ({ page }) => {
@@ -2522,7 +2542,19 @@ test('쓴 날 보상으로 열린 작은 시설 6종(그네·평상·모닥불·
   await page.getByTestId('book-decor-gazebo').click()
   await expect(page.getByTestId('book-decor-detail')).toHaveText('🛖 정자 · 한 줄을 150일 남겨 열렸어요')
   await page.getByTestId('book-decorate').click()
-  await expect(page.getByTestId('decorate').locator('.decor-pick')).toHaveCount(18)
+  // 바구니는 소품·시설 두 갈래로 나뉘어 한 갈래씩 보인다
+  const tray = page.getByTestId('decorate')
+  await expect(page.getByTestId('decorate-kind-decor')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('decorate-kind-decor')).toContainText('🌷 소품12개')
+  await expect(page.getByTestId('decorate-kind-facility')).toContainText('🛝 시설6개')
+  await expect(tray.locator('.decor-pick')).toHaveCount(12)
+  await expect(page.getByTestId('decorate-pick-swing')).toHaveCount(0)
+  await page.getByTestId('decorate-kind-facility').click()
+  await expect(tray.locator('.decor-pick')).toHaveCount(6)
+  await expect(page.getByTestId('decorate-pick-gazebo')).toBeVisible()
+  for (const b of await tray.locator('button:visible').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/decorate-facility.png' })
   const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
   expect(stored.decor).toEqual(decor)
 })
@@ -2692,6 +2724,12 @@ test('마을 수첩에서 꾸미기에 들어가 소품을 빈 자리에 놓고,
   await expect(tray).toBeVisible()
   await expect(tray.locator('.decor-pick')).toHaveCount(3)
   for (const b of await tray.locator('button:visible').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  // 아직 열린 시설이 없으면 시설 갈래에 다음에 열릴 시설을 알려 준다
+  await page.getByTestId('decorate-kind-facility').click()
+  await expect(page.getByTestId('decorate-empty')).toHaveText('아직 열린 시설이 없어요 · 8일 더 쓰면 🪢 그네')
+  await page.screenshot({ path: 'test-results/screens/decorate-empty.png' })
+  await page.getByTestId('decorate-kind-decor').click()
+  await expect(tray.locator('.decor-pick')).toHaveCount(3)
   await expect(page.locator('.spot')).toHaveCount(0)
 
   // 꾸미기 중에는 집을 눌러도 읽기 창이 열리지 않는다
