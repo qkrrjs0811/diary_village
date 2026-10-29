@@ -258,7 +258,8 @@ button { font: inherit; color: inherit; }
 /* 함께 쌓는 정: 칸 귀퉁이 작은 하트, 칸 이야기의 하트 세 개와 이웃 자기 이야기 */
 .book-cell { position: relative; }
 .book-heart { position: absolute; top: 2px; right: 4px; font-size: 8px; line-height: 1; letter-spacing: -1px; color: #e88a9a; }
-.friend-about, .friend-step, .friend-next { display: block; }
+.friend-about, .friend-step, .friend-next, .friend-anniversary { display: block; }
+.friend-anniversary { margin-top: 4px; font-size: 12px; color: #b98a3e; }
 .friend-step { margin-top: 6px; font-weight: 600; }
 .friend-hearts { font-size: 15px; color: #e88a9a; letter-spacing: 1px; }
 .friend-stories { margin: 6px auto 0; padding: 8px 12px; max-width: 300px; list-style: none; border-radius: 14px; background: #fff4f0; border: 1px solid #f3d3cc; }

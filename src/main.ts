@@ -10,6 +10,7 @@ import { TITLE_MAX, setMonthTitle } from './core/title'
 import type { Dated, Entry, MoodId, SaveData } from './core/types'
 import { memoryOf } from './core/memory'
 import { echoNote, echoOf, echoTag } from './core/echo'
+import { anniversariesOn, anniversaryLine, anniversaryNote } from './core/anniversary'
 import { toggleTreasured } from './core/treasure'
 import { arrivedLetters, eraseLetter, markLetterRead, receivedLetters, waitingLetters, writeLetter } from './core/letter'
 import { createLetterArrival, createLetterBox } from './ui/letters'
@@ -470,7 +471,7 @@ const growth = createGrowth({
   titles: () => save.monthTitles ?? {},
 })
 document.body.appendChild(growth.root)
-app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save), drawn?.hangouts ?? []))
+app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save), drawn?.hangouts ?? [], dayKey(Date.now())))
 
 const card = createWriteCard({
   onSubmit(text: string, mood: MoodId, day: Day, more: string, photo: string | null) {
@@ -512,6 +513,8 @@ const card = createWriteCard({
       buildingNote(buildingOf(r.entry), buildingOrdinal(save.entries, r.entry.date)),
       neighborNote(comers),
       friendNote(reachedFriends(before, builtDays(save))),
+      // 이사 기념일은 오늘 한 줄을 지을 때만 알린다(어제 칸을 쓴 날은 "오늘은"이 맞지 않는다)
+      r.entry.date === dayKey(Date.now()) && anniversaryNote(anniversariesOn(builtDays(save), r.entry.date)),
       decorNote(opened),
       guest && `${guest.resident.name}: “${guest.reply}”`,
     ].filter(Boolean)
@@ -623,6 +626,13 @@ const camera = createCamera(svg, (target, at) => {
   if (resident) {
     sound.cue('resident', resident.id)
     const today = dayKey(Date.now())
+    // 이사 기념일인 이웃은 그날 처음 누르면 기념일 인사를 하고, 다음부터는 여느 차례(손님 한마디·잔치 한마디…)를 잇는다
+    const anniversary = anniversariesOn(builtDays(save), today).find((a) => a.resident.id === resident.id)
+    const annKey = `anniversary:${resident.id}:${today}`
+    if (anniversary && !taps.has(annKey)) {
+      taps.set(annKey, 1)
+      return showNote(`${resident.name}: “${anniversaryLine(anniversary)}”`, 0)
+    }
     // 손님은 처음엔 손님 한마디(기다리다 집이 생기면 다시 처음부터), 다시 누르면 오늘 이야기 다음 차례를 잇는다
     const guest = gid ? drawn?.guests.find((g) => g.resident.id === gid) : undefined
     // 글을 고쳐 맞장구가 바뀌면 다시 처음부터 그 말을 한다
@@ -886,6 +896,7 @@ function render(newDate?: string, comers: string[] = []) {
     guests,
     hangouts,
     tokens: friendTokens(days),
+    hats: new Set(anniversariesOn(days, today).map((a) => a.resident.id)),
     decors,
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },

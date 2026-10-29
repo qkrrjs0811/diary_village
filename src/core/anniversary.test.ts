@@ -87,13 +87,12 @@ describe('이웃의 이사 기념일', () => {
     expect(anniversaryNote([])).toBeNull()
     const kong = { resident: byId('kong'), label: '1년' }
     const somi = { resident: byId('somi'), label: '100일' }
-    expect(anniversaryNote([kong])).toBe('🎉 오늘은 콩이가 이사 온 지 1년 되는 날이에요')
-    expect(anniversaryNote([{ resident: byId('gamja'), label: '200일' }])).toBe('🎉 오늘은 감자가 이사 온 지 200일 되는 날이에요')
-    expect(anniversaryNote([{ resident: byId('dotori'), label: '1년' }])).toBe('🎉 오늘은 도토리가 이사 온 지 1년 되는 날이에요')
-    expect(anniversaryNote([{ resident: byId('byeol'), label: '1년' }])).toBe('🎉 오늘은 별이가 이사 온 지 1년 되는 날이에요')
-    expect(anniversaryNote([{ resident: { ...byId('kong'), name: '달님' }, label: '1년' }])).toBe(
-      '🎉 오늘은 달님이 이사 온 지 1년 되는 날이에요',
-    )
-    expect(anniversaryNote([kong, somi])).toBe('🎉 오늘은 콩이(1년)와 솜이(100일)의 이사 기념일이에요')
+    // 짓는 알림 한 줄에 잘리지 않게 "오늘은"을 뺀다(알림은 오늘 한 줄을 지을 때만 뜬다)
+    expect(anniversaryNote([kong])).toBe('🎉 콩이가 이사 온 지 1년 되는 날이에요')
+    expect(anniversaryNote([{ resident: byId('gamja'), label: '200일' }])).toBe('🎉 감자가 이사 온 지 200일 되는 날이에요')
+    expect(anniversaryNote([{ resident: byId('dotori'), label: '1년' }])).toBe('🎉 도토리가 이사 온 지 1년 되는 날이에요')
+    expect(anniversaryNote([{ resident: byId('byeol'), label: '1년' }])).toBe('🎉 별이가 이사 온 지 1년 되는 날이에요')
+    expect(anniversaryNote([{ resident: { ...byId('kong'), name: '달님' }, label: '1년' }])).toBe('🎉 달님이 이사 온 지 1년 되는 날이에요')
+    expect(anniversaryNote([kong, somi])).toBe('🎉 콩이(1년)와 솜이(100일)의 이사 기념일이에요')
   })
 })

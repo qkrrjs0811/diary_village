@@ -5702,3 +5702,74 @@ test('자라 온 길: 집이 오를수록 높아지는 실로폰 소리, 움직�
   expect(await notes()).toEqual([])
   await page.getByTestId('growth-skip').click()
 })
+
+test('이웃의 이사 기념일: 콩이가 이사 온 지 100일째 날 고깔모자·첫 한마디·짓는 알림 줄·수첩 "다음 기념일"(저장 안 함)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-29T13:00:00+09:00') })
+  await page.goto('./')
+  // 7월 22일부터 사흘에 한 번 썼다. 콩이는 첫날(7월 22일)에, 모모는 셋째 날(7월 28일)에 이사 왔다
+  const entries = dayEntries('2026-07-22', 99).filter((_, i) => i % 3 === 0)
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const before = await page.evaluate((k) => localStorage.getItem(k), KEY)
+
+  // 오늘은 콩이가 이사 온 지 100일째 날: 콩이만 고깔모자를 쓴다(쓰기 전에도)
+  const kong = page.locator('.things [data-resident="kong"], .things [data-guest="kong"]')
+  await expect(kong.locator('.party-hat')).toHaveCount(1)
+  await expect(page.locator('.things .party-hat')).toHaveCount(1)
+  // 모자는 제 몸 가까이에만 있다
+  const hat = (await kong.locator('.party-hat').boundingBox())!
+  const body = (await kong.locator('.party-hat').locator('xpath=..').boundingBox())!
+  expect(hat.x).toBeGreaterThanOrEqual(body.x - 2)
+  expect(hat.x + hat.width).toBeLessThanOrEqual(body.x + body.width + 2)
+
+  // 처음 누르면 기념일 인사, 다시 누르면 여느 차례
+  const note = page.getByTestId('build-note')
+  await kong.dispatchEvent('click')
+  await expect(note).toHaveText('콩이: “오늘은 내가 이사 온 지 100일 되는 날이에요!”')
+  await kong.dispatchEvent('click')
+  await expect(note).not.toContainText('100일 되는 날')
+  // 모모는 기념일이 아니라 여느 한마디
+  await page.locator('.things [data-resident="momo"], .things [data-guest="momo"]').dispatchEvent('click')
+  await expect(note).toContainText('모모:')
+  await expect(note).not.toContainText('이사 온 지')
+
+  // 오늘 한 줄을 지으면 짓는 알림에 기념일 한 줄
+  await page.getByTestId('mood-calm').click()
+  await page.getByTestId('write-input').fill('바람이 시원했다')
+  await page.getByTestId('write-submit').click()
+  await expect(note).toContainText('🎉 콩이가 이사 온 지 100일 되는 날이에요')
+  // 기념일은 저장하지 않는다: 저장된 칸은 한 줄이 더해진 것뿐이다
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(Object.keys(stored).sort()).toEqual(Object.keys(JSON.parse(before!)).sort())
+  expect(stored.entries).toHaveLength(entries.length + 1)
+  await page.clock.runFor(1500)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 1500), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/anniversary-note.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+  await page.clock.runFor(800 + 1800 + 900 + 4000)
+  if (await page.getByTestId('celebrate').isVisible()) await page.getByTestId('celebrate-close').click()
+  await expect(kong.locator('.party-hat')).toHaveCount(1)
+
+  // 콩이 쪽으로 가까이 보아 모자를 확인한다
+  const kb = (await kong.boundingBox())!
+  await page.mouse.move(Math.min(Math.max(kb.x + kb.width / 2, 20), 370), Math.min(Math.max(kb.y + kb.height / 2, 160), 480))
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -300)
+  await page.waitForTimeout(600)
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()))
+  await page.screenshot({ path: 'test-results/screens/anniversary-hat.png' })
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.play()))
+
+  // 이웃 수첩: 콩이는 오늘이 기념일, 모모는 다음 기념일
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-neighbors').click()
+  await page.getByTestId('book-neighbor-kong').click()
+  await expect(page.getByTestId('book-anniversary')).toHaveText('🎉 이사 기념일 · 오늘 (100일)')
+  await page.getByTestId('book-neighbor-momo').click()
+  await expect(page.getByTestId('book-anniversary')).toHaveText('🎉 다음 기념일 · 11월 4일 (100일)')
+  await expect(page.getByTestId('book-anniversary')).toBeInViewport({ ratio: 0.95 })
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: 'test-results/screens/anniversary-book.png' })
+  // 아직 안 온 이웃은 기념일 줄이 없다
+  await page.getByTestId('book-neighbor-dotori').click()
+  await expect(page.getByTestId('book-anniversary')).toHaveCount(0)
+})

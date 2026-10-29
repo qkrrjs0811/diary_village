@@ -1,4 +1,5 @@
 import { hasFinal, type BuildingId } from '../core/building'
+import { nextAnniversary } from '../core/anniversary'
 import { collectionOf, landmarkBook } from '../core/collection'
 import { decorBook } from '../core/decor'
 import { FRIEND_STEPS, friendOf, storiesOf } from '../core/friendship'
@@ -49,7 +50,7 @@ export function createBook(handlers: {
   })
 
   /** built: 집을 지었던 날(지운 날 포함). 단계·명소는 이 날 수로, 도감은 남은 글로 센다 */
-  function show(entries: Entry[], built: Dated[], hangouts: readonly Hangout[]) {
+  function show(entries: Entry[], built: Dated[], hangouts: readonly Hangout[], today: string) {
     const days = writtenDays(built)
     const stage = stageOf(built)
     const next = nextStage(built)
@@ -222,6 +223,14 @@ export function createBook(handlers: {
           ? `${a.resident.name} · ${dateLabel(a.date).replace(/ .요일$/, '')}에 이사 왔어요 · 좋아하는 것: ${a.resident.likes}${h ? ` · ${hangoutLine(h)}` : ''}`
           : `❔ ${a.left}일 더 쓰면 새 이웃이 와요`
         neighborDetail.appendChild(about)
+        // 이사 기념일: 오늘이면 "오늘", 아니면 가장 가까운 날(날짜로 계산, 저장하지 않음)
+        if (a.date && today) {
+          const next = nextAnniversary(a.date, today)
+          const when = next.date === today ? '오늘' : dateLabel(next.date).replace(/ .요일$/, '')
+          const line = part('span', 'friend-anniversary', 'book-anniversary')
+          line.textContent = `🎉 ${next.date === today ? '이사 기념일' : '다음 기념일'} · ${when} (${next.label})`
+          neighborDetail.appendChild(line)
+        }
         // 함께 쌓는 정: 하트 세 개(♡→♥), 걸음 이름, 열린 자기 이야기. 안 열린 이야기는 "N일 더"만 다정하게
         const f = friendOf(a.resident, built)
         if (!f) return
@@ -278,8 +287,9 @@ export function createBook(handlers: {
 
   return {
     root: back,
-    open(entries: Entry[], built: Dated[], hangouts: readonly Hangout[] = []) {
-      show(entries, built, hangouts)
+    /** today: 이웃 칸의 "다음 기념일"을 셀 오늘 */
+    open(entries: Entry[], built: Dated[], hangouts: readonly Hangout[] = [], today = '') {
+      show(entries, built, hangouts, today)
       back.hidden = false
     },
   }

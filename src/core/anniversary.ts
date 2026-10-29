@@ -58,10 +58,10 @@ export function anniversaryNote(list: readonly Anniversary[]): string | null {
   if (list.length === 0) return null
   if (list.length === 1) {
     const { resident, label } = list[0]
-    return `🎉 오늘은 ${resident.name}${hasFinal(resident.name) ? '이' : '가'} 이사 온 지 ${label} 되는 날이에요`
+    return `🎉 ${resident.name}${hasFinal(resident.name) ? '이' : '가'} 이사 온 지 ${label} 되는 날이에요`
   }
   // 괄호 뒤 토씨는 괄호 앞 이름에 맞춘다: 콩이(1년)와
   const parts = list.map((a) => `${a.resident.name}(${a.label})`)
   const head = parts.slice(0, -1).map((p, i) => `${p}${hasFinal(list[i].resident.name) ? '과' : '와'} `)
-  return `🎉 오늘은 ${head.join('')}${parts[parts.length - 1]}의 이사 기념일이에요`
+  return `🎉 ${head.join('')}${parts[parts.length - 1]}의 이사 기념일이에요`
 }
