@@ -1364,3 +1364,12 @@ body.locked #app .scene { filter: blur(10px) saturate(0.9); }
 .lock-ask { margin-top: 6px; padding: 12px; border-radius: 18px; background: #fff3cf; font-size: 14px; line-height: 1.55; word-break: keep-all; }
 .lock-ask p { margin: 0 0 8px; }
 .lock-ask-row { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cal-song { margin-top: 8px; }
+.cal-song[aria-pressed="true"] { background: #eef6ec; border-color: var(--accent, #7bb88f); }
+.cal-chapter-head .cal-song-line { margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
+.cal-song-line[hidden] { display: none; }
+.cal-hit { transition: box-shadow 0.25s ease, transform 0.25s ease; }
+.cal-hit.sing { box-shadow: 0 0 0 3px rgba(255, 214, 120, 0.85), 0 0 14px rgba(255, 214, 120, 0.7); transform: scale(1.02); }
+@media (prefers-reduced-motion: reduce) {
+  .cal-hit { transition: none; }
+}

@@ -604,6 +604,8 @@ const calendar = createCalendar({
   titles: () => save.monthTitles ?? {},
   // 사진 보관함을 못 열면 null 이라 "📷 사진" 갈래가 없다
   photos: () => (photoStore ? photoDays(save, photos) : null),
+  // 이 달의 노래는 누를 때 소리 설정·움직임 줄이기를 본다
+  song: { play: (notes) => sound.song(notes), on: sound.on, calm: () => calm },
   // 달 이름은 사용자가 정한 것이라 저장한다. 구역 이름표가 바로 바뀌게 다시 그린다
   onTitle: readOnly
     ? null

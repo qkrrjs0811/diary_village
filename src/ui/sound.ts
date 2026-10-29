@@ -23,7 +23,7 @@ export function createSound(kv: KV) {
   }
 
   /** 맑은 나무 실로폰: 바탕음과 옅은 위 배음이 금방 사그라든다 */
-  function ring(a: AudioContext, n: Note, start: number) {
+  function ring(a: AudioContext, n: Note, start: number, out: AudioNode = a.destination) {
     for (const [mul, part] of [
       [1, 1],
       [4, 0.12],
@@ -36,7 +36,7 @@ export function createSound(kv: KV) {
       amp.gain.setValueAtTime(0.0001, t)
       amp.gain.linearRampToValueAtTime(n.gain * part, t + 0.006)
       amp.gain.exponentialRampToValueAtTime(0.0001, t + n.dur)
-      osc.connect(amp).connect(a.destination)
+      osc.connect(amp).connect(out)
       osc.start(t)
       osc.stop(t + n.dur + 0.05)
     }
@@ -76,6 +76,34 @@ export function createSound(kv: KV) {
     /** 축하 카드·주민 대답·소품 놓기의 짧은 소리(delay ms 뒤). key: 주민 id */
     cue(cue: Cue, key = '', delay = 0) {
       play(cueTune(cue, key), CUE_BUZZ[cue], delay)
+    },
+    /** 소리를 켜 두었는지 */
+    on: () => soundOn(kv),
+    /**
+     * 이 달의 노래를 곧바로 울린다. 떨지 않는다. 돌려준 함수를 부르면 남은 음을 멈춘다.
+     * 소리를 꺼 두었으면 울리지 않고, 멈춤 함수는 아무것도 하지 않는다
+     */
+    song(notes: Note[]): () => void {
+      if (!soundOn(kv)) return () => {}
+      const a = audio()
+      if (!a) return () => {}
+      try {
+        // 한 갈래로 모아 두어야 멈출 때 남은 음을 한꺼번에 끈다
+        const out = a.createGain()
+        out.connect(a.destination)
+        const start = a.currentTime + 0.05
+        for (const n of notes) ring(a, n, start, out)
+        return () => {
+          try {
+            out.gain.setValueAtTime(0.0001, a.currentTime)
+            out.disconnect?.()
+          } catch {
+            // 이미 끝난 소리
+          }
+        }
+      } catch {
+        return () => {}
+      }
     },
   }
 }

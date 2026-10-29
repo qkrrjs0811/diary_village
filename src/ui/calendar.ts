@@ -8,6 +8,7 @@ import { daysOfBuilding } from '../core/collection'
 import { monthRecap, yearRecap } from '../core/recap'
 import { TITLE_MAX } from '../core/title'
 import { monthChapter } from '../core/chapter'
+import { monthSong, type Note } from '../core/sound'
 import type { Entry } from '../core/types'
 import { dateLabel, recapLine, softMood as soft } from './format'
 
@@ -34,6 +35,8 @@ export function createCalendar(handlers: {
   onTitle?: ((month: string, input: string) => string | null) | null
   /** 사진이 붙은 날(최근 날부터). 사진 보관함을 못 열면 null(사진 갈래가 없다) */
   photos?: () => { entry: Entry; photo: string }[] | null
+  /** 이 달의 노래를 울린다(돌려준 함수로 멈춘다). on: 소리를 켜 두었는지, calm: 움직임 줄이기 */
+  song?: { play: (notes: Note[]) => () => void; on: () => boolean; calm: () => boolean }
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -59,7 +62,10 @@ export function createCalendar(handlers: {
   const input = back.querySelector<HTMLInputElement>('[data-testid="calendar-search"]')!
   const clear = back.querySelector<HTMLButtonElement>('.cal-clear')!
   const modes = back.querySelector<HTMLElement>('.cal-modes')!
-  const close = () => (back.hidden = true)
+  const close = () => {
+    stopSong()
+    back.hidden = true
+  }
   back.addEventListener('click', (e) => {
     if (e.target === back) close()
   })
@@ -107,6 +113,62 @@ export function createCalendar(handlers: {
   let before: 'month' | 'year' = 'month'
   /** 달 머리에서 이름 칸을 펼쳐 둔 달 */
   let naming = ''
+  /** 울리는 이 달의 노래를 멈추는 함수(울리지 않으면 null) */
+  let singing: (() => void) | null = null
+
+  /** 이 달의 노래를 멈추고 단추·빛·안내를 처음대로 돌린다 */
+  function stopSong() {
+    const stop = singing
+    singing = null
+    stop?.()
+  }
+
+  /**
+   * 이 달의 노래. 가락을 울리며 울리는 날의 쪽지를 차례로 살짝 빛낸다(소리를 꺼 두었으면 빛만).
+   * 움직임 줄이기면 빛 없이 안내 한 줄만 둔다. 다시 누르거나 달을 넘기거나 창을 닫으면 멈춘다
+   */
+  function singChapter(days: { date: string; mood: Entry['mood'] }[]) {
+    const btn = sheet.querySelector<HTMLButtonElement>('[data-testid="chapter-song"]')!
+    const line = sheet.querySelector<HTMLElement>('[data-testid="chapter-song-line"]')!
+    const notes = monthSong(days)
+    const calm = handlers.song?.calm() ?? false
+    const on = handlers.song?.on() ?? false
+    const timers: number[] = []
+    let lit: HTMLElement | null = null
+    const unlight = () => {
+      lit?.classList.remove('sing')
+      lit = null
+    }
+    const silence = handlers.song?.play(notes) ?? (() => {})
+    btn.textContent = '⏹ 노래 멈추기'
+    btn.setAttribute('aria-pressed', 'true')
+    line.textContent = calm ? (on ? '🎵 이 달의 노래가 흐르고 있어요' : '🔇 소리를 꺼 두었어요 · 설정에서 켤 수 있어요') : on ? '' : '🔇 소리를 꺼 두어서 빛으로만 따라가요'
+    line.hidden = !line.textContent
+    if (!calm) {
+      for (const n of notes) {
+        if (!n.date) continue
+        const date = n.date
+        timers.push(
+          window.setTimeout(() => {
+            unlight()
+            lit = sheet.querySelector<HTMLElement>(`[data-testid="hit-${date}"]`)
+            lit?.classList.add('sing')
+            lit?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+          }, (n.at + 0.05) * 1000),
+        )
+      }
+    }
+    const last = notes[notes.length - 1]
+    timers.push(window.setTimeout(stopSong, (last.at + last.dur + 0.1) * 1000))
+    singing = () => {
+      silence()
+      for (const t of timers) window.clearTimeout(t)
+      unlight()
+      btn.textContent = '🎵 이 달의 노래'
+      btn.setAttribute('aria-pressed', 'false')
+      line.hidden = true
+    }
+  }
 
   const titleOf = (m: string) => handlers.titles?.()[m] ?? ''
 
@@ -347,10 +409,16 @@ export function createCalendar(handlers: {
    * 아래 "‹ 9월 · 11월 ›"로 쓴 날이 있는 이웃한 달로 넘긴다. 장 제목(달 이름)과 글은 textContent로만 넣는다
    */
   function showChapter() {
+    stopSong()
     const c = monthChapter({ version: 1, entries, monthTitles: handlers.titles?.() }, month)
     const label = (m: string) => `${Number(m.slice(5, 7))}월`
+    const singable = c.written > 0 && !!handlers.song
     sheet.innerHTML = `
-      <div class="cal-chapter-head" data-testid="chapter-head"><b data-testid="chapter-title"></b><span data-testid="chapter-count">${c.written ? `${month.slice(0, 4)}년 · 한 줄 ${c.written}일` : '아직 쓴 날이 없어요'}</span></div>
+      <div class="cal-chapter-head" data-testid="chapter-head"><b data-testid="chapter-title"></b><span data-testid="chapter-count">${c.written ? `${month.slice(0, 4)}년 · 한 줄 ${c.written}일` : '아직 쓴 날이 없어요'}</span>${
+        singable
+          ? '<button type="button" class="cal-read-btn cal-song" data-testid="chapter-song" aria-pressed="false">🎵 이 달의 노래</button><span class="cal-song-line" data-testid="chapter-song-line" role="status" hidden></span>'
+          : ''
+      }</div>
       <div class="cal-hits" data-testid="chapter-list"></div>
       <div class="cal-chapter-nav">
         <button type="button" class="cal-chapter-move" data-testid="chapter-prev" ${c.prev ? `aria-label="지난달 ${label(c.prev)} 이어 읽기"` : 'hidden'}>‹ ${c.prev ? label(c.prev) : ''}</button>
@@ -364,6 +432,7 @@ export function createCalendar(handlers: {
       hit.querySelector('.cal-hit-date')!.textContent = `${dateLabel(d.date)} · ${d.icon}${d.more ? ' 📝' : ''}${d.treasured ? ' 💛' : ''}`
       list.appendChild(hit)
     }
+    sheet.querySelector('[data-testid="chapter-song"]')?.addEventListener('click', () => (singing ? stopSong() : singChapter(c.days)))
     const move = (to: string | null) => {
       if (!to) return
       month = to
@@ -417,6 +486,7 @@ export function createCalendar(handlers: {
 
   /** 찾을 말이 있으면 찾은 한 줄, 없으면 한 달 또는 한 해 달력 */
   function render() {
+    stopSong()
     clear.hidden = !input.value
     const finding = !!input.value.trim()
     modes.hidden = finding

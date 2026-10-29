@@ -5988,3 +5988,106 @@ test('돌아보기 쪽지와 한 해 보기에서 이어 읽기로 들어가고,
   // 읽기만 했으니 저장은 그대로다
   expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)).toEqual(data)
 })
+
+test('이어 읽기의 "🎵 이 달의 노래"는 쓴 날마다 한 음씩 울리며 그날 쪽지를 차례로 빛내고, 다시 누르거나 달을 넘기거나 닫으면 멈춘다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const entries = [...monthEntries('2026-08', [3, 20]), ...monthEntries('2026-10', [2, 5, 9, 20, 26])] as Entry[]
+  const data = { version: 1, entries, monthTitles: { '2026-10': '이사한 달' } }
+  await page.evaluate(([k, s]) => localStorage.setItem(k, s), [KEY, JSON.stringify(data)])
+  await page.reload()
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-calendar').click()
+  await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.getByTestId('calendar-chapter').click()
+
+  const song = page.getByTestId('chapter-song')
+  await expect(song).toHaveText('🎵 이 달의 노래')
+  expect((await song.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await page.screenshot({ path: 'test-results/screens/song-button.png' })
+  const heard = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes.length)
+  const before = await heard()
+  await song.click()
+  await expect(song).toHaveText('⏹ 노래 멈추기')
+  await expect(song).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('chapter-song-line')).toBeHidden()
+  // 쓴 날 다섯 음과 맺는 음 하나(음마다 바탕음과 배음)
+  expect((await heard()) - before).toBe(12)
+  const sing = page.locator('.cal-hit.sing')
+  await page.clock.runFor(100)
+  await expect(sing).toHaveCount(1)
+  await expect(page.getByTestId('hit-2026-10-02')).toHaveClass(/sing/)
+  await page.clock.runFor(350)
+  await expect(page.getByTestId('hit-2026-10-05')).toHaveClass(/sing/)
+  await expect(sing).toHaveCount(1)
+  await sing.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/song-playing.png' })
+  // 다시 누르면 멈춘다
+  await song.click()
+  await expect(song).toHaveText('🎵 이 달의 노래')
+  await expect(sing).toHaveCount(0)
+  await page.clock.runFor(1000)
+  await expect(sing).toHaveCount(0)
+
+  // 끝까지 울리면 단추가 처음대로 돌아온다(12초 안)
+  await song.click()
+  await page.clock.runFor(3000)
+  await expect(song).toHaveText('🎵 이 달의 노래')
+  await expect(sing).toHaveCount(0)
+
+  // 달을 넘기면 멈춘다
+  await song.click()
+  await page.getByTestId('chapter-prev').click()
+  await expect(page.getByTestId('chapter-title')).toHaveText('8월')
+  await expect(song).toHaveAttribute('aria-pressed', 'false')
+  await page.clock.runFor(1000)
+  await expect(sing).toHaveCount(0)
+  // 창을 닫아도 멈춘다
+  await song.click()
+  await page.getByTestId('calendar-close').click()
+  await page.clock.runFor(1000)
+  await expect(sing).toHaveCount(0)
+
+  // 듣기만 했으니 저장은 그대로다
+  expect(JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)).toEqual(data)
+})
+
+test('소리를 꺼 두면 이 달의 노래는 빛으로만, 움직임 줄이기면 빛 없이 안내 한 줄로 흐른다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.addInitScript(listenSound)
+  await page.goto('./')
+  const data = { version: 1, entries: monthEntries('2026-10', [2, 5, 9]) }
+  await page.evaluate(([k, s]) => (localStorage.setItem(k, s), localStorage.setItem('diary-village:sound', 'off')), [KEY, JSON.stringify(data)])
+  await page.reload()
+  const open = async () => {
+    await page.getByTestId('village-stage').click()
+    await page.getByTestId('book-calendar').click()
+    await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    await page.getByTestId('calendar-chapter').click()
+  }
+  await open()
+  const heard = () => page.evaluate(() => (window as unknown as { notes: number[] }).notes.length)
+  const before = await heard()
+  await page.getByTestId('chapter-song').click()
+  await expect(page.getByTestId('chapter-song-line')).toHaveText('🔇 소리를 꺼 두어서 빛으로만 따라가요')
+  await page.clock.runFor(100)
+  await expect(page.getByTestId('hit-2026-10-02')).toHaveClass(/sing/)
+  expect(await heard()).toBe(before)
+  await page.locator('.cal-hit.sing').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await page.screenshot({ path: 'test-results/screens/song-silent.png' })
+
+  // 움직임 줄이기 + 소리 켬: 빛 없이 안내 한 줄
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.evaluate(() => localStorage.setItem('diary-village:sound', 'on'))
+  await page.reload()
+  await open()
+  await page.getByTestId('chapter-song').click()
+  await expect(page.getByTestId('chapter-song-line')).toHaveText('🎵 이 달의 노래가 흐르고 있어요')
+  await page.clock.runFor(500)
+  await expect(page.locator('.cal-hit.sing')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/screens/song-calm.png' })
+  await page.clock.runFor(2000)
+  await expect(page.getByTestId('chapter-song-line')).toBeHidden()
+  await expect(page.getByTestId('chapter-song')).toHaveText('🎵 이 달의 노래')
+})
