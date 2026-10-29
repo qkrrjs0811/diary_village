@@ -63,7 +63,11 @@ describe('번호 해시', () => {
 
   it('번호를 그대로 담지 않고, 맞는 번호만 맞다고 한다', async () => {
     const lock = await makeLock('2580', ' 우리 집 ')
-    expect(JSON.stringify(lock)).not.toContain('2580')
+    // 소금·해시는 무작위 hex라 '2580'이 우연히 들어 있을 수 있다 → 칸 모양으로 확인한다
+    expect(Object.keys(lock).sort()).toEqual(['hash', 'hint', 'salt'])
+    expect(lock.hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(lock.salt).not.toBe('2580')
+    expect(lock.hash).not.toBe(await hashPin('2580', ''))
     expect(lock.hint).toBe('우리 집')
     expect(await checkPin(lock, '2580')).toBe(true)
     expect(await checkPin(lock, '2581')).toBe(false)

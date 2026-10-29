@@ -1208,3 +1208,58 @@ svg.growing .labels { opacity: 0.75; }
 .erase-text { opacity: 0.75; }
 .erase-note { margin: 0 0 4px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); word-break: keep-all; }
 .resident-icon { display: block; overflow: visible; }
+
+/* 숫자 잠금: 마을은 흐리게, 글·사진·쪽지·창은 그리지 않는다 */
+body.locked #app > :not(.scene),
+body.locked #app .scene > :not(svg):not(.sky),
+body.locked > :not(.lock-screen):not(#app) { visibility: hidden; }
+body.locked #app .scene { filter: blur(10px) saturate(0.9); }
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(247, 243, 232, 0.55);
+}
+.lock-screen[hidden] { display: none; }
+.lock-card {
+  width: 100%;
+  max-width: 340px;
+  padding: 22px 20px 16px;
+  border: 1.5px solid rgba(90, 70, 54, 0.25);
+  border-radius: 28px;
+  background: var(--card);
+  box-shadow: 0 10px 30px rgba(90, 70, 54, 0.16);
+  text-align: center;
+}
+.lock-title { font-size: 19px; font-weight: 700; }
+.lock-help { margin: 6px 0 0; font-size: 14px; color: var(--ink-soft); }
+.lock-dots { display: flex; justify-content: center; gap: 16px; margin: 16px 0 6px; }
+.lock-dots i { width: 16px; height: 16px; border: 2px solid #a8896c; border-radius: 50%; background: #fff; transition: background 0.12s; }
+.lock-dots i.on { background: var(--accent); border-color: #5f9a73; }
+.lock-dots.shake { animation: lock-shake 0.36s ease-in-out; }
+@keyframes lock-shake { 20% { transform: translateX(-7px); } 45% { transform: translateX(6px); } 70% { transform: translateX(-4px); } 90% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { .lock-dots.shake { animation: none; } .lock-dots i { transition: none; } }
+.lock-msg { min-height: 40px; padding: 2px 4px; font-size: 13px; line-height: 1.5; color: var(--ink); word-break: keep-all; }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 64px); gap: 12px 22px; justify-content: center; margin: 4px 0 10px; }
+.lock-key {
+  width: 64px;
+  height: 64px;
+  border: 1.5px solid rgba(90, 70, 54, 0.22);
+  border-radius: 50%;
+  background: #fff8ea;
+  font-size: 24px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lock-key:active { background: #e6f2e7; }
+.lock-back { background: transparent; border-color: transparent; font-size: 22px; color: var(--ink-soft); }
+.lock-links { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.lock-link { min-height: 44px; padding: 0 14px; border: none; border-radius: 22px; background: transparent; font-size: 14px; color: var(--ink-soft); cursor: pointer; }
+.lock-link:active { background: var(--chip); }
+.lock-ask { margin-top: 6px; padding: 12px; border-radius: 18px; background: #fff3cf; font-size: 14px; line-height: 1.55; word-break: keep-all; }
+.lock-ask p { margin: 0 0 8px; }
+.lock-ask-row { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; }

@@ -36,6 +36,8 @@ import { createSettings } from './ui/settings'
 import { createSound } from './ui/sound'
 import { setSound, soundOn } from './core/sound'
 import { createWriteCard } from './ui/write'
+import { createLockScreen } from './ui/lock'
+import { lockOn, readLock, shouldRelock, writeLock } from './core/lock'
 import { photoDays, photosShown, type Photos } from './core/photo'
 import { openPhotoStore, type PhotoStore } from './photos'
 import { createCamera } from './village/camera'
@@ -920,6 +922,36 @@ function renderCard(today: string) {
   card.render(today, entryOn(save, today), readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), yearRecapOf(save.entries, today) ?? recapOf(save.entries, today), prompts)
 }
 
+/** 숫자 잠금(⚙️ 설정에서 켠다). 잠긴 동안 마을은 흐리고 글·사진·쪽지는 그리지 않는다 */
+const lockScreen = createLockScreen({
+  lock: () => readLock(kv),
+  keep: (lock) => {
+    try {
+      writeLock(kv, lock)
+    } catch {
+      // 못 남겨도 잠금 화면은 그대로 쓴다
+    }
+  },
+  onOpen: () => {},
+})
+document.body.appendChild(lockScreen.root)
+/** 번호를 잊은 뒤 하루가 지났으면 잠금만 풀어 두고 알린다(글·사진은 그대로) */
+function lockNow(now: number): boolean {
+  const lock = readLock(kv)
+  if (!lock) return false
+  if (lockOn(lock, now)) return true
+  try {
+    writeLock(kv, null)
+  } catch {
+    // 못 지워도 lockOn 이 잠그지 않는다
+  }
+  showNote('하루가 지나 잠금이 풀렸어요 · ⚙️에서 새 번호를 정할 수 있어요', 0)
+  return false
+}
+if (lockNow(Date.now())) lockScreen.show()
+/** 다른 앱으로 떠난 시각. 5분 넘게 떠났다 돌아오면 다시 잠근다 */
+let leftAt: number | null = null
+
 render()
 // 사진 보관함은 따로 천천히 연다. 열리면 쓰기 칸에 "📷 사진"이 생긴다(못 열면 사진 없이 그대로)
 openPhotoStore()
@@ -934,6 +966,8 @@ openPhotoStore()
   .catch(() => {})
 // 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다
 function refresh() {
+  // 잠긴 채 하루가 지나면(번호를 잊었어요) 잠금만 푼다
+  if (lockScreen.locked && !lockNow(Date.now())) lockScreen.hide()
   // 자라 온 길을 보는 동안은 다시 그리지 않는다(끝나면 다시 그린다)
   if (growth.playing) return
   if (dayKey(Date.now()) !== shownDay || dayPart(Date.now()) !== drawnPart) render()
@@ -941,5 +975,11 @@ function refresh() {
 }
 setInterval(refresh, 30_000)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refresh()
+  if (document.hidden) {
+    leftAt = Date.now()
+    return
+  }
+  if (!lockScreen.locked && shouldRelock(leftAt, Date.now()) && lockNow(Date.now())) lockScreen.show()
+  leftAt = null
+  refresh()
 })
