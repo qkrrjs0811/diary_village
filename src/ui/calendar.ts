@@ -29,6 +29,8 @@ export function createCalendar(handlers: {
   titles?: () => Record<string, string>
   /** 달 이름을 붙이거나 고친다(비우면 걷기). 실패하면 이유. 저장을 못 읽은 때는 null(이름 단추가 없다) */
   onTitle?: ((month: string, input: string) => string | null) | null
+  /** 사진이 붙은 날(최근 날부터). 사진 보관함을 못 열면 null(사진 갈래가 없다) */
+  photos?: () => { entry: Entry; photo: string }[] | null
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -43,6 +45,7 @@ export function createCalendar(handlers: {
         <button type="button" class="cal-mode" data-testid="calendar-mode-month" data-mode="month">한 달</button>
         <button type="button" class="cal-mode" data-testid="calendar-mode-year" data-mode="year">한 해</button>
         <button type="button" class="cal-mode" data-testid="calendar-mode-treasure" data-mode="treasure">💛 소중한 날</button>
+        <button type="button" class="cal-mode" data-testid="calendar-mode-photo" data-mode="photo" hidden>📷 사진</button>
       </div>
       <div class="cal-body"></div>
       <div class="sheet-buttons">
@@ -64,10 +67,10 @@ export function createCalendar(handlers: {
   })
   modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) =>
     b.addEventListener('click', () => {
-      const gathered = mode === 'treasure' || mode === 'building'
-      if (b.dataset.mode === 'treasure') {
+      const gathered = mode === 'treasure' || mode === 'building' || mode === 'photo'
+      if (b.dataset.mode === 'treasure' || b.dataset.mode === 'photo') {
         if (mode === 'month' || mode === 'year') before = mode
-        mode = 'treasure'
+        mode = b.dataset.mode as 'treasure' | 'photo'
       } else if (b.dataset.mode === 'year') {
         if (mode === 'month' || (gathered && before === 'month')) year = Number(month.slice(0, 4))
         mode = 'year'
@@ -93,7 +96,7 @@ export function createCalendar(handlers: {
   let today = ''
   let month = ''
   let year = 0
-  let mode: 'month' | 'year' | 'treasure' | 'building' = 'month'
+  let mode: 'month' | 'year' | 'treasure' | 'building' | 'photo' = 'month'
   /** 건물 모아 보기에서 보이는 건물 */
   let kind: BuildingId | null = null
   /** 소중한 날·건물 모아 보기를 열기 전에 보던 달력. 돌아오면 보던 달·해 그대로 */
@@ -282,6 +285,32 @@ export function createCalendar(handlers: {
     for (const entry of days) list.appendChild(note(entry, [{ text: entry.text, hit: false }]))
   }
 
+  /** 사진 모아 보기. 사진이 붙은 날을 작은 폴라로이드로 최근 날부터 놓고, 누르면 그 집으로 간다 */
+  function showPhotos() {
+    const days = handlers.photos?.() ?? []
+    sheet.innerHTML = `
+      <div class="cal-found" data-testid="photo-count" role="status">${days.length ? `📷 사진 붙인 날 ${days.length}일` : '아직 사진을 붙인 날이 없어요<br>한 줄을 쓸 때 📷 사진을 눌러 보세요'}</div>
+      <div class="cal-photos" data-testid="photo-list"></div>`
+    const list = sheet.querySelector('.cal-photos')!
+    for (const { entry, photo } of days) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'cal-photo'
+      b.dataset.testid = `photo-hit-${entry.date}`
+      b.setAttribute('aria-label', `${monthDay(entry.date)} 사진 일기 열기`)
+      b.innerHTML = '<img alt="" /><span class="cal-photo-date"></span><span class="cal-photo-text"></span>'
+      b.querySelector('img')!.src = photo
+      b.querySelector('.cal-photo-date')!.textContent = `${moodOf(entry.mood).emoji} ${monthDay(entry.date)}`
+      // 글은 textContent로만 넣는다
+      b.querySelector('.cal-photo-text')!.textContent = entry.text
+      b.addEventListener('click', () => {
+        close()
+        handlers.onOpen(entry)
+      })
+      list.appendChild(b)
+    }
+  }
+
   /** 건물 모아 보기. 그 건물이 선 날(남은 글)만 날짜 순으로 소중한 날과 같은 쪽지로 놓는다 */
   function showBuilding(id: BuildingId) {
     const b = buildingInfo(id)
@@ -333,9 +362,14 @@ export function createCalendar(handlers: {
     clear.hidden = !input.value
     const finding = !!input.value.trim()
     modes.hidden = finding
+    // 사진 보관함을 열 수 있을 때만 사진 갈래가 있다
+    const canPhoto = !!handlers.photos?.()
+    modes.querySelector<HTMLElement>('[data-mode="photo"]')!.hidden = !canPhoto
+    if (mode === 'photo' && !canPhoto) mode = before
     modes.querySelectorAll<HTMLButtonElement>('.cal-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)))
     if (finding) find(input.value)
     else if (mode === 'treasure') showTreasured()
+    else if (mode === 'photo') showPhotos()
     else if (mode === 'building' && kind) showBuilding(kind)
     else if (mode === 'year') showYear()
     else show()

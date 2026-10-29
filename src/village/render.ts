@@ -1237,6 +1237,27 @@ function drawYardTrace(g: Element, lot: Lot, date: string, id: YardTraceId) {
 }
 
 /**
+ * 사진을 붙인 날 집 마당(왼쪽 앞 가장자리)에 세운 작은 액자. 이젤 위에 살짝 기운 폴라로이드(그림은 사진이 아닌 작은 풍경).
+ * 누르기는 집으로 통과한다
+ */
+function drawPhotoFrame(g: Element, lot: Lot, date: string) {
+  const { x, y } = iso(lot.gx + 0.46, lot.gy + 0.97)
+  const f = el('g', { class: 'photo-frame', 'data-testid': `photo-frame-${date}`, 'data-date': date }, g)
+  el('ellipse', { cx: x, cy: y, rx: 5.5, ry: 2.2, fill: 'rgba(90,70,54,0.16)' }, f)
+  // 이젤 다리 셋
+  const leg = (x1: number, x2: number, y2: number) =>
+    el('line', { x1, y1: y - 13, x2, y2, stroke: '#a7805e', 'stroke-width': 1.1, 'stroke-linecap': 'round' }, f)
+  leg(x, x - 4, y)
+  leg(x, x + 4, y)
+  leg(x, x + 0.6, y - 1.6)
+  const card = el('g', { transform: `rotate(-6 ${x} ${y - 11})` }, f)
+  el('rect', { x: x - 5.6, y: y - 18, width: 11.2, height: 12.4, rx: 1, fill: '#fffdf6', stroke: LINE, 'stroke-width': 0.6 }, card)
+  el('rect', { x: x - 4.4, y: y - 16.8, width: 8.8, height: 7.8, rx: 0.5, fill: '#cfe4f5' }, card)
+  el('path', { d: `M${x - 4.4} ${y - 9} v-2.4 q2.4 -2.6 4.6 -0.6 q1.8 -1.6 4.2 0.4 v2.6 z`, fill: '#9ed39b' }, card)
+  el('circle', { cx: x + 2.2, cy: y - 14.6, r: 1.1, fill: '#ffd36b' }, card)
+}
+
+/**
  * 첫 주 선물: 처음 집을 지은 날 자리(오른쪽 앞 모서리)의 작은 나무 기념 팻말("첫 집" + 별).
  * 그날 글을 지워도 자리에 남는다. 누르기는 집으로 통과한다
  */
@@ -2268,6 +2289,8 @@ export interface DrawOptions {
   critters?: Critter[]
   /** 사용자가 붙인 달 이름(달 → 이름). 구역 이름표에 함께 쓴다 */
   titles?: Record<string, string>
+  /** 사진을 붙인 날(마당에 작은 액자가 선다) */
+  photoDays?: Set<string>
 }
 
 /** 마을 전체를 그린다. 뒤(위)에 있는 것부터 앞(아래)으로 */
@@ -2370,6 +2393,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
             const yard = yardOf(entry)
             if (yard) drawYardTrace(things, lot, entry.date, yard.id)
             if (entry.treasured) drawTreasureFlag(things, lot, entry.date)
+            if (opt.photoDays?.has(entry.date)) drawPhotoFrame(things, lot, entry.date)
             if (isNew) drawBuildFx(fx, lot, H)
           },
         })

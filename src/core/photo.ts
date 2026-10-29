@@ -1,5 +1,5 @@
 import { isDate } from './date'
-import type { SaveData } from './types'
+import type { Entry, SaveData } from './types'
 
 /**
  * 사진 일기. 하루 한 장이고 날짜가 사진의 이름이다.
@@ -34,6 +34,14 @@ const sortPhotos = (photos: Photos): Photos => Object.fromEntries(Object.entries
 export function photosShown(save: SaveData, photos: Photos): Photos {
   const written = new Set(save.entries.map((e) => e.date))
   return sortPhotos(Object.fromEntries(Object.entries(photos).filter(([date]) => written.has(date))))
+}
+
+/** 사진 모아 보기: 사진이 붙은 날의 글과 사진을 최근 날부터. 글이 없는 날은 넣지 않는다 */
+export function photoDays(save: SaveData, photos: Photos): { entry: Entry; photo: string }[] {
+  return save.entries
+    .filter((e) => photos[e.date])
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((entry) => ({ entry, photo: photos[entry.date] }))
 }
 
 /** 백업 파일의 사진 묶음을 읽는다. 이상한 장은 그 장만 버리고, 묶음이 아니면(사진 없는 이전 백업) 빈 묶음 */

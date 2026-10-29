@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PHOTO_EDGE, PHOTO_MAX_CHARS, isPhotoData, mergePhotos, photoSize, photosShown, readPhotos } from './photo'
+import { PHOTO_EDGE, PHOTO_MAX_CHARS, isPhotoData, mergePhotos, photoDays, photoSize, photosShown, readPhotos } from './photo'
 import type { SaveData } from './types'
 
 const jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRg=='
@@ -99,5 +99,22 @@ describe('사진 합치기', () => {
 
   it('글이 없는 날의 사진은 더하지 않는다', () => {
     expect(mergePhotos({}, { '2026-10-28': jpeg, '2026-11-01': png }, save)).toEqual({})
+  })
+})
+
+describe('사진 모아 보기', () => {
+  it('사진이 붙은 날의 글을 최근 날부터 모은다', () => {
+    const days = photoDays(save, { '2026-10-27': jpeg, '2026-10-29': png })
+    expect(days.map((d) => d.entry.date)).toEqual(['2026-10-29', '2026-10-27'])
+    expect(days[0].photo).toBe(png)
+    expect(days[0].entry.text).toBe('커피')
+  })
+
+  it('지운 날·글 없는 날의 사진은 넣지 않는다', () => {
+    expect(photoDays(save, { '2026-10-28': jpeg, '2026-10-30': png })).toEqual([])
+  })
+
+  it('사진이 없으면 빈 목록', () => {
+    expect(photoDays(save, {})).toEqual([])
   })
 })

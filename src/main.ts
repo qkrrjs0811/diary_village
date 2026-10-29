@@ -36,7 +36,7 @@ import { createSettings } from './ui/settings'
 import { createSound } from './ui/sound'
 import { setSound, soundOn } from './core/sound'
 import { createWriteCard } from './ui/write'
-import { photosShown, type Photos } from './core/photo'
+import { photoDays, photosShown, type Photos } from './core/photo'
 import { openPhotoStore, type PhotoStore } from './photos'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
@@ -169,7 +169,14 @@ const reader = createReader({
   reply: (entry) => dayReplyLine(entry, builtDays(save)),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
   photo: (date) => photos[date] ?? null,
-  onPhoto: readOnly ? null : setPhoto,
+  // 사진을 붙이거나 떼면 마당 액자도 바로 바뀌게 다시 그린다
+  onPhoto: readOnly
+    ? null
+    : (date, data) => {
+        setPhoto(date, data)
+        render()
+        veilFront(svg, date)
+      },
   canPhoto: () => !!photoStore,
   onTreasure: readOnly
     ? null
@@ -564,6 +571,8 @@ app.appendChild(card.root)
 const calendar = createCalendar({
   onOpen: visitMemory,
   titles: () => save.monthTitles ?? {},
+  // 사진 보관함을 못 열면 null 이라 "📷 사진" 갈래가 없다
+  photos: () => (photoStore ? photoDays(save, photos) : null),
   // 달 이름은 사용자가 정한 것이라 저장한다. 구역 이름표가 바로 바뀌게 다시 그린다
   onTitle: readOnly
     ? null
@@ -850,6 +859,7 @@ function render(newDate?: string, comers: string[] = []) {
     firstSign: firstSignDate(days),
     critters: critters(village, today, drawnPart, weatherOf(save.entries, today), new Set(decors.map((d) => `${d.gx},${d.gy}`))),
     titles: save.monthTitles,
+    photoDays: new Set(Object.keys(photos)),
   })
   // 가장 멀리 볼 때 화면 가운데로 데려올 마을(섬 전체) 자리
   const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()
@@ -916,7 +926,9 @@ openPhotoStore()
     if (!store) return
     photos = photosShown(save, await store.all())
     photoStore = store
-    if (!readOnly) renderCard(shownDay)
+    // 사진이 붙은 날이 있으면 마당 액자가 서게 마을까지 다시 그린다
+    if (Object.keys(photos).length && !growth.playing) render()
+    else if (!readOnly) renderCard(shownDay)
   })
   .catch(() => {})
 // 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다

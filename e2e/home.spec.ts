@@ -848,6 +848,94 @@ test('사진도 백업 파일에 담기고, 새 폰에 가져오면 그날에 �
   await expect.poll(() => storedPhoto(page, '2026-10-27')).toBe(photo)
 })
 
+test('사진을 붙인 날 집 마당에 작은 액자가 서고, 기분 달력 "📷 사진"에서 모아 보다가 누르면 그 집 글을 연다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T14:00:00+09:00') })
+  await page.goto('./')
+  const entries = (monthEntries('2026-10', [20, 22, 24, 25, 26]) as Entry[]).map((e): Entry => (e.date === '2026-10-25' ? { ...e, treasured: true } : e))
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+  const openCalendar = async () => {
+    await page.getByTestId('village-stage').click()
+    await page.getByTestId('book-calendar').click()
+    await page.getByTestId('calendar').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  }
+
+  // 사진이 없으면 액자가 없고, 사진 갈래는 다정하게 비어 있다
+  await expect(page.getByTestId('write-photo')).toBeVisible()
+  await expect(page.locator('.photo-frame')).toHaveCount(0)
+  await openCalendar()
+  await page.getByTestId('calendar-mode-photo').click()
+  await expect(page.getByTestId('photo-count')).toContainText('아직 사진을 붙인 날이 없어요')
+  await page.getByTestId('calendar-close').click()
+
+  // 오늘 사진과 함께 쓰면 새 집 마당에 액자가 선다
+  await page.getByTestId('write-photo-file').setInputFiles(await bigPhoto(page))
+  await expect(page.getByTestId('write-photo-thumb')).toBeVisible()
+  await page.getByTestId('mood-great').click()
+  await page.getByTestId('write-input').fill('바다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('photo-frame-2026-10-27')).toHaveCount(1)
+  await page.clock.runFor(4000)
+
+  // 지난날에 고치기로 붙여도 바로 선다
+  await page.getByTestId('house-2026-10-25').dispatchEvent('click')
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-photo-file').setInputFiles(await bigPhoto(page, '#f3a6b8'))
+  await expect(page.getByTestId('edit-photo-thumb')).toBeVisible()
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('photo-frame-2026-10-25')).toHaveCount(1)
+  await page.getByTestId('reader-close').click()
+
+  // 새로고침하면 보관함을 연 뒤 액자가 다시 선다. 액자는 누르기를 가로막지 않는다
+  await page.reload()
+  await expect(page.locator('.photo-frame')).toHaveCount(2)
+  const caught = await page.getByTestId('photo-frame-2026-10-25').evaluate((f) => {
+    const r = f.getBoundingClientRect()
+    return !!document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('.photo-frame')
+  })
+  expect(caught).toBe(false)
+  await expect(page.getByTestId('house-2026-10-25')).toHaveAttribute('data-building', 'house')
+  await finishAnimations(page)
+  await page.screenshot({ path: 'test-results/screens/photo-frames.png' })
+
+  // 달력 "📷 사진": 사진 붙은 날을 최근 날부터 작은 폴라로이드로
+  await openCalendar()
+  const mode = page.getByTestId('calendar-mode-photo')
+  await mode.click()
+  await expect(mode).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('calendar-days')).toHaveCount(0)
+  await expect(page.getByTestId('photo-count')).toHaveText('📷 사진 붙인 날 2일')
+  const list = page.getByTestId('photo-list').locator('.cal-photo')
+  await expect(list).toHaveCount(2)
+  await expect(list.nth(0)).toHaveAttribute('data-testid', 'photo-hit-2026-10-27')
+  await expect(list.nth(1)).toHaveAttribute('data-testid', 'photo-hit-2026-10-25')
+  await expect(list.nth(0)).toContainText('10월 27일')
+  await expect(list.nth(0)).toContainText('바다')
+  await expect(list.nth(0).locator('img')).toHaveJSProperty('complete', true)
+  for (const id of ['photo-hit-2026-10-27', 'photo-hit-2026-10-25', 'calendar-mode-month', 'calendar-mode-year', 'calendar-mode-treasure', 'calendar-mode-photo', 'calendar-close']) {
+    const box = (await page.getByTestId(id).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(390)
+    await expect(page.getByTestId(id)).toBeInViewport()
+  }
+  await page.screenshot({ path: 'test-results/screens/calendar-photos.png' })
+
+  // 누르면 창을 닫고 그 집 글을 연다
+  await page.getByTestId('photo-hit-2026-10-25').click()
+  await expect(page.getByTestId('calendar')).toBeHidden()
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 25일의 한 줄')
+  await expect(page.getByTestId('reader-photo')).toBeVisible()
+
+  // 사진을 떼면 액자도 걷힌다. 글은 그대로다
+  await page.getByTestId('reader-edit').click()
+  await page.getByTestId('edit-photo-remove').click()
+  await page.getByTestId('edit-save').click()
+  await expect(page.getByTestId('photo-frame-2026-10-25')).toHaveCount(0)
+  await expect(page.getByTestId('reader-text')).toHaveText('2026-10 25일의 한 줄')
+  expect(await page.evaluate((k) => localStorage.getItem(k)!, KEY)).not.toContain('data:image')
+})
+
 test('더 쓴 글은 읽기 창에 줄바꿈 그대로 보이고, 찾기에 조각으로 나오며, 백업으로 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')
