@@ -625,6 +625,150 @@ test('"＋ 더 쓰기"로 긴 글을 한 줄과 함께 남기고, 고치기에�
   expect(saved.entries.find((e: { date: string }) => e.date === '2026-10-26').more).toBe('저녁엔 국수를 먹었다.')
 })
 
+/** 폰 안 사진 보관함에서 그날 사진을 읽는다(없으면 null) */
+const storedPhoto = (page: import('@playwright/test').Page, date: string) =>
+  page.evaluate(
+    (d) =>
+      new Promise<string | null>((ok) => {
+        const req = indexedDB.open('diary-village:photos')
+        req.onsuccess = () => {
+          const db = req.result
+          const get = db.transaction('photos').objectStore('photos').get(d)
+          get.onsuccess = () => {
+            ok(get.result?.data ?? null)
+            db.close()
+          }
+        }
+      }),
+    date,
+  )
+/** 큰 사진 하나(가로 1600 × 세로 1200, 파스텔 하늘·언덕·해)를 png 파일로 만든다 */
+async function bigPhoto(page: import('@playwright/test').Page, sun = '#f6c96b') {
+  const data = await page.evaluate((sunColor) => {
+    const c = document.createElement('canvas')
+    c.width = 1600
+    c.height = 1200
+    const x = c.getContext('2d')!
+    x.fillStyle = '#bfe0f0'
+    x.fillRect(0, 0, 1600, 1200)
+    x.fillStyle = sunColor
+    x.beginPath()
+    x.arc(1150, 380, 170, 0, Math.PI * 2)
+    x.fill()
+    x.fillStyle = '#a9d8a6'
+    x.beginPath()
+    x.ellipse(500, 1200, 900, 480, 0, 0, Math.PI * 2)
+    x.fill()
+    x.fillStyle = '#e8a8a0'
+    x.fillRect(420, 640, 260, 220)
+    return c.toDataURL('image/png').split(',')[1]
+  }, sun)
+  return { name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64') }
+}
+
+test('"📷 사진"으로 그날에 사진을 붙이고, 읽기 창에 폴라로이드로 보이며, 고치기·지우기에서 바꾸고 뗀다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
+  await page.goto('./')
+  const entries = monthEntries('2026-10', [20, 22, 24, 25, 26])
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries })])
+  await page.reload()
+
+  // "📷 사진"은 쓰기 칸 안내 줄 안의 작은 단추. 누르기 넉넉하고 "더 쓰기"와 겹치지 않는다
+  const button = page.getByTestId('write-photo')
+  await expect(button).toHaveText('📷 사진')
+  const box = (await button.boundingBox())!
+  const more = (await page.getByTestId('write-more-toggle').boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  expect(box.width).toBeGreaterThanOrEqual(44)
+  expect(box.x).toBeGreaterThanOrEqual(more.x + more.width - 1)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await expect(page.getByTestId('write-photo-thumb')).toBeHidden()
+  await page.screenshot({ path: 'test-results/screens/write-photo-button.png' })
+
+  // 사진을 고르면 폰 안에서 줄여 붙이고, 한 줄은 짧게 써도 된다고 알려 준다
+  await page.getByTestId('write-photo-file').setInputFiles(await bigPhoto(page))
+  await expect(page.getByTestId('write-photo-thumb')).toBeVisible()
+  await expect(button).toHaveText('📷 바꾸기')
+  await expect(page.getByTestId('write-input')).toHaveAttribute('placeholder', '사진에 한마디만 붙여도 돼요')
+  await page.getByTestId('mood-great').click()
+  await page.screenshot({ path: 'test-results/screens/write-photo.png' })
+
+  // 떼었다가 다시 붙일 수 있다
+  await page.getByTestId('write-photo-remove').click()
+  await expect(page.getByTestId('write-photo-thumb')).toBeHidden()
+  await expect(button).toHaveText('📷 사진')
+  await page.getByTestId('write-photo-file').setInputFiles(await bigPhoto(page))
+  await expect(page.getByTestId('write-photo-thumb')).toBeVisible()
+
+  await page.getByTestId('write-input').fill('바다')
+  await page.getByTestId('write-submit').click()
+  await expect(page.getByTestId('house-2026-10-27')).toBeVisible()
+  // 사진이 있어도 집은 한 채이고, 저장 원본에는 사진이 들어가지 않는다
+  await expect(page.getByTestId('house-count')).toHaveText('🏠 6채')
+  const saved = await page.evaluate((k) => localStorage.getItem(k)!, KEY)
+  expect(saved).not.toContain('data:image')
+  // 폰 안 보관함에 줄인 jpeg 로 담긴다(긴 변 1080)
+  await expect.poll(() => storedPhoto(page, '2026-10-27')).toMatch(/^data:image\/jpeg;base64,/)
+  const size = await page.evaluate(async (src) => {
+    const img = new Image()
+    img.src = src
+    await img.decode()
+    return [img.naturalWidth, img.naturalHeight]
+  }, (await storedPhoto(page, '2026-10-27'))!)
+  expect(size).toEqual([1080, 810])
+
+  // 읽기 창: 내 글 바로 위에 폴라로이드
+  await page.clock.runFor(4000)
+  await page.getByTestId('today-line').click()
+  const photo = page.getByTestId('reader-photo')
+  await expect(photo).toBeVisible()
+  await expect(page.getByTestId('reader-text')).toHaveText('바다')
+  const frame = (await photo.boundingBox())!
+  const text = (await page.getByTestId('reader-text').boundingBox())!
+  expect(frame.y + frame.height).toBeLessThanOrEqual(text.y + 4)
+  for (const id of ['reader-edit', 'reader-close']) await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 })
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/screens/reader-photo.png' })
+
+  // 고치기에서 사진을 뗀다. 글은 그대로다
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('edit-photo-thumb')).toBeVisible()
+  await expect(page.getByTestId('edit-photo')).toHaveText('📷 바꾸기')
+  await page.screenshot({ path: 'test-results/screens/reader-edit-photo.png' })
+  await page.getByTestId('edit-photo-remove').click()
+  await page.getByTestId('edit-save').click()
+  await expect(photo).toBeHidden()
+  await expect(page.getByTestId('reader-text')).toHaveText('바다')
+  await expect.poll(() => storedPhoto(page, '2026-10-27')).toBeNull()
+  await page.getByTestId('reader-close').click()
+
+  // 사진이 없던 날에 고치기로 붙이면, 다시 열어도 남아 있다
+  await page.getByTestId('house-2026-10-26').dispatchEvent('click')
+  await expect(photo).toBeHidden()
+  await page.getByTestId('reader-edit').click()
+  await expect(page.getByTestId('edit-photo')).toHaveText('📷 사진')
+  await page.getByTestId('edit-photo-file').setInputFiles(await bigPhoto(page, '#f3a6b8'))
+  await expect(page.getByTestId('edit-photo-thumb')).toBeVisible()
+  await page.getByTestId('edit-save').click()
+  await expect(photo).toBeVisible()
+  await expect.poll(() => storedPhoto(page, '2026-10-26')).toMatch(/^data:image\/jpeg;base64,/)
+  await page.reload()
+  await page.waitForTimeout(500) // 사진 보관함을 여는 동안
+  await page.getByTestId('house-2026-10-26').dispatchEvent('click')
+  await expect(photo).toBeVisible()
+
+  // 글을 지우면 사진도 함께. 확인 문구에 사진도 적혀 있다
+  await page.getByTestId('reader-erase').click()
+  await expect(page.getByTestId('erase-note')).toContainText('지운 글과 사진은 되돌릴 수 없어요')
+  await page.getByTestId('erase-confirm').click()
+  await expect(page.getByTestId('house-2026-10-26')).toHaveCount(0)
+  await expect.poll(() => storedPhoto(page, '2026-10-26')).toBeNull()
+  // 사진이 없는 날의 지우기 문구는 그대로다
+  await page.getByTestId('house-2026-10-25').dispatchEvent('click')
+  await page.getByTestId('reader-erase').click()
+  await expect(page.getByTestId('erase-note')).toContainText('지운 글은 되돌릴 수 없어요')
+})
+
 test('더 쓴 글은 읽기 창에 줄바꿈 그대로 보이고, 찾기에 조각으로 나오며, 백업으로 돌아온다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-27T21:00:00+09:00') })
   await page.goto('./')

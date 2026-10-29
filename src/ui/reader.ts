@@ -10,6 +10,7 @@ import { yardNote, yardOf } from '../core/yard'
 import { roomSvg } from '../village/room'
 import { dateLabel, fullDateLabel } from './format'
 import { createMoreField } from './more'
+import { createPhotoField } from './photo'
 
 /** 이만큼(px) 옆으로 밀면 앞뒤 날로 넘긴다 */
 const SWIPE = 56
@@ -40,6 +41,12 @@ export function createReader(handlers: {
   reply?: (entry: Entry) => string | null
   /** 건물 꼬리표를 누르면 그 건물이 선 날 모아 보기를 연다(읽기 창은 닫힌다) */
   onBuilding?: (id: BuildingId) => void
+  /** 그날 붙인 사진(없으면 null) */
+  photo?: (date: string) => string | null
+  /** 사진 보관함을 못 쓰거나 저장 못 하는 상태면 null. 고치기에서 사진을 붙이거나(data) 뗀다(null) */
+  onPhoto?: ((date: string, data: string | null) => void) | null
+  /** 사진 보관함이 열려 있으면 true */
+  canPhoto?: () => boolean
 }) {
   const back = document.createElement('div')
   back.className = 'sheet-back'
@@ -90,6 +97,7 @@ export function createReader(handlers: {
         ${handlers.onTreasure ? '<button type="button" class="round-btn treasure-btn" data-testid="reader-treasure"></button>' : ''}
         <button type="button" class="round-btn close" data-testid="reader-close" aria-label="닫기">✕</button>
       </div>
+      <figure class="polaroid reader-photo" data-testid="reader-photo" hidden><img alt="그날의 사진" /></figure>
       <p class="reader-text" data-testid="reader-text"></p>
       <div class="reader-more" data-testid="reader-more" tabindex="0" aria-label="더 쓴 글" hidden></div>
       <div class="reader-reply" data-testid="reader-reply" hidden></div>
@@ -112,6 +120,13 @@ export function createReader(handlers: {
     sheet.querySelector('.reader-date')!.textContent = fullDateLabel(entry.date)
     sheet.querySelector('.reader-mood')!.textContent = `${m.emoji} ${m.label} · ${m.weather}`
     sheet.querySelector('.reader-text')!.textContent = entry.text
+    // 그날 붙인 사진은 내 글 바로 위에 폴라로이드처럼 살짝 기울여 둔다
+    const photo = handlers.photo?.(entry.date)
+    if (photo) {
+      const frame = sheet.querySelector<HTMLElement>('.reader-photo')!
+      frame.querySelector('img')!.src = photo
+      frame.hidden = false
+    }
     // 더 쓴 글은 한 줄 아래에 줄바꿈 그대로. 길면 이 칸 안에서만 굴러간다
     if (entry.more) {
       const more = sheet.querySelector<HTMLElement>('.reader-more')!
@@ -221,7 +236,7 @@ export function createReader(handlers: {
       <div class="reader-date" data-testid="reader-date"></div>
       <div class="edit-title">이 날의 한 줄을 지울까요?</div>
       <p class="reader-text erase-text" data-testid="erase-text"></p>
-      <p class="erase-note" data-testid="erase-note">지운 글은 되돌릴 수 없어요. 집은 빈 땅으로 돌아가지만, 명소와 마을 단계는 그대로예요.</p>
+      <p class="erase-note" data-testid="erase-note">지운 ${handlers.photo?.(entry.date) ? '글과 사진은' : '글은'} 되돌릴 수 없어요. 집은 빈 땅으로 돌아가지만, 명소와 마을 단계는 그대로예요.</p>
       <div class="hint"><span class="msg err" data-testid="erase-msg"></span></div>
       <div class="sheet-buttons">
         <button type="button" class="sheet-btn" data-testid="erase-cancel">그만두기</button>
@@ -263,6 +278,12 @@ export function createReader(handlers: {
     const more = createMoreField('edit', entry.more ?? '', () => update(), true)
     input.after(more.field)
     len.after(more.toggle)
+    // 사진도 고치기에서 붙이고 바꾸고 뗀다
+    const photo = handlers.onPhoto && handlers.canPhoto?.() ? createPhotoField('edit', handlers.photo?.(entry.date) ?? null, () => {}) : null
+    if (photo) {
+      input.after(photo.field)
+      more.toggle.after(photo.toggle)
+    }
 
     const update = () => {
       const n = [...input.value.replace(/\s+/g, ' ').trim()].length
@@ -288,6 +309,7 @@ export function createReader(handlers: {
         msg.classList.add('err')
         return
       }
+      if (photo?.changed()) handlers.onPhoto?.(entry.date, photo.value())
       showRead(r.entry)
     }
     save.addEventListener('click', send)

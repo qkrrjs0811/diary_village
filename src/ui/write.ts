@@ -5,6 +5,7 @@ import type { MonthRecap, YearRecap } from '../core/recap'
 import type { Entry, MoodId } from '../core/types'
 import { dateLabel, recapLine, softMood } from './format'
 import { createMoreField } from './more'
+import { createPhotoField } from './photo'
 
 export interface WriteCard {
   root: HTMLElement
@@ -23,9 +24,11 @@ export type Recap = MonthRecap | YearRecap
 const WORD: Record<Day, string> = { today: '오늘', yesterday: '어제' }
 
 export function createWriteCard(handlers: {
-  /** 실패하면 사용자에게 보일 이유를 돌려준다. more 는 "더 쓰기" 긴 글(쓰지 않았으면 빈 글) */
-  onSubmit(text: string, mood: MoodId, day: Day, more: string): string | null
+  /** 실패하면 사용자에게 보일 이유를 돌려준다. more 는 "더 쓰기" 긴 글(쓰지 않았으면 빈 글), photo 는 붙인 사진(없으면 null) */
+  onSubmit(text: string, mood: MoodId, day: Day, more: string, photo: string | null): string | null
   onOpen(entry: Entry): void
+  /** 사진 보관함을 쓸 수 있으면 true. 아니면 "📷 사진"을 두지 않는다 */
+  canPhoto?: () => boolean
   /** "N일 전 오늘"을 누르면 그 집으로 간다 */
   onMemory(entry: Entry): void
   /** 지난달 돌아보기를 누르면 그달 달력을, 지난해 돌아보기를 누르면 그해 한 해 보기를 연다("2026-10" 또는 "2026") */
@@ -44,6 +47,8 @@ export function createWriteCard(handlers: {
   const draft: Record<Day, string> = { today: '', yesterday: '' }
   /** "더 쓰기" 긴 글도 오늘·어제 따로 둔다 */
   const draftMore: Record<Day, string> = { today: '', yesterday: '' }
+  /** 붙인 사진도 오늘·어제 따로 둔다 */
+  const draftPhoto: Record<Day, string | null> = { today: null, yesterday: null }
   let shown: {
     today: string
     entry: Entry | undefined
@@ -76,7 +81,10 @@ export function createWriteCard(handlers: {
     const msg = root.querySelector<HTMLElement>('.msg')!
     const len = root.querySelector<HTMLElement>('.len')!
     // 물음은 빈 글자 자리에만 띄운다(쓴 글에는 들어가지 않는다)
-    input.placeholder = shown.prompts?.[d] ?? `${WORD[d]}을 한 줄로 남겨요`
+    // 사진을 붙였으면 짧은 한마디만 붙여도 된다고 다정하게 알려 준다
+    const placeholder = () =>
+      (input.placeholder = draftPhoto[d] ? '사진에 한마디만 붙여도 돼요' : (shown.prompts?.[d] ?? `${WORD[d]}을 한 줄로 남겨요`))
+    placeholder()
     input.value = draft[d]
     // "＋ 더 쓰기"는 홈 단추를 늘리지 않게 안내 줄 안에 두고, 긴 글 칸은 한 줄 아래에 펼친다
     const more = createMoreField('write', draftMore[d], (v) => {
@@ -85,6 +93,15 @@ export function createWriteCard(handlers: {
     })
     root.querySelector('.line-row')!.after(more.field)
     len.after(more.toggle)
+    // "📷 사진"도 안내 줄 안에 둔다. 사진은 한 줄을 꾸미고, 집은 여전히 한 줄로 짓는다
+    if (handlers.canPhoto?.()) {
+      const photo = createPhotoField('write', draftPhoto[d], (v) => {
+        draftPhoto[d] = v
+        placeholder()
+      })
+      root.querySelector('.line-row')!.after(photo.field)
+      more.toggle.after(photo.toggle)
+    }
 
     const update = () => {
       draft[d] = input.value
@@ -109,7 +126,7 @@ export function createWriteCard(handlers: {
     const send = () => {
       const m = mood[d]
       if (submit.disabled || m == null) return
-      const err = handlers.onSubmit(draft[d], m, d, draftMore[d])
+      const err = handlers.onSubmit(draft[d], m, d, draftMore[d], draftPhoto[d])
       if (err) {
         msg.textContent = err
         msg.classList.add('err')
@@ -117,6 +134,7 @@ export function createWriteCard(handlers: {
       }
       draft[d] = ''
       draftMore[d] = ''
+      draftPhoto[d] = null
       mood[d] = null
     }
     submit.addEventListener('click', send)

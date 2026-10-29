@@ -36,6 +36,8 @@ import { createSettings } from './ui/settings'
 import { createSound } from './ui/sound'
 import { setSound, soundOn } from './core/sound'
 import { createWriteCard } from './ui/write'
+import { photosShown, type Photos } from './core/photo'
+import { openPhotoStore, type PhotoStore } from './photos'
 import { createCamera } from './village/camera'
 import { drawSky } from './village/sky'
 import { dayPart, skyColors, weatherOf, windowsLit, type DayPart } from './core/weather'
@@ -66,6 +68,29 @@ try {
   save = loadSave(kv)
 } catch {
   readOnly = true
+}
+
+/** 사진 일기 보관함(폰 안 IndexedDB). 열리기 전이나 쓸 수 없으면 null 이고, 사진 없이 앱은 그대로 쓴다 */
+let photoStore: PhotoStore | null = null
+/** 날짜 → 사진. 보관함에서 한 번 읽어 두고, 붙이고 뗄 때 함께 고친다 */
+let photos: Photos = {}
+
+/** 그날 사진을 붙이거나(data) 뗀다(null). 보관함에 못 담으면 되돌리고 다정하게 알린다 */
+function setPhoto(date: string, data: string | null) {
+  const store = photoStore
+  if (!store) return
+  const before = photos[date]
+  const next = { ...photos }
+  if (data) next[date] = data
+  else delete next[date]
+  photos = next
+  ;(data ? store.put(date, data) : store.remove(date)).catch(() => {
+    const back = { ...photos }
+    if (before) back[date] = before
+    else delete back[date]
+    photos = back
+    showNote(data ? '사진을 담지 못했어요 · 폰 저장 공간을 확인해 주세요' : '사진을 떼지 못했어요', 0)
+  })
 }
 
 /** 집이 올라오는 순간의 소리와 떨림(⚙️ 설정에서 끈다) */
@@ -129,6 +154,8 @@ const reader = createReader({
           return '저장하지 못했어요. 저장 공간을 확인해 주세요'
         }
         save = r.save
+        // 글을 지우면 그날 사진도 함께 뗀다(지우기 확인 문구에 사진도 적혀 있다)
+        if (photos[date]) setPhoto(date, null)
         render()
         showNote(`🌱 ${dateLabel(date).replace(/ \S+요일$/, '')} 자리가 빈 땅으로 돌아갔어요`, 0)
         return null
@@ -141,6 +168,9 @@ const reader = createReader({
   onTurn: turnTo,
   reply: (entry) => dayReplyLine(entry, builtDays(save)),
   onBuilding: (id) => calendar.openBuilding(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), id),
+  photo: (date) => photos[date] ?? null,
+  onPhoto: readOnly ? null : setPhoto,
+  canPhoto: () => !!photoStore,
   onTreasure: readOnly
     ? null
     : (date) => {
@@ -416,7 +446,7 @@ document.body.appendChild(growth.root)
 app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save), drawn?.hangouts ?? []))
 
 const card = createWriteCard({
-  onSubmit(text: string, mood: MoodId, day: Day, more: string) {
+  onSubmit(text: string, mood: MoodId, day: Day, more: string, photo: string | null) {
     if (readOnly) return '지금은 쓸 수 없어요'
     const r = writeEntry(save, { text, mood, more }, Date.now(), day)
     if (!r.ok) {
@@ -430,6 +460,8 @@ const card = createWriteCard({
     }
     const before = builtDays(save)
     save = r.save
+    // 사진은 한 줄을 꾸밀 뿐, 집·건물·명소는 한 줄로만 정한다
+    if (photo) setPhoto(r.entry.date, photo)
     // 새 이웃은 짓는 연출이 끝나고 원래 보기로 돌아온 뒤 섬 가장자리에서 광장으로 통통 뛰어 들어온다
     const comers = reachedResidents(before, builtDays(save))
     render(r.entry.date, comers.map((x) => x.id))
@@ -462,6 +494,7 @@ const card = createWriteCard({
   onRecap: (at, name) => calendar.open(save.entries, (save.erased ?? []).map((x) => x.date), dayKey(Date.now()), at, name),
   monthTitle: (month) => save.monthTitles?.[month] ?? '',
   canName: !readOnly,
+  canPhoto: () => !!photoStore && !readOnly,
 })
 
 /**
@@ -818,8 +851,7 @@ function render(newDate?: string, comers: string[] = []) {
   const land = svg.querySelector<SVGGraphicsElement>('.ground')!.getBBox()
   camera.setWorld(land.width > 0 ? { x: land.x, y: land.y, w: land.width, h: land.height } : null)
   const todayEntry = entryOn(save, today)
-  const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }
-  card.render(today, todayEntry, readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), yearRecapOf(save.entries, today) ?? recapOf(save.entries, today), prompts)
+  renderCard(today)
   const count = save.entries.length
   app.querySelector('[data-testid="house-count"]')!.textContent = `🏠 ${count}채`
   app.querySelector('[data-testid="village-stage"] .stage')!.textContent = stageLabel(days)
@@ -867,7 +899,22 @@ function paintSky() {
   drawSky(skyBack, skyFar, skyFront, weatherOf(save.entries, today), part, today)
 }
 
+/** "오늘의 한 줄" 카드만 다시 그린다 */
+function renderCard(today: string) {
+  const prompts = { today: todayPrompt(save.entries, today).text, yesterday: yesterdayPrompt(today) }
+  card.render(today, entryOn(save, today), readOnly ? null : yesterdayOpen(save, Date.now()), memoryOf(save.entries, today), yearRecapOf(save.entries, today) ?? recapOf(save.entries, today), prompts)
+}
+
 render()
+// 사진 보관함은 따로 천천히 연다. 열리면 쓰기 칸에 "📷 사진"이 생긴다(못 열면 사진 없이 그대로)
+openPhotoStore()
+  .then(async (store) => {
+    if (!store) return
+    photos = photosShown(save, await store.all())
+    photoStore = store
+    if (!readOnly) renderCard(shownDay)
+  })
+  .catch(() => {})
 // 앱을 켜 둔 채 자정을 넘기면 새 날로 다시 그리고, 저녁·밤이 되면 하늘을 바꾼다
 function refresh() {
   // 자라 온 길을 보는 동안은 다시 그리지 않는다(끝나면 다시 그린다)
