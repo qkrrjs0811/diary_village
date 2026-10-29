@@ -19,7 +19,7 @@ import { buildVillage } from './core/village'
 import { LANDMARKS, PLAZA, earnedLandmarks, landmarkSpot, nextSign, reachedLandmarks, type Landmark } from './core/landmark'
 import { NAME_MAX, renameVillage, villageTitle } from './core/name'
 import { milestoneCard, reachedStages, stageLabel } from './core/stage'
-import { RESIDENTS, arrivedOn, dayReplyLine, guestLine, neighborNote, onPlaza, plazaEntrance, reachedResidents, residentTalk, residentWalks, residentsOf, todayGuests, type Guest, type Walk } from './core/resident'
+import { RESIDENTS, arrivedOn, dayReplyLine, guestLine, neighborNote, onPlaza, plazaEntrance, reachedResidents, residentTalk, residentWalks, residentsOf, todayGuests, hangoutsOf, type Guest, type Hangout, type Walk } from './core/resident'
 import { DECORS, decorNote, reachedDecors, unlockedDecors, type DecorId } from './core/decor'
 import { decorSpots, decorsOnMap, moveDecor, placeAt, placeDecor, removeDecor, type PlaceResult } from './core/placing'
 import { createBook } from './ui/book'
@@ -413,7 +413,7 @@ const growth = createGrowth({
   titles: () => save.monthTitles ?? {},
 })
 document.body.appendChild(growth.root)
-app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save)))
+app.querySelector('[data-testid="village-stage"]')!.addEventListener('click', () => book.open(save.entries, builtDays(save), drawn?.hangouts ?? []))
 
 const card = createWriteCard({
   onSubmit(text: string, mood: MoodId, day: Day, more: string) {
@@ -578,7 +578,7 @@ let pick: DecorId | null = null
 let picked: number | null = null
 let decorMsg = ''
 /** 마지막으로 그린 마을(누른 칸을 자리로 바꿀 때 쓴다) */
-let drawn: { village: Village; today: string; guests: Guest[]; walks: Walk[] } | null = null
+let drawn: { village: Village; today: string; guests: Guest[]; walks: Walk[]; hangouts: Hangout[] } | null = null
 const HINT = '소품을 고르고 빈 자리(점선)를 눌러 놓아요. 놓은 소품은 눌러서 옮기거나 치워요'
 const decorName = (id: DecorId) => {
   const d = DECORS.find((x) => x.id === id)!
@@ -771,9 +771,12 @@ function render(newDate?: string, comers: string[] = []) {
   // 오늘 이사 온 새 이웃은 손님보다 광장 길을 먼저 받는다(기록·날짜로 계산, 저장하지 않음)
   const newcomers = [...new Set([...arrivedOn(days, today).map((x) => x.id), ...comers])]
   const guests = todayGuests(village, residentsOf(days), save.entries, today, decors, newcomers)
-  const walks = residentWalks(village, residentsOf(days), guests, newcomers)
+  // 놓아 둔 쉼터에는 손님·새 이웃이 아닌 이웃이 놀러 와 머문다(걷지 않는다)
+  const hangouts = hangoutsOf(residentsOf(days), decors, [...guests.map((g) => g.resident.id), ...newcomers])
+  const staying = new Set(hangouts.map((h) => h.resident.id))
+  const walks = residentWalks(village, residentsOf(days).filter((r) => !staying.has(r.id)), guests, newcomers)
   drawnPart = dayPart(Date.now())
-  drawn = { village, today, guests, walks }
+  drawn = { village, today, guests, walks, hangouts }
   showBackupDue()
   if (picked != null && !save.decor?.[picked]) picked = null
   // 꾸미기 중 소품을 골랐으면 놓을 수 있는 빈 자리를 점선으로 보인다
@@ -793,6 +796,7 @@ function render(newDate?: string, comers: string[] = []) {
     walks,
     arrive: calm ? [] : comers,
     guests,
+    hangouts,
     decors,
     festival: festival?.id,
     mailbox: { waiting: waitingLetters(save, Date.now()).length > 0 },

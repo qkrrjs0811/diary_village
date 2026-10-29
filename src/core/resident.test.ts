@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, onPlaza, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests } from './resident'
+import { GUEST_PLAYS, RESIDENTS, arrivalsOf, arrivedOn, neighborNote, onPlaza, plazaEntrance, reachedResidents, dayReply, dayReplyLine, guestLine, guestPlayLine, residentLine, residentsOf, residentTalk, residentWalks, storyDay, storyTalk, todayGuests, HANGOUT_PLAYS, hangoutsOf, hangoutLine } from './resident'
+import type { DecorId } from './decor'
 import { BUILDINGS, findBuilding } from './building'
 import { memoryDates } from './memory'
 import { replyOf } from './reply'
@@ -562,5 +563,55 @@ describe('광장 다듬기: 주민 길이 우체통·명소·팻말을 비켜 �
       const gs = todayGuests(v, rs, es, today)
       expect(residentWalks(v, rs, gs)).toHaveLength(Math.min(rs.length - gs.length, 3 + 13 * v.blocks.length))
     }
+  })
+})
+
+describe('쉼터에 놀러 온 이웃', () => {
+  const at = (id: DecorId, index: number, gx = index, gy = 0) => ({ id, index, gx, gy })
+  const five = residentsOf(days(5)) // 콩이·모모·보리
+
+  it('놓은 쉼터마다 이미 온 이웃 하나가 놓은 순서대로 와서 머문다', () => {
+    const h = hangoutsOf(five, [at('swing', 0), at('bench', 1)])
+    expect(h.map((x) => [x.resident.id, x.decor, x.index])).toEqual([['kong', 'swing', 0], ['momo', 'bench', 1]])
+  })
+
+  it('쉼터가 아닌 소품에는 오지 않고, 놓은 순서(index)로 정한다', () => {
+    const h = hangoutsOf(five, [at('bench', 3), at('pot', 0), at('lamp', 1), at('tent', 2)])
+    expect(h.map((x) => [x.resident.id, x.decor])).toEqual([['kong', 'tent'], ['momo', 'bench']])
+  })
+
+  it('여덟 쉼터 모두 이웃이 온다', () => {
+    const ids: DecorId[] = ['bench', 'swing', 'platform', 'campfire', 'slide', 'seesaw', 'gazebo', 'tent']
+    expect(Object.keys(HANGOUT_PLAYS).sort()).toEqual([...ids].sort())
+    const h = hangoutsOf(residentsOf(days(30)), ids.map((id, i) => at(id, i)))
+    expect(h).toHaveLength(8)
+    expect(new Set(h.map((x) => x.resident.id)).size).toBe(8)
+  })
+
+  it('이웃이 모자라면 남는 쉼터는 비고, 손님·새 이웃은 오지 않는다', () => {
+    expect(hangoutsOf([], [at('bench', 0)])).toEqual([])
+    const h = hangoutsOf(five, [at('bench', 0), at('swing', 1), at('slide', 2)], ['momo'])
+    expect(h.map((x) => x.resident.id)).toEqual(['kong', 'bori'])
+  })
+
+  it('쉼터를 옮기면 이웃도 그 칸으로 따라간다(칸 안 앞쪽에 서고 쉼터보다 앞에 그린다)', () => {
+    const [a] = hangoutsOf(five, [at('swing', 0, 3, 4)])
+    const [b] = hangoutsOf(five, [at('swing', 0, 10, 2)])
+    expect(a.resident.id).toBe(b.resident.id)
+    for (const [h, gx, gy] of [[a, 3, 4], [b, 10, 2]] as const) {
+      expect(Math.floor(h.spot.gx)).toBe(gx)
+      expect(Math.floor(h.spot.gy)).toBe(gy)
+      expect(h.depth).toBeGreaterThan(gx + gy)
+      expect(h.depth).toBeLessThan(gx + gy + 1)
+    }
+  })
+
+  it('이웃 수첩 한 줄: "보리는 그네에서 놀아요"', () => {
+    const who = (id: string) => RESIDENTS.find((r) => r.id === id)!
+    expect(hangoutLine({ resident: who('bori'), decor: 'swing' })).toBe('보리는 그네에서 놀아요')
+    expect(hangoutLine({ resident: who('kong'), decor: 'campfire' })).toBe('콩이는 모닥불 가에서 불을 쬐어요')
+    expect(hangoutLine({ resident: who('dubu'), decor: 'bench' })).toBe('두부는 벤치에서 쉬어요')
+    expect(hangoutLine({ resident: who('byeol'), decor: 'gazebo' })).toBe('별이는 정자에서 쉬어요')
+    expect(hangoutLine({ resident: who('gamja'), decor: 'tent' })).toBe('감자는 작은 텐트에서 쉬어요')
   })
 })

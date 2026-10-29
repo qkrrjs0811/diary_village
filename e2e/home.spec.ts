@@ -2607,6 +2607,68 @@ test('첫 주 선물: 셋째 날 벤치를 받으면 축하 카드가 뜨고, "�
   expect(Object.keys(stored).sort()).toEqual(['entries', 'version'])
 })
 
+test('놓아 둔 쉼터마다 이웃이 놀러 와 머물고, 쉼터를 옮기면 따라가며, 이웃 수첩에 어디서 노는지 보인다', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-27T13:00:00+09:00') })
+  await page.goto('./')
+  const entries = dayEntries('2026-09-27', 30) // 10월 26일까지 30일: 이웃 아홉, 그네·모닥불이 열렸다
+  const decor = [
+    { id: 'swing', at: 'plaza', col: 4, row: 0 },
+    { id: 'pot', at: 'plaza', col: 0, row: 1 }, // 쉼터가 아니라 이웃이 오지 않는다
+    { id: 'campfire', at: 'plaza', col: 4, row: 4 },
+  ]
+  await page.evaluate(([k, s]) => localStorage.setItem(k as string, s as string), [KEY, JSON.stringify({ version: 1, entries, decor })])
+  await page.reload()
+  await expect(page.locator('[data-hangout]')).toHaveCount(2)
+  await expect(page.locator('[data-hangout="swing"]')).toHaveCount(1)
+  await expect(page.locator('[data-hangout="campfire"]')).toHaveCount(1)
+  // 놀러 온 이웃은 걷지 않고, 이웃 아홉이 모두 한 군데씩만 보인다
+  const ids = await page.locator('[data-guest], [data-resident]').evaluateAll((list) => list.map((n) => n.getAttribute('data-guest') ?? n.getAttribute('data-resident')))
+  expect(ids).toHaveLength(9)
+  expect(new Set(ids).size).toBe(9)
+  const swinger = (await page.locator('[data-hangout="swing"]').getAttribute('data-resident'))!
+  await expect(page.locator(`[data-guest="${swinger}"]`)).toHaveCount(0)
+  await finishAnimations(page)
+  await zoomToPlaza(page, 6)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/hangout-plaza.png' })
+
+  // 이웃 수첩에서 그 이웃을 누르면 "…는 그네에서 놀아요"
+  await page.getByTestId('village-stage').click()
+  await page.getByTestId('book-tab-neighbors').click()
+  await page.getByTestId(`book-neighbor-${swinger}`).click()
+  await expect(page.getByTestId('book-neighbor-detail')).toContainText(/[은는] 그네에서 놀아요$/)
+  await page.screenshot({ path: 'test-results/screens/hangout-book.png' })
+
+  // 꾸미기에서 그네를 옮기면 같은 이웃이 새 자리로 따라간다(꾸미기 중에는 이웃을 눌러도 그네가 골라진다)
+  await page.getByTestId('book-tab-decors').click()
+  await page.getByTestId('book-decorate').click()
+  const swing = await centerOf(page.getByTestId('decor-0'))
+  await page.mouse.click(swing.x, swing.y)
+  await expect(page.getByTestId('decor-0')).toHaveClass(/picked/)
+  // 광장 빈 자리 중 다른 것에 가리지 않은 첫 점선 자리로 옮긴다
+  const free = await page.locator('.spot[data-testid^="spot-plaza-"]').evaluateAll((list) => {
+    for (const n of list) {
+      const b = n.getBoundingClientRect()
+      const x = b.x + b.width / 2
+      const y = b.y + b.height / 2
+      if (y > 80 && y < 520 && x > 20 && x < 370 && document.elementFromPoint(x, y) === n) return { id: n.getAttribute('data-testid')!, x, y }
+    }
+    return null
+  })
+  expect(free).not.toBeNull()
+  await page.mouse.click(free!.x, free!.y)
+  await expect(page.getByTestId('decorate-msg')).toHaveText('🪢 그네를 옮겼어요')
+  await expect(page.locator('[data-hangout="swing"]')).toHaveAttribute('data-resident', swinger)
+  const [col, row] = free!.id.replace('spot-plaza-', '').split('-').map(Number)
+  const stored = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), KEY))!)
+  expect(stored.decor[0]).toEqual({ id: 'swing', at: 'plaza', col, row })
+  expect(stored.entries).toEqual(entries)
+  await page.getByTestId('decorate-done').click()
+  await finishAnimations(page)
+  await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 0), a.pause())))
+  await page.screenshot({ path: 'test-results/screens/hangout-moved.png' })
+})
+
 /** 요소 상자의 가운데(화면 좌표) */
 async function centerOf(loc: import('@playwright/test').Locator) {
   const b = (await loc.boundingBox())!

@@ -2,7 +2,7 @@ import { hasFinal, type BuildingId } from '../core/building'
 import { collectionOf, landmarkBook } from '../core/collection'
 import { decorBook } from '../core/decor'
 import { writtenDays } from '../core/landmark'
-import { arrivalsOf } from '../core/resident'
+import { arrivalsOf, hangoutLine, type Hangout } from '../core/resident'
 import { nextStage, stageOf } from '../core/stage'
 import type { Dated, Entry } from '../core/types'
 import { residentIcon } from '../village/render'
@@ -46,7 +46,7 @@ export function createBook(handlers: {
   })
 
   /** built: 집을 지었던 날(지운 날 포함). 단계·명소는 이 날 수로, 도감은 남은 글로 센다 */
-  function show(entries: Entry[], built: Dated[]) {
+  function show(entries: Entry[], built: Dated[], hangouts: readonly Hangout[]) {
     const days = writtenDays(built)
     const stage = stageOf(built)
     const next = nextStage(built)
@@ -196,8 +196,10 @@ export function createBook(handlers: {
         // 이사 온 날 글이 남아 있을 때만 다시 읽으러 간다(지운 날이면 숨긴다)
         arrivedEntry = (a.date && entries.find((e) => e.date === a.date)) || null
         dayBtn.hidden = !arrivedEntry
+        // 쉼터에 놀러 가 있으면 "보리는 그네에서 놀아요"를 덧붙인다
+        const h = hangouts.find((x) => x.resident.id === a.resident.id)
         neighborDetail.textContent = a.date
-          ? `${a.resident.name} · ${dateLabel(a.date).replace(/ .요일$/, '')}에 이사 왔어요 · 좋아하는 것: ${a.resident.likes}`
+          ? `${a.resident.name} · ${dateLabel(a.date).replace(/ .요일$/, '')}에 이사 왔어요 · 좋아하는 것: ${a.resident.likes}${h ? ` · ${hangoutLine(h)}` : ''}`
           : `❔ ${a.left}일 더 쓰면 새 이웃이 와요`
       })
     })
@@ -219,8 +221,8 @@ export function createBook(handlers: {
 
   return {
     root: back,
-    open(entries: Entry[], built: Dated[]) {
-      show(entries, built)
+    open(entries: Entry[], built: Dated[], hangouts: readonly Hangout[] = []) {
+      show(entries, built, hangouts)
       back.hidden = false
     },
   }

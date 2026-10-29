@@ -5,6 +5,7 @@ import { PLAZA, writtenDays } from './landmark'
 import { BLOCK_H, BLOCK_W, ROAD, hash, type Block, type Village } from './village'
 import type { Dated, Entry } from './types'
 import { festivalLine, type Festival } from './festival'
+import { DECORS, type DecorId } from './decor'
 
 export type Ears = 'none' | 'bunny' | 'bear' | 'cat' | 'leaf'
 
@@ -194,6 +195,53 @@ export function onPlaza(s: Spot): boolean {
  */
 export function plazaEntrance(at: Spot): Spot {
   return { gx: PLAZA.gx, gy: at.gy }
+}
+
+/** 이웃이 놀러 오는 쉼터와 거기서 하는 일(이름 뒤에 붙는다) */
+export const HANGOUT_PLAYS: Partial<Record<DecorId, string>> = {
+  bench: '에서 쉬어요',
+  swing: '에서 놀아요',
+  platform: '에서 쉬어요',
+  campfire: ' 가에서 불을 쬐어요',
+  slide: '에서 놀아요',
+  seesaw: '에서 놀아요',
+  gazebo: '에서 쉬어요',
+  tent: '에서 쉬어요',
+}
+
+/** 쉼터에 놀러 온 이웃. index 는 그 쉼터의 저장 속 순서 */
+export interface Hangout {
+  resident: Resident
+  decor: DecorId
+  index: number
+  /** 쉼터 칸 안 앞쪽(마을 칸 좌표) */
+  spot: Spot
+  depth: number
+}
+
+/**
+ * 놓아 둔 쉼터마다 이미 온 이웃 하나가 와서 머문다. 놓은 순서(index)대로 이웃이 온 순서대로 짝짓고 저장하지 않는다.
+ * 쉼터를 옮기면 같은 이웃이 새 칸으로 따라간다. away(오늘 손님·새 이웃)는 오지 않고, 이웃이 모자라면 남는 쉼터는 빈다
+ */
+export function hangoutsOf(
+  residents: readonly Resident[],
+  decors: readonly { id: DecorId; index: number; gx: number; gy: number }[],
+  away: readonly string[] = [],
+): Hangout[] {
+  const free = residents.filter((r) => !away.includes(r.id))
+  const shelters = decors.filter((d) => HANGOUT_PLAYS[d.id]).sort((a, b) => a.index - b.index)
+  return shelters.slice(0, free.length).map((d, i) => {
+    // 쉼터 그림 오른쪽 앞에 선다. 그 칸 쉼터보다 앞에, 앞 칸 것보다 먼저 그린다
+    const spot = { gx: d.gx + 0.82, gy: d.gy + 0.62 }
+    return { resident: free[i], decor: d.id, index: d.index, spot, depth: d.gx + d.gy + 0.5 }
+  })
+}
+
+/** 이웃 수첩 한 줄: "보리는 그네에서 놀아요" */
+export function hangoutLine(h: Pick<Hangout, 'resident' | 'decor'>): string {
+  const place = DECORS.find((d) => d.id === h.decor)!.name
+  const name = h.resident.name
+  return `${name}${hasFinal(name) ? '은' : '는'} ${place}${HANGOUT_PLAYS[h.decor] ?? '에 놀러 왔어요'}`
 }
 
 /** 손님 놀이: 오늘 건물 종류(보통 집은 'house') */

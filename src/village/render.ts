@@ -7,7 +7,7 @@ import type { DecorSpot } from '../core/placing'
 import { buildingInfo, buildingOf } from '../core/building'
 import { PLAZA, landmarkSpot, type Landmark } from '../core/landmark'
 import { MAILBOX, MAILBOX_AT } from '../core/letter'
-import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Resident, type Walk } from '../core/resident'
+import { onPlaza, plazaEntrance, type Guest, type GuestPlay, type Hangout, type Resident, type Walk } from '../core/resident'
 import type { FestivalId } from '../core/festival'
 import { PLAZA_SIGN, PLAZA_TREES, blockScenery, islandEdge, islandSlabs, outerSides, roadside, type CliffBit, type RimBit, type RoadBit, type Slab } from '../core/scenery'
 import { seasonOf, smokePuff, type Season } from '../core/season'
@@ -1977,6 +1977,9 @@ function drawDecor(g: Element, d: PlacedDecor & DecorSpot & { index: number }, p
     const c = P(0.5, 0.5)
     el('ellipse', { cx: c.x, cy: c.y, rx: 19, ry: 9.5, fill: 'rgba(123,184,143,0.3)', stroke: '#7bb88f', 'stroke-width': 1.6, class: 'pick-ring' }, node)
   }
+  // 그네처럼 가운데가 빈 그림도 손가락으로 집기 쉽게 칸 위에 투명한 누르기 자리를 깐다
+  const c = P(0.5, 0.5)
+  el('ellipse', { cx: c.x, cy: c.y - 6, rx: 12, ry: 10, fill: 'transparent', class: 'hit' }, node)
   DECOR_ART[d.id](node, P, P(0.5, 0.5))
 }
 
@@ -2018,6 +2021,21 @@ function drawResident(g: Element, walk: Walk, come = false) {
   el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, stroll)
   const turn = el('g', { class: 'face' }, stroll)
   const body = el('g', { class: 'hop', style: `animation-delay:-${(seed % 7) / 10}s` }, turn)
+  drawBody(body, r, a)
+}
+
+/**
+ * 쉼터에 놀러 온 이웃 하나. 쉼터 오른쪽 앞에 서서 쉼터 쪽(왼쪽)을 보며 살짝 들썩인다.
+ * 누르면 여느 주민처럼 말한다. 꾸미기 중에는 누르기가 쉼터로 통과한다
+ */
+function drawHangout(g: Element, h: Hangout) {
+  const { resident: r, spot } = h
+  const a = iso(spot.gx, spot.gy)
+  const node = el('g', { class: 'resident hangout', 'data-testid': `resident-${r.id}`, 'data-resident': r.id, 'data-hangout': h.decor }, g)
+  el('ellipse', { cx: a.x, cy: a.y - 8, rx: 13, ry: 12, fill: 'transparent', class: 'hit' }, node)
+  el('ellipse', { cx: a.x, cy: a.y + 0.5, rx: 6, ry: 2.4, fill: 'rgba(90,70,54,0.16)' }, node)
+  const turn = el('g', { transform: `translate(${2 * a.x} 0) scale(-1 1)` }, node)
+  const body = el('g', { class: 'bob', style: `animation-delay:-${(hash(r.id) % 9) / 10}s` }, turn)
   drawBody(body, r, a)
 }
 
@@ -2232,6 +2250,8 @@ export interface DrawOptions {
   arrive?: string[]
   /** 오늘의 손님(기록·날짜로 계산) */
   guests?: Guest[]
+  /** 놓아 둔 쉼터에 놀러 온 이웃(놓은 순서로 계산) */
+  hangouts?: Hangout[]
   /** 사용자가 놓은 꾸밈 소품(마을 칸 좌표가 붙은 것) */
   decors?: (PlacedDecor & DecorSpot & { index: number })[]
   /** 꾸미기 중: 소품을 놓을 수 있는 빈 칸 */
@@ -2299,6 +2319,7 @@ export function drawVillage(svg: SVGSVGElement, village: Village, opt: DrawOptio
   // 오늘 집을 방금 지었으면 손님이 짓는 연출 뒤에 놀러 온다
   const arrive = !!opt.newDate && opt.newDate === opt.today
   for (const gu of opt.guests ?? []) items.push({ depth: gu.depth, draw: () => drawGuest(things, gu, arrive && !gu.waiting) })
+  for (const h of opt.hangouts ?? []) items.push({ depth: h.depth, draw: () => drawHangout(things, h) })
   // 소품은 그 칸의 집·나무와 같은 깊이에. 소품을 놓은 숲 칸에는 나무를 그리지 않는다
   const decorAt = new Set<string>()
   for (const d of opt.decors ?? []) {
